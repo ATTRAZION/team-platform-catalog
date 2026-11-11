@@ -8,6 +8,7 @@
       "version": "1.0.0",
       "summary": "Вкладки, снимки и действия агента в Chromium. Секреты сайтов подставляет модуль интеграций, если он установлен.",
       "publisher": "Team Platform",
+      "category": "tools",
       "permissions": [
         "storage",
         "browser",
@@ -22,11 +23,136 @@
       "integrity": "sha512-56RbXbyA8ofzAP8aApYvwV/r76UYeaeednXzHvNPYZgbDTLWu/PhA/3JUGlDqQDQKgF4JzlXLAN80RwtmBmlbg=="
     },
     {
+      "id": "discord",
+      "name": "Discord",
+      "version": "1.0.0",
+      "summary": "Бот и presence, уведомления о задачах и запусках, личные сообщения.",
+      "publisher": "Team Platform",
+      "category": "integrations",
+      "permissions": [
+        "storage",
+        "events",
+        "network",
+        "secrets"
+      ],
+      "requires": {
+        "core": "^0.8.0",
+        "modules": [
+          {
+            "id": "tools",
+            "range": "^1.0.0"
+          }
+        ]
+      },
+      "url": "https://attrazion.github.io/team-platform-catalog/discord-1.0.0.mjs",
+      "size": 19371,
+      "integrity": "sha512-4VbdadqzziWKXOFPNihtZZCXREV/VKQpKQtsO/OdaMoNoT5EEGLBBlb5ZHFsgDy2Cv6u1e9aYro+oHlimS59wQ=="
+    },
+    {
+      "id": "entire",
+      "name": "Entire",
+      "version": "1.0.0",
+      "summary": "История сессий Entire CLI, pull-синхронизация и настройки репозитория.",
+      "publisher": "Team Platform",
+      "category": "integrations",
+      "permissions": [
+        "storage",
+        "network"
+      ],
+      "requires": {
+        "core": "^0.8.0",
+        "modules": [
+          {
+            "id": "tools",
+            "range": "^1.0.0"
+          }
+        ]
+      },
+      "url": "https://attrazion.github.io/team-platform-catalog/entire-1.0.0.mjs",
+      "size": 19265,
+      "integrity": "sha512-Unw5Q2gVE0WIpEqGtj4i2A6jX73GvlmI+5CsentxAgi+jKbNOYOsG06QkmNzzcT1KuR7EqblqiHu/Q924ik8xQ=="
+    },
+    {
+      "id": "freebuff",
+      "name": "Freebuff",
+      "version": "1.0.0",
+      "summary": "Developer API, каталог моделей и запросы к чату Freebuff.",
+      "publisher": "Team Platform",
+      "category": "integrations",
+      "permissions": [
+        "network",
+        "secrets"
+      ],
+      "requires": {
+        "core": "^0.8.0",
+        "modules": [
+          {
+            "id": "tools",
+            "range": "^1.0.0"
+          }
+        ]
+      },
+      "url": "https://attrazion.github.io/team-platform-catalog/freebuff-1.0.0.mjs",
+      "size": 19162,
+      "integrity": "sha512-y8gyCjLrTEGZUNnS7HFCscln+rQDziDfCm4NfcbnF0kwlN/cJ6oeeHxCcVclA7+UlE2+bNRkwdKTi4cK0WcQiA=="
+    },
+    {
+      "id": "github",
+      "name": "GitHub",
+      "version": "1.0.0",
+      "summary": "Пул-реквесты, задачи, поиск по коду, снимки репозиториев и сторож обновлений.",
+      "publisher": "Team Platform",
+      "category": "integrations",
+      "permissions": [
+        "storage",
+        "events",
+        "network",
+        "secrets"
+      ],
+      "requires": {
+        "core": "^0.8.0",
+        "modules": [
+          {
+            "id": "tools",
+            "range": "^1.0.0"
+          }
+        ]
+      },
+      "url": "https://attrazion.github.io/team-platform-catalog/github-1.0.0.mjs",
+      "size": 85372,
+      "integrity": "sha512-KNzi6fgVxEtU4lNaVxNZswkkZp3NZWI8kmqDU4oPQJIlaXglrAgVmPUR5NwF/qHUTat1EAUCuth9itwQFad9uA=="
+    },
+    {
+      "id": "google",
+      "name": "Google",
+      "version": "1.0.0",
+      "summary": "Календарь, Gmail и Drive через OAuth-токены Google.",
+      "publisher": "Team Platform",
+      "category": "integrations",
+      "permissions": [
+        "network",
+        "secrets"
+      ],
+      "requires": {
+        "core": "^0.8.0",
+        "modules": [
+          {
+            "id": "tools",
+            "range": "^1.0.0"
+          }
+        ]
+      },
+      "url": "https://attrazion.github.io/team-platform-catalog/google-1.0.0.mjs",
+      "size": 19141,
+      "integrity": "sha512-L0Mezd0zqtRD7IlbvpbQm9OAtI1VgX6HqNWJwHyislApqqz1YpVL5O3h53+k2OWCOdIHZ32c5SxCL+hEmbiBeg=="
+    },
+    {
       "id": "journal",
       "name": "Журнал",
       "version": "1.0.0",
       "summary": "Единая лента событий задач и запусков. Читает их таблицы, поэтому зависит от обоих модулей.",
       "publisher": "Team Platform",
+      "category": "monitoring",
       "permissions": [
         "storage"
       ],
@@ -53,6 +179,7 @@
       "version": "1.0.0",
       "summary": "Этапы, приёмка и автоматическое продвижение миссии. Нужны доска задач и очередь запусков.",
       "publisher": "Team Platform",
+      "category": "automation",
       "permissions": [
         "storage",
         "events"
@@ -80,6 +207,7 @@
       "version": "1.0.0",
       "summary": "Карточки людей, ручки, теги и заметки. Ни от чего не зависит.",
       "publisher": "Team Platform",
+      "category": "team",
       "permissions": [
         "storage"
       ],
@@ -97,6 +225,7 @@
       "version": "1.0.0",
       "summary": "Очередь запусков, аренда, отмена и локальный исполнитель агентов. Зависит от доски задач.",
       "publisher": "Team Platform",
+      "category": "automation",
       "permissions": [
         "storage",
         "events",
@@ -121,6 +250,7 @@
       "version": "1.0.0",
       "summary": "Карточки, статусы и журнал изменений. Прежние адреса /api/tasks сохраняются.",
       "publisher": "Team Platform",
+      "category": "work",
       "permissions": [
         "storage",
         "events"
@@ -134,11 +264,38 @@
       "integrity": "sha512-v4HT6LvcaNOV3bjatS8ZHUuax438hzXGFE93Ekibdn58Y3P95Qna0dT+vNc1giR3iskhDesWXahlbTHH7XK4sA=="
     },
     {
-      "id": "tools",
-      "name": "Интеграции и инструменты",
+      "id": "telegram",
+      "name": "Telegram",
       "version": "1.0.0",
-      "summary": "GitHub, Discord, Google, Telegram, Entire, Freebuff, провайдеры моделей и резерв. Секреты живут в ядре.",
+      "summary": "Вход по номеру, переписка с агентом и ответы в чаты через teleproto.",
       "publisher": "Team Platform",
+      "category": "integrations",
+      "permissions": [
+        "storage",
+        "events",
+        "network",
+        "secrets"
+      ],
+      "requires": {
+        "core": "^0.8.0",
+        "modules": [
+          {
+            "id": "tools",
+            "range": "^1.0.0"
+          }
+        ]
+      },
+      "url": "https://attrazion.github.io/team-platform-catalog/telegram-1.0.0.mjs",
+      "size": 2926437,
+      "integrity": "sha512-Y8czKbdZ4kzRuQIBhlzSvhZL9SsTwRI35WHJYlkASfvNn9q5rEJTmzHN2UzWL/cCfXuove1Vi/YsZZaLhckxlg=="
+    },
+    {
+      "id": "tools",
+      "name": "Инструменты",
+      "version": "1.0.0",
+      "summary": "Провайдеры моделей, резерв, свободное время, пароли сайтов и общие настройки. Секреты живут в ядре.",
+      "publisher": "Team Platform",
+      "category": "tools",
       "permissions": [
         "storage",
         "events",
@@ -160,8 +317,8 @@
         ]
       },
       "url": "https://attrazion.github.io/team-platform-catalog/tools-1.0.0.mjs",
-      "size": 3185723,
-      "integrity": "sha512-zG15lkKcY8byDIb8wW/s+JzLM8nNj+PKNLkHxPByu6XLTW7DQpFwEY1rmuySaOBGgIctF/9kWE9lh3YK9jiYxw=="
+      "size": 225827,
+      "integrity": "sha512-pt+TwPnoc0H2kK3XBuzQlZ/65albbrW9bvtJmNBdWF403lwjOTBeFH9T9xcn8OPqPMY4NRcXeYiuxRwcheEX1Q=="
     }
   ]
 }
