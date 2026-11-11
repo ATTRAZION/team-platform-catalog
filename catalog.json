@@ -1,0 +1,167 @@
+{
+  "schema": 1,
+  "api_version": 1,
+  "modules": [
+    {
+      "id": "browser",
+      "name": "Браузер",
+      "version": "1.0.0",
+      "summary": "Вкладки, снимки и действия агента в Chromium. Секреты сайтов подставляет модуль интеграций, если он установлен.",
+      "publisher": "Team Platform",
+      "permissions": [
+        "storage",
+        "browser",
+        "process"
+      ],
+      "requires": {
+        "core": "^0.8.0",
+        "modules": []
+      },
+      "url": "https://attrazion.github.io/team-platform-catalog/browser-1.0.0.mjs",
+      "size": 66322,
+      "integrity": "sha512-56RbXbyA8ofzAP8aApYvwV/r76UYeaeednXzHvNPYZgbDTLWu/PhA/3JUGlDqQDQKgF4JzlXLAN80RwtmBmlbg=="
+    },
+    {
+      "id": "journal",
+      "name": "Журнал",
+      "version": "1.0.0",
+      "summary": "Единая лента событий задач и запусков. Читает их таблицы, поэтому зависит от обоих модулей.",
+      "publisher": "Team Platform",
+      "permissions": [
+        "storage"
+      ],
+      "requires": {
+        "core": "^0.8.0",
+        "modules": [
+          {
+            "id": "tasks",
+            "range": "^1.0.0"
+          },
+          {
+            "id": "runs",
+            "range": "^1.0.0"
+          }
+        ]
+      },
+      "url": "https://attrazion.github.io/team-platform-catalog/journal-1.0.0.mjs",
+      "size": 6397,
+      "integrity": "sha512-S1AJBaEXyaxBvvHjU3Y1Vh/ZHQtXHu8mG1Hj9NJ2m+EVMBEa7CgvXy639Ygw5CYCI9hPAGjKGZB6pP4wspg30Q=="
+    },
+    {
+      "id": "missions",
+      "name": "Миссии",
+      "version": "1.0.0",
+      "summary": "Этапы, приёмка и автоматическое продвижение миссии. Нужны доска задач и очередь запусков.",
+      "publisher": "Team Platform",
+      "permissions": [
+        "storage",
+        "events"
+      ],
+      "requires": {
+        "core": "^0.8.0",
+        "modules": [
+          {
+            "id": "tasks",
+            "range": "^1.0.0"
+          },
+          {
+            "id": "runs",
+            "range": "^1.0.0"
+          }
+        ]
+      },
+      "url": "https://attrazion.github.io/team-platform-catalog/missions-1.0.0.mjs",
+      "size": 69502,
+      "integrity": "sha512-HKx9b53Xi87BZhJnXziEnPLEOy+yaQOaeKk63nPUbkUODyjvMfM+h7ySmx9F3BZLa//1WnhxJZhaC8+qWQWROA=="
+    },
+    {
+      "id": "people",
+      "name": "Память людей",
+      "version": "1.0.0",
+      "summary": "Карточки людей, ручки, теги и заметки. Ни от чего не зависит.",
+      "publisher": "Team Platform",
+      "permissions": [
+        "storage"
+      ],
+      "requires": {
+        "core": "^0.8.0",
+        "modules": []
+      },
+      "url": "https://attrazion.github.io/team-platform-catalog/people-1.0.0.mjs",
+      "size": 21069,
+      "integrity": "sha512-rKIsuETLW7BPWLY8K/fW0VJzqFPSognbxp8WZlXlzL/ZmHSzMXoipg9ToB7QYqAtBWzEzmU1BxD6ur3BZs9ZtA=="
+    },
+    {
+      "id": "runs",
+      "name": "Запуски и исполнитель",
+      "version": "1.0.0",
+      "summary": "Очередь запусков, аренда, отмена и локальный исполнитель агентов. Зависит от доски задач.",
+      "publisher": "Team Platform",
+      "permissions": [
+        "storage",
+        "events",
+        "process"
+      ],
+      "requires": {
+        "core": "^0.8.0",
+        "modules": [
+          {
+            "id": "tasks",
+            "range": "^1.0.0"
+          }
+        ]
+      },
+      "url": "https://attrazion.github.io/team-platform-catalog/runs-1.0.0.mjs",
+      "size": 89012,
+      "integrity": "sha512-Fc44tR4eO4Ji1bGZn7CAqKyvzvfrnIouGsBFTT/7Wu1TQc58b/ur5jXUW+SvFB32BzEAG4l48rlaiNpeQWnniA=="
+    },
+    {
+      "id": "tasks",
+      "name": "Доска задач",
+      "version": "1.0.0",
+      "summary": "Карточки, статусы и журнал изменений. Прежние адреса /api/tasks сохраняются.",
+      "publisher": "Team Platform",
+      "permissions": [
+        "storage",
+        "events"
+      ],
+      "requires": {
+        "core": "^0.8.0",
+        "modules": []
+      },
+      "url": "https://attrazion.github.io/team-platform-catalog/tasks-1.0.0.mjs",
+      "size": 30928,
+      "integrity": "sha512-v4HT6LvcaNOV3bjatS8ZHUuax438hzXGFE93Ekibdn58Y3P95Qna0dT+vNc1giR3iskhDesWXahlbTHH7XK4sA=="
+    },
+    {
+      "id": "tools",
+      "name": "Интеграции и инструменты",
+      "version": "1.0.0",
+      "summary": "GitHub, Discord, Google, Telegram, Entire, Freebuff, провайдеры моделей и резерв. Секреты живут в ядре.",
+      "publisher": "Team Platform",
+      "permissions": [
+        "storage",
+        "events",
+        "network",
+        "process",
+        "secrets"
+      ],
+      "requires": {
+        "core": "^0.8.0",
+        "modules": [
+          {
+            "id": "tasks",
+            "range": "^1.0.0"
+          },
+          {
+            "id": "runs",
+            "range": "^1.0.0"
+          }
+        ]
+      },
+      "url": "https://attrazion.github.io/team-platform-catalog/tools-1.0.0.mjs",
+      "size": 3185723,
+      "integrity": "sha512-zG15lkKcY8byDIb8wW/s+JzLM8nNj+PKNLkHxPByu6XLTW7DQpFwEY1rmuySaOBGgIctF/9kWE9lh3YK9jiYxw=="
+    }
+  ]
+}
