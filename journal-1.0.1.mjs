@@ -53,8 +53,8 @@ var AppError = class extends Error {
   }
 };
 var ValidationError = class extends AppError {
-  constructor(message, details = {}) {
-    super("validation_failed", message, 400, details);
+  constructor(message, details = {}, options = {}) {
+    super(options.code ?? "validation_failed", message, options.status ?? 400, details);
   }
 };
 
@@ -95,19 +95,19 @@ var PAGE = `<!doctype html>
 <title>\u0416\u0443\u0440\u043D\u0430\u043B \u2014 \u043C\u043E\u0434\u0443\u043B\u044C</title>
 <style>
   :root { color-scheme: light dark; }
-  body { margin: 0; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; background: #0f1216; color: #e6e9ef; }
-  header { display: flex; gap: 12px; align-items: baseline; padding: 20px 24px; border-bottom: 1px solid #232833; }
+  body { margin: 0; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); }
+  header { display: flex; gap: 12px; align-items: baseline; padding: 20px 24px; border-bottom: 1px solid var(--line); }
   header h1 { margin: 0; font-size: 19px; }
-  header a { color: #8fb4ff; font-size: 13px; }
+  header a { color: var(--accent); font-size: 13px; }
   main { padding: 24px; max-width: 960px; }
-  section { background: #151a21; border: 1px solid #232833; border-radius: 12px; padding: 16px; }
-  h2 { margin: 0 0 12px; font-size: 15px; color: #aab4c5; font-weight: 600; }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  h2 { margin: 0 0 12px; font-size: 15px; color: var(--muted); font-weight: 600; }
   ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-  li { border: 1px solid #232833; border-radius: 10px; padding: 10px 12px; }
+  li { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
   .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-  .type { font-family: ui-monospace, Consolas, monospace; font-size: 12px; color: #cbd4e1; }
-  .meta { color: #7f8a9c; font-size: 12px; }
-  .empty { color: #7f8a9c; }
+  .type { font-family: ui-monospace, Consolas, monospace; font-size: 12px; color: var(--text); }
+  .meta { color: var(--muted); font-size: 12px; }
+  .empty { color: var(--muted); }
 </style>
 </head>
 <body>

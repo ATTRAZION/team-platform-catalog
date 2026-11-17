@@ -17,13 +17,14 @@ var AppError = class extends Error {
   }
 };
 var ValidationError = class extends AppError {
-  constructor(message, details = {}) {
-    super("validation_failed", message, 400, details);
+  constructor(message, details = {}, options = {}) {
+    super(options.code ?? "validation_failed", message, options.status ?? 400, details);
   }
 };
 var NotFoundError = class extends AppError {
-  constructor(message = "\u041D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u043E") {
-    super("not_found", message, 404);
+  /** Детали необязательны: старые вызовы без них продолжают работать. */
+  constructor(message = "\u041D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u043E", details = {}) {
+    super("not_found", message, 404, details);
   }
 };
 var ConflictError = class extends AppError {
@@ -31,6 +32,51 @@ var ConflictError = class extends AppError {
     super("conflict", message, 409, details);
   }
 };
+
+// src/domain/agents/budget-required.ts
+var AGENT_BUDGET_REQUIRED_CODE = "agent_budget_required";
+var AGENT_ROLES = ["designer", "coder", "reviewer"];
+var AgentBudgetRequiredError = class extends AppError {
+  constructor(role, reason, remaining) {
+    const detail = reason === "budget_missing" ? "\u0431\u044E\u0434\u0436\u0435\u0442 \u043D\u0435 \u0443\u043A\u0430\u0437\u0430\u043D" : `\u0431\u044E\u0434\u0436\u0435\u0442 \u0438\u0441\u0447\u0435\u0440\u043F\u0430\u043D (\u043E\u0441\u0442\u0430\u0442\u043E\u043A ${remaining ?? 0})`;
+    super(
+      AGENT_BUDGET_REQUIRED_CODE,
+      `\u0417\u0430\u043F\u0443\u0441\u043A \u0430\u0433\u0435\u043D\u0442\u0430 \u0440\u043E\u043B\u0438 \xAB${role}\xBB \u043D\u0435 \u043D\u0430\u0447\u0430\u0442: ${detail} (${AGENT_BUDGET_REQUIRED_CODE}:${reason})`,
+      409,
+      remaining === void 0 ? { role, reason } : { role, reason, remaining }
+    );
+  }
+};
+var ROLE_TOKEN = /^[a-z][a-z0-9-]{0,31}$/;
+function invalid(reason, field) {
+  throw new ValidationError(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB \u043D\u0435\u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u043E`, { reason, field });
+}
+function planAgentRun(raw) {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+    invalid("invalid_run", "run");
+  }
+  const input = raw;
+  const role = typeof input.role === "string" ? input.role.trim() : "";
+  if (!ROLE_TOKEN.test(role)) invalid("invalid_role", "role");
+  if (!AGENT_ROLES.includes(role)) {
+    throw new ValidationError(`\u0420\u043E\u043B\u044C \xAB${role}\xBB \u043D\u0435 \u043E\u043F\u0438\u0441\u0430\u043D\u0430 \u0432 \u0434\u043E\u043C\u0435\u043D\u0435 \u0430\u0433\u0435\u043D\u0442\u043E\u0432`, {
+      reason: "unknown_role",
+      role
+    });
+  }
+  const budget = input.budget;
+  if (budget === void 0 || budget === null || typeof budget !== "number") {
+    throw new AgentBudgetRequiredError(role, "budget_missing");
+  }
+  if (!Number.isFinite(budget)) invalid("invalid_budget", "budget");
+  if (budget <= 0) throw new AgentBudgetRequiredError(role, "budget_exhausted", budget);
+  return {
+    role,
+    budget,
+    started: true,
+    run_key: `run:${role}:${budget}`
+  };
+}
 
 // src/domain/runs/failure.ts
 var RULES = [
@@ -114,6 +160,237 @@ function nextRetryDelay(input = {}) {
   return Math.max(0, nextRetryAt({ ...input, now }) - now);
 }
 
+// src/adapters/agents/file-registry.ts
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
+
+// src/kernel/validate.ts
+function record(raw, what) {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+    throw new ValidationError(`${what}: \u043E\u0436\u0438\u0434\u0430\u043B\u0441\u044F \u043E\u0431\u044A\u0435\u043A\u0442`);
+  }
+  return raw;
+}
+function text(raw, field, max, required = false) {
+  if (raw === void 0 || raw === null) {
+    if (required) throw new ValidationError(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB \u043E\u0431\u044F\u0437\u0430\u0442\u0435\u043B\u044C\u043D\u043E`);
+    return "";
+  }
+  if (typeof raw !== "string") throw new ValidationError(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB \u0434\u043E\u043B\u0436\u043D\u043E \u0431\u044B\u0442\u044C \u0441\u0442\u0440\u043E\u043A\u043E\u0439`);
+  const value = raw.trim();
+  if (required && !value) throw new ValidationError(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB \u043E\u0431\u044F\u0437\u0430\u0442\u0435\u043B\u044C\u043D\u043E`);
+  if (value.length > max) throw new ValidationError(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB \u0434\u043B\u0438\u043D\u043D\u0435\u0435 ${max} \u0441\u0438\u043C\u0432\u043E\u043B\u043E\u0432`);
+  return value;
+}
+function oneOf(raw, field, allowed, fallback) {
+  if (raw === void 0 || raw === null) return fallback;
+  const value = String(raw);
+  if (!allowed.includes(value)) {
+    throw new ValidationError(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB: \u0434\u043E\u043F\u0443\u0441\u0442\u0438\u043C\u043E ${allowed.join(", ")}`, { value });
+  }
+  return value;
+}
+function integer(raw, field, min, max, fallback) {
+  if (raw === void 0 || raw === null) return fallback;
+  const value = typeof raw === "number" ? raw : Number(raw);
+  if (!Number.isInteger(value) || value < min || value > max) {
+    throw new ValidationError(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB: \u0446\u0435\u043B\u043E\u0435 \u043E\u0442 ${min} \u0434\u043E ${max}`);
+  }
+  return value;
+}
+
+// src/adapters/agents/file-registry.ts
+function defaultAgents() {
+  if (process.platform === "win32") {
+    return [{
+      id: "demo",
+      command: "cmd",
+      // ping из System32, а не `timeout`: в PATH может оказаться GNU timeout.
+      args: ["/c", "for /l %i in (1,1,15) do @(echo line %i & %SystemRoot%\\System32\\ping.exe -n 2 127.0.0.1 >nul)"],
+      cwd: null,
+      env: {},
+      timeout_ms: 6e4
+    }];
+  }
+  return [{
+    id: "demo",
+    command: "sh",
+    args: ["-c", "for i in $(seq 1 15); do echo line $i; sleep 1; done"],
+    cwd: null,
+    env: {},
+    timeout_ms: 6e4
+  }];
+}
+function isBuiltinDemo(agent) {
+  const builtin = defaultAgents().find((item) => item.id === "demo");
+  if (!builtin) return false;
+  if (agent.id !== builtin.id || agent.command !== builtin.command) return false;
+  if (agent.cwd !== builtin.cwd) return false;
+  if (agent.args.length !== builtin.args.length) return false;
+  if (!agent.args.every((arg, index) => arg === builtin.args[index])) return false;
+  const keys = Object.keys(agent.env).sort();
+  const expected = Object.keys(builtin.env).sort();
+  return keys.length === expected.length && keys.every((key, index) => key === expected[index] && agent.env[key] === builtin.env[key]);
+}
+function listAgentInfos(registry) {
+  return registry.ids().flatMap((id) => {
+    const agent = registry.get(id);
+    if (!agent) return [];
+    return [{
+      id: agent.id,
+      command: agent.command,
+      args: [...agent.args],
+      cwd: agent.cwd,
+      timeout_ms: agent.timeout_ms,
+      builtin_demo: isBuiltinDemo(agent)
+    }];
+  });
+}
+function normalizeAgent(raw, index) {
+  const input = record(raw, `\u0410\u0433\u0435\u043D\u0442 #${index + 1}`);
+  const id = text(input.id, "id", 100, true);
+  const argsRaw = input.args ?? [];
+  if (!Array.isArray(argsRaw)) throw new ValidationError(`\u0410\u0433\u0435\u043D\u0442 \xAB${id}\xBB: args \u0434\u043E\u043B\u0436\u0435\u043D \u0431\u044B\u0442\u044C \u0441\u043F\u0438\u0441\u043A\u043E\u043C`);
+  const envRaw = input.env ?? {};
+  const envInput = record(envRaw, `\u0410\u0433\u0435\u043D\u0442 \xAB${id}\xBB: env`);
+  const env = {};
+  for (const [key, value] of Object.entries(envInput)) {
+    if (typeof value !== "string") throw new ValidationError(`\u0410\u0433\u0435\u043D\u0442 \xAB${id}\xBB: env.${key} \u0434\u043E\u043B\u0436\u0435\u043D \u0431\u044B\u0442\u044C \u0441\u0442\u0440\u043E\u043A\u043E\u0439`);
+    env[key] = value;
+  }
+  return {
+    id,
+    command: text(input.command, "command", 500, true),
+    args: argsRaw.map((arg, argIndex) => text(arg, `args[${argIndex}]`, 500, true)),
+    cwd: text(input.cwd, "cwd", 500) || null,
+    env,
+    timeout_ms: input.timeout_ms === void 0 || input.timeout_ms === null ? null : integer(input.timeout_ms, "timeout_ms", 1e3, 36e5, 6e4)
+  };
+}
+function serialize(agent) {
+  return {
+    id: agent.id,
+    command: agent.command,
+    args: [...agent.args],
+    ...agent.cwd ? { cwd: agent.cwd } : {},
+    ...Object.keys(agent.env).length ? { env: agent.env } : {},
+    ...agent.timeout_ms ? { timeout_ms: agent.timeout_ms } : {}
+  };
+}
+function loadAgentRegistry(file, log) {
+  if (!existsSync(file)) {
+    mkdirSync(dirname(file), { recursive: true });
+    const seed = { agents: defaultAgents().map(serialize) };
+    writeFileSync(file, `${JSON.stringify(seed, null, 2)}
+`, "utf8");
+    log.info("\u0421\u043E\u0437\u0434\u0430\u043D \u0444\u0430\u0439\u043B \u0430\u0433\u0435\u043D\u0442\u043E\u0432", { file });
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(readFileSync(file, "utf8"));
+  } catch (error) {
+    throw new ValidationError(`\u0424\u0430\u0439\u043B \u0430\u0433\u0435\u043D\u0442\u043E\u0432 \xAB${file}\xBB: \u043D\u0435\u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u044B\u0439 JSON`, { error: String(error) });
+  }
+  const input = record(parsed, "\u0424\u0430\u0439\u043B \u0430\u0433\u0435\u043D\u0442\u043E\u0432");
+  if (!Array.isArray(input.agents)) {
+    throw new ValidationError(`\u0424\u0430\u0439\u043B \u0430\u0433\u0435\u043D\u0442\u043E\u0432 \xAB${file}\xBB: \u043E\u0436\u0438\u0434\u0430\u043B\u0441\u044F \u043C\u0430\u0441\u0441\u0438\u0432 agents`);
+  }
+  const agents = input.agents.map(normalizeAgent);
+  if (!agents.length) throw new ValidationError(`\u0424\u0430\u0439\u043B \u0430\u0433\u0435\u043D\u0442\u043E\u0432 \xAB${file}\xBB: \u043D\u0435\u0442 \u043D\u0438 \u043E\u0434\u043D\u043E\u0433\u043E \u0430\u0433\u0435\u043D\u0442\u0430`);
+  const map = /* @__PURE__ */ new Map();
+  for (const agent of agents) {
+    if (map.has(agent.id)) throw new ValidationError(`\u0424\u0430\u0439\u043B \u0430\u0433\u0435\u043D\u0442\u043E\u0432 \xAB${file}\xBB: \u043F\u043E\u0432\u0442\u043E\u0440\u044F\u0435\u0442\u0441\u044F id \xAB${agent.id}\xBB`);
+    map.set(agent.id, agent);
+  }
+  log.info("\u0410\u0433\u0435\u043D\u0442\u044B \u0437\u0430\u0433\u0440\u0443\u0436\u0435\u043D\u044B", { file, agents: [...map.keys()] });
+  return {
+    get: (id) => map.get(id) ?? null,
+    ids: () => [...map.keys()]
+  };
+}
+
+// src/app/workspace-lock.ts
+import { createHash } from "node:crypto";
+import {
+  closeSync,
+  openSync,
+  readFileSync as readFileSync2,
+  unlinkSync,
+  writeFileSync as writeFileSync2
+} from "node:fs";
+import { hostname, tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+var STALE_MS = 24 * 60 * 60 * 1e3;
+function workspaceLockPath(cwd) {
+  const key = createHash("sha256").update(resolve(cwd)).digest("hex").slice(0, 20);
+  return join(tmpdir(), `team-platform-workspace-${key}.lock`);
+}
+function readLock(path) {
+  try {
+    const parsed = JSON.parse(readFileSync2(path, "utf8"));
+    if (typeof parsed.run_id !== "string" || typeof parsed.pid !== "number" || typeof parsed.host !== "string" || typeof parsed.created_at !== "number") {
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+function pidAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return error.code === "EPERM";
+  }
+}
+function stale(record2, now) {
+  if (now - record2.created_at > STALE_MS) return true;
+  if (record2.host !== hostname()) return false;
+  return record2.pid === process.pid ? false : !pidAlive(record2.pid);
+}
+function acquireWorkspaceLock(cwd, runId, now = Date.now()) {
+  const path = workspaceLockPath(cwd);
+  const record2 = {
+    run_id: runId,
+    pid: process.pid,
+    host: hostname(),
+    created_at: now
+  };
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const fd = openSync(path, "wx");
+      try {
+        writeFileSync2(fd, JSON.stringify(record2));
+      } finally {
+        closeSync(fd);
+      }
+      let released = false;
+      return {
+        path,
+        release() {
+          if (released) return;
+          released = true;
+          try {
+            const current = readLock(path);
+            if (current?.run_id === runId) unlinkSync(path);
+          } catch {
+          }
+        }
+      };
+    } catch (error) {
+      if (error.code !== "EEXIST") return null;
+      const current = readLock(path);
+      if (current && !stale(current, now)) return null;
+      try {
+        unlinkSync(path);
+      } catch {
+      }
+    }
+  }
+  return null;
+}
+
 // src/app/agent-executor.ts
 var OUTPUT_TAIL = 2e4;
 var RESULT_TAIL = 4e3;
@@ -185,17 +462,7 @@ var AgentExecutor = class {
   }
   /** Публичный список агентов для панели; env не отдаётся. */
   list() {
-    return this.#registry.ids().flatMap((id) => {
-      const agent = this.#registry.get(id);
-      if (!agent) return [];
-      return [{
-        id: agent.id,
-        command: agent.command,
-        args: [...agent.args],
-        cwd: agent.cwd,
-        timeout_ms: agent.timeout_ms
-      }];
-    });
+    return listAgentInfos(this.#registry);
   }
   start() {
     if (this.#timer || this.#stopping) return;
@@ -365,143 +632,217 @@ var AgentExecutor = class {
       });
       return;
     }
-    const epoch = run.lease_epoch;
-    let child;
-    try {
-      child = spawn(definition.command, [...definition.args], {
-        cwd: definition.cwd ?? process.cwd(),
-        env: {
-          ...process.env,
-          TEAM_RUN_ID: run.id,
-          TEAM_AGENT: run.agent,
-          TEAM_MODEL: run.model ?? "",
-          TEAM_TASK_ID: run.task_id ?? "",
-          TEAM_ATTEMPT: String(run.attempt),
-          ...definition.env
-        },
-        windowsHide: true,
-        detached: process.platform !== "win32",
-        stdio: ["ignore", "pipe", "pipe"]
-      });
-    } catch (error) {
+    const budgetRefusal = this.#budgetRefusal(run, definition);
+    if (budgetRefusal) {
+      this.#log.warn("\u0417\u0430\u043F\u0443\u0441\u043A \u043D\u0435 \u043D\u0430\u0447\u0430\u0442: \u0431\u044E\u0434\u0436\u0435\u0442 \u0440\u043E\u043B\u0438", { run_id: run.id, agent: run.agent });
       this.#complete(run, {
         outcome: "failed",
-        error_class: "spawn_failed",
-        error_message: String(error)
+        error_class: AGENT_BUDGET_REQUIRED_CODE,
+        error_message: budgetRefusal
       });
       return;
     }
-    this.#child = child;
-    let output = "";
-    const append = (stream, chunk) => {
-      const text2 = chunk.toString("utf8");
-      output = `${output}${text2}`.slice(-OUTPUT_TAIL);
-      for (let offset = 0; offset < text2.length; offset += CHUNK) {
-        this.#service.appendOutput(run.id, stream, text2.slice(offset, offset + CHUNK));
+    const cwd = definition.cwd ?? process.cwd();
+    const lock = acquireWorkspaceLock(cwd, run.id);
+    if (!lock) {
+      this.#workspaceBusy(run, cwd);
+      return;
+    }
+    try {
+      const epoch = run.lease_epoch;
+      let child;
+      try {
+        child = spawn(definition.command, [...definition.args], {
+          cwd,
+          env: {
+            ...process.env,
+            ...this.#providerEnvironment(),
+            TEAM_RUN_ID: run.id,
+            TEAM_AGENT: run.agent,
+            TEAM_MODEL: run.model ?? "",
+            TEAM_TASK_ID: run.task_id ?? "",
+            TEAM_ATTEMPT: String(run.attempt),
+            ...definition.env
+          },
+          windowsHide: true,
+          detached: process.platform !== "win32",
+          stdio: ["ignore", "pipe", "pipe"]
+        });
+      } catch (error) {
+        this.#complete(run, {
+          outcome: "failed",
+          error_class: "spawn_failed",
+          error_message: String(error)
+        });
+        return;
       }
-    };
-    child.stdout?.on("data", (chunk) => append("stdout", chunk));
-    child.stderr?.on("data", (chunk) => append("stderr", chunk));
-    let killReason = null;
-    const requestKill = (reason) => {
-      if (killReason) return;
-      killReason = reason;
-      this.#log.warn("\u041E\u0441\u0442\u0430\u043D\u0430\u0432\u043B\u0438\u0432\u0430\u0435\u043C \u043F\u0440\u043E\u0446\u0435\u0441\u0441 \u0430\u0433\u0435\u043D\u0442\u0430", { run_id: run.id, reason, pid: child.pid });
-      killTree(child, this.#log);
-    };
-    const heartbeatMs = this.#options.heartbeatMs ?? Math.max(500, Math.min(2e3, Math.floor(this.#options.leaseMs / 3)));
-    let pinging = false;
-    const heartbeat = setInterval(() => {
-      if (pinging) return;
-      pinging = true;
-      void (async () => {
-        try {
-          const current2 = await this.#service.heartbeat(run.id, {
-            owner: this.#options.owner,
-            epoch,
-            lease_ms: this.#options.leaseMs
-          });
-          if (current2.cancel_requested_at) requestKill("cancel");
-        } catch (error) {
-          if (error instanceof ConflictError) requestKill("lease_lost");
-          else this.#log.warn("Heartbeat \u043D\u0435 \u0443\u0434\u0430\u043B\u0441\u044F", { run_id: run.id, error: String(error) });
-        } finally {
-          pinging = false;
+      this.#child = child;
+      if (child.pid) this.#options.processTrees?.attach(run.id, child.pid);
+      let output = "";
+      const append = (stream, chunk) => {
+        const text2 = chunk.toString("utf8");
+        output = `${output}${text2}`.slice(-OUTPUT_TAIL);
+        for (let offset = 0; offset < text2.length; offset += CHUNK) {
+          this.#service.appendOutput(run.id, stream, text2.slice(offset, offset + CHUNK));
         }
-      })();
-    }, heartbeatMs);
-    heartbeat.unref();
-    const timeout = definition.timeout_ms ? setTimeout(() => requestKill("timeout"), definition.timeout_ms) : null;
-    timeout?.unref();
-    const result = await new Promise((resolve) => {
-      let settled = false;
-      const done = (value) => {
-        if (settled) return;
-        settled = true;
-        resolve(value);
       };
-      child.once("error", (error) => done({ code: null, signal: null, error }));
-      child.once("close", (code, signal) => done({ code, signal, error: null }));
-    });
-    clearInterval(heartbeat);
-    if (timeout) clearTimeout(timeout);
-    if (this.#stopping) {
-      this.#release(run, epoch);
-      return;
-    }
-    if (killReason === "lease_lost") {
-      this.#log.warn("\u0410\u0440\u0435\u043D\u0434\u0430 \u043F\u043E\u0442\u0435\u0440\u044F\u043D\u0430: \u0440\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442 \u043D\u0435 \u0437\u0430\u043F\u0438\u0441\u044B\u0432\u0430\u0435\u043C", { run_id: run.id });
-      return;
-    }
-    const current = this.#safeGet(run.id);
-    const cancelRequested = killReason === "cancel" || current?.cancel_requested_at != null;
-    if (cancelRequested) {
-      this.#complete(run, {
-        outcome: "cancelled",
-        exit_code: result.code,
-        error_class: null,
-        error_message: null,
-        result: output.trim().slice(-RESULT_TAIL)
+      child.stdout?.on("data", (chunk) => append("stdout", chunk));
+      child.stderr?.on("data", (chunk) => append("stderr", chunk));
+      let killReason = null;
+      const requestKill = (reason) => {
+        if (killReason) return;
+        killReason = reason;
+        this.#log.warn("\u041E\u0441\u0442\u0430\u043D\u0430\u0432\u043B\u0438\u0432\u0430\u0435\u043C \u043F\u0440\u043E\u0446\u0435\u0441\u0441 \u0430\u0433\u0435\u043D\u0442\u0430", { run_id: run.id, reason, pid: child.pid });
+        const tree = this.#options.processTrees?.kill(run.id) ?? null;
+        if (!tree?.killed) killTree(child, this.#log);
+      };
+      const heartbeatMs = this.#options.heartbeatMs ?? Math.max(500, Math.min(2e3, Math.floor(this.#options.leaseMs / 3)));
+      let pinging = false;
+      const heartbeat = setInterval(() => {
+        if (pinging) return;
+        pinging = true;
+        void (async () => {
+          try {
+            const current2 = await this.#service.heartbeat(run.id, {
+              owner: this.#options.owner,
+              epoch,
+              lease_ms: this.#options.leaseMs
+            });
+            if (current2.cancel_requested_at) requestKill("cancel");
+          } catch (error) {
+            if (error instanceof ConflictError) requestKill("lease_lost");
+            else this.#log.warn("Heartbeat \u043D\u0435 \u0443\u0434\u0430\u043B\u0441\u044F", { run_id: run.id, error: String(error) });
+          } finally {
+            pinging = false;
+          }
+        })();
+      }, heartbeatMs);
+      heartbeat.unref();
+      const timeout = definition.timeout_ms ? setTimeout(() => requestKill("timeout"), definition.timeout_ms) : null;
+      timeout?.unref();
+      const result = await new Promise((resolve2) => {
+        let settled = false;
+        const done = (value) => {
+          if (settled) return;
+          settled = true;
+          resolve2(value);
+        };
+        child.once("error", (error) => done({ code: null, signal: null, error }));
+        child.once("close", (code, signal) => done({ code, signal, error: null }));
       });
-      return;
-    }
-    if (killReason === "timeout") {
+      this.#options.processTrees?.detach(run.id);
+      clearInterval(heartbeat);
+      if (timeout) clearTimeout(timeout);
+      if (this.#stopping) {
+        this.#release(run, epoch);
+        return;
+      }
+      if (killReason === "lease_lost") {
+        this.#log.warn("\u0410\u0440\u0435\u043D\u0434\u0430 \u043F\u043E\u0442\u0435\u0440\u044F\u043D\u0430: \u0440\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442 \u043D\u0435 \u0437\u0430\u043F\u0438\u0441\u044B\u0432\u0430\u0435\u043C", { run_id: run.id });
+        return;
+      }
+      const current = this.#safeGet(run.id);
+      const cancelRequested = killReason === "cancel" || current?.cancel_requested_at != null;
+      if (cancelRequested) {
+        this.#complete(run, {
+          outcome: "cancelled",
+          exit_code: result.code,
+          error_class: null,
+          error_message: null,
+          result: output.trim().slice(-RESULT_TAIL)
+        });
+        return;
+      }
+      if (killReason === "timeout") {
+        this.#fail(run, {
+          outcome: "failed",
+          exit_code: result.code,
+          error_class: "timeout",
+          error_message: `\u041F\u0440\u043E\u0446\u0435\u0441\u0441 \u043F\u0440\u0435\u0432\u044B\u0441\u0438\u043B \u043B\u0438\u043C\u0438\u0442 ${definition.timeout_ms} \u043C\u0441 \u0438 \u0431\u044B\u043B \u043E\u0441\u0442\u0430\u043D\u043E\u0432\u043B\u0435\u043D`,
+          result: output.trim().slice(-RESULT_TAIL)
+        }, output);
+        return;
+      }
+      if (result.error) {
+        this.#complete(run, {
+          outcome: "failed",
+          exit_code: null,
+          error_class: "spawn_failed",
+          error_message: result.error.message
+        });
+        return;
+      }
+      if (result.code === 0) {
+        this.#complete(run, {
+          outcome: "succeeded",
+          exit_code: 0,
+          error_class: null,
+          error_message: null,
+          result: output.trim().slice(-RESULT_TAIL)
+        });
+        this.#availabilityClear(run.agent);
+        return;
+      }
       this.#fail(run, {
         outcome: "failed",
         exit_code: result.code,
-        error_class: "timeout",
-        error_message: `\u041F\u0440\u043E\u0446\u0435\u0441\u0441 \u043F\u0440\u0435\u0432\u044B\u0441\u0438\u043B \u043B\u0438\u043C\u0438\u0442 ${definition.timeout_ms} \u043C\u0441 \u0438 \u0431\u044B\u043B \u043E\u0441\u0442\u0430\u043D\u043E\u0432\u043B\u0435\u043D`,
+        error_class: "process_exit",
+        error_message: `\u041F\u0440\u043E\u0446\u0435\u0441\u0441 \u0437\u0430\u0432\u0435\u0440\u0448\u0438\u043B\u0441\u044F \u0441 \u043A\u043E\u0434\u043E\u043C ${result.code ?? "\u043D\u0435\u0442"} (${result.signal ?? "\u0431\u0435\u0437 \u0441\u0438\u0433\u043D\u0430\u043B\u0430"})`,
         result: output.trim().slice(-RESULT_TAIL)
       }, output);
-      return;
+    } finally {
+      lock.release();
     }
-    if (result.error) {
-      this.#complete(run, {
-        outcome: "failed",
-        exit_code: null,
-        error_class: "spawn_failed",
-        error_message: result.error.message
+  }
+  /**
+   * Бюджетная проверка до старта процесса: возвращает причину отказа или null.
+   * Доменное решение принимает `planAgentRun`; сервис не угадывает бюджет и
+   * роль сам, а превращает отказ в терминальный результат запуска.
+   */
+  #budgetRefusal(run, definition) {
+    const policy = this.#options.agentBudget;
+    if (!policy) return null;
+    let decision;
+    try {
+      decision = policy({ run, definition });
+    } catch (error) {
+      return `\u0431\u044E\u0434\u0436\u0435\u0442 \u0440\u043E\u043B\u0438 \u043D\u0435 \u043F\u0440\u043E\u0447\u0438\u0442\u0430\u043D: ${error instanceof Error ? error.message : String(error)}`;
+    }
+    if (decision === null || decision === void 0) {
+      return `\u0437\u0430\u043F\u0443\u0441\u043A \u0430\u0433\u0435\u043D\u0442\u0430 \u043D\u0435 \u043D\u0430\u0447\u0430\u0442: \u0431\u044E\u0434\u0436\u0435\u0442 \u0440\u043E\u043B\u0438 \xAB${run.agent}\xBB \u043D\u0435 \u0443\u043A\u0430\u0437\u0430\u043D (${AGENT_BUDGET_REQUIRED_CODE}:budget_missing)`;
+    }
+    try {
+      planAgentRun({ role: decision.role, budget: decision.budget });
+      return null;
+    } catch (error) {
+      if (error instanceof AgentBudgetRequiredError || error instanceof ValidationError) {
+        return error.message;
+      }
+      throw error;
+    }
+  }
+  /** Рабочая папка занята другим живым запуском: не пишем в неё молча. */
+  #workspaceBusy(run, cwd) {
+    try {
+      this.#service.reschedule(run.id, {
+        owner: this.#options.owner,
+        epoch: run.lease_epoch,
+        lease_ms: this.#options.leaseMs,
+        not_before: new Date(Date.now() + 5e3).toISOString(),
+        reason: `\u0440\u0430\u0431\u043E\u0447\u0430\u044F \u043F\u0430\u043F\u043A\u0430 \u0437\u0430\u043D\u044F\u0442\u0430 \u0434\u0440\u0443\u0433\u0438\u043C \u0437\u0430\u043F\u0443\u0441\u043A\u043E\u043C: ${cwd}`,
+        error_class: "workspace_busy"
       });
-      return;
-    }
-    if (result.code === 0) {
-      this.#complete(run, {
-        outcome: "succeeded",
-        exit_code: 0,
-        error_class: null,
-        error_message: null,
-        result: output.trim().slice(-RESULT_TAIL)
+      this.#log.warn("\u0420\u0430\u0431\u043E\u0447\u0430\u044F \u043F\u0430\u043F\u043A\u0430 \u0437\u0430\u043D\u044F\u0442\u0430: \u0437\u0430\u043F\u0443\u0441\u043A \u0432\u0435\u0440\u043D\u0451\u0442\u0441\u044F \u0432 \u043E\u0447\u0435\u0440\u0435\u0434\u044C", {
+        run_id: run.id,
+        cwd
       });
-      this.#availabilityClear(run.agent);
-      return;
+    } catch (error) {
+      this.#log.warn("\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043E\u0442\u043B\u043E\u0436\u0438\u0442\u044C \u0437\u0430\u043F\u0443\u0441\u043A \u0438\u0437 \u0437\u0430\u043D\u044F\u0442\u043E\u0439 \u043F\u0430\u043F\u043A\u0438", {
+        run_id: run.id,
+        cwd,
+        error: error instanceof Error ? error.message : String(error)
+      });
     }
-    this.#fail(run, {
-      outcome: "failed",
-      exit_code: result.code,
-      error_class: "process_exit",
-      error_message: `\u041F\u0440\u043E\u0446\u0435\u0441\u0441 \u0437\u0430\u0432\u0435\u0440\u0448\u0438\u043B\u0441\u044F \u0441 \u043A\u043E\u0434\u043E\u043C ${result.code ?? "\u043D\u0435\u0442"} (${result.signal ?? "\u0431\u0435\u0437 \u0441\u0438\u0433\u043D\u0430\u043B\u0430"})`,
-      result: output.trim().slice(-RESULT_TAIL)
-    }, output);
   }
   /**
    * Сбой провайдера — не провал работы: он тратит попытку только когда попытки
@@ -589,6 +930,21 @@ var AgentExecutor = class {
         agent,
         error: error instanceof Error ? error.message : String(error)
       });
+    }
+  }
+  #providerEnvironment() {
+    const providerEnv = this.#options.providerEnv;
+    if (!providerEnv) return {};
+    try {
+      const values2 = providerEnv();
+      return Object.fromEntries(
+        Object.entries(values2).filter(([key, value]) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(key) && typeof value === "string")
+      );
+    } catch (error) {
+      this.#log.warn("\u041F\u0435\u0440\u0435\u043C\u0435\u043D\u043D\u044B\u0435 \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440\u043E\u0432 \u043D\u0435 \u043F\u0440\u043E\u0447\u0438\u0442\u0430\u043D\u044B; \u0437\u0430\u043F\u0443\u0441\u043A \u043F\u0440\u043E\u0434\u043E\u043B\u0436\u0438\u0442\u0441\u044F \u0431\u0435\u0437 \u043D\u0438\u0445", {
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return {};
     }
   }
   #safeGet(id) {
@@ -720,6 +1076,9 @@ var AgentAvailability = class {
   }
 };
 
+// src/domain/runs/run.ts
+import { createHash as createHash2 } from "node:crypto";
+
 // src/kernel/clock.ts
 var systemClock = {
   now: () => /* @__PURE__ */ new Date()
@@ -736,41 +1095,6 @@ function newId(prefix) {
   return `${prefix}_${randomUUID().replace(/-/g, "").slice(0, 16)}`;
 }
 
-// src/kernel/validate.ts
-function record(raw, what) {
-  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
-    throw new ValidationError(`${what}: \u043E\u0436\u0438\u0434\u0430\u043B\u0441\u044F \u043E\u0431\u044A\u0435\u043A\u0442`);
-  }
-  return raw;
-}
-function text(raw, field, max, required = false) {
-  if (raw === void 0 || raw === null) {
-    if (required) throw new ValidationError(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB \u043E\u0431\u044F\u0437\u0430\u0442\u0435\u043B\u044C\u043D\u043E`);
-    return "";
-  }
-  if (typeof raw !== "string") throw new ValidationError(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB \u0434\u043E\u043B\u0436\u043D\u043E \u0431\u044B\u0442\u044C \u0441\u0442\u0440\u043E\u043A\u043E\u0439`);
-  const value = raw.trim();
-  if (required && !value) throw new ValidationError(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB \u043E\u0431\u044F\u0437\u0430\u0442\u0435\u043B\u044C\u043D\u043E`);
-  if (value.length > max) throw new ValidationError(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB \u0434\u043B\u0438\u043D\u043D\u0435\u0435 ${max} \u0441\u0438\u043C\u0432\u043E\u043B\u043E\u0432`);
-  return value;
-}
-function oneOf(raw, field, allowed, fallback) {
-  if (raw === void 0 || raw === null) return fallback;
-  const value = String(raw);
-  if (!allowed.includes(value)) {
-    throw new ValidationError(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB: \u0434\u043E\u043F\u0443\u0441\u0442\u0438\u043C\u043E ${allowed.join(", ")}`, { value });
-  }
-  return value;
-}
-function integer(raw, field, min, max, fallback) {
-  if (raw === void 0 || raw === null) return fallback;
-  const value = typeof raw === "number" ? raw : Number(raw);
-  if (!Number.isInteger(value) || value < min || value > max) {
-    throw new ValidationError(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB: \u0446\u0435\u043B\u043E\u0435 \u043E\u0442 ${min} \u0434\u043E ${max}`);
-  }
-  return value;
-}
-
 // src/domain/runs/run.ts
 var RUN_STATUSES = ["queued", "running", "succeeded", "failed", "cancelled"];
 var TERMINAL_RUN_STATUSES = ["succeeded", "failed", "cancelled"];
@@ -779,15 +1103,50 @@ var DEFAULT_LEASE_MS = 6e4;
 var LEASE_MIN_MS = 1e3;
 var LEASE_MAX_MS = 36e5;
 var DEFAULT_MAX_ATTEMPTS = 3;
+var MAX_MANUAL_RETRIES = 10;
+var DEFAULT_IDEMPOTENCY_TTL_MS = 24 * 60 * 60 * 1e3;
+var DEADLINE_ERROR_CLASS = "deadline_exceeded";
+var DEADLINE_MAX_MS = 30 * 24 * 60 * 60 * 1e3;
+function requestFingerprint(input) {
+  const canonical = JSON.stringify({
+    task_id: input.task_id,
+    agent: input.agent,
+    model: input.model,
+    max_attempts: input.max_attempts,
+    deadline_at: input.deadline_at,
+    deadline_ms: input.deadline_ms
+  });
+  return createHash2("sha256").update(canonical).digest("hex");
+}
+function deadlineAbsolute(raw) {
+  const value = text(raw, "deadline_at", 40);
+  if (!value) return null;
+  const parsed = Date.parse(value);
+  if (Number.isNaN(parsed)) {
+    throw new ValidationError("\u041F\u043E\u043B\u0435 deadline_at \u0434\u043E\u043B\u0436\u043D\u043E \u0431\u044B\u0442\u044C \u0434\u0430\u0442\u043E\u0439 ISO 8601");
+  }
+  return new Date(parsed).toISOString();
+}
 function normalizeNewRun(raw) {
   const input = record(raw, "\u0417\u0430\u043F\u0443\u0441\u043A");
-  return {
+  const key = text(input.idempotency_key, "idempotency_key", 200) || null;
+  const normalized = {
     task_id: text(input.task_id, "task_id", 100) || null,
     agent: text(input.agent, "agent", 100, true),
     model: text(input.model, "model", 100) || null,
     max_attempts: integer(input.max_attempts, "max_attempts", 1, 10, DEFAULT_MAX_ATTEMPTS),
-    idempotency_key: text(input.idempotency_key, "idempotency_key", 200) || null
+    deadline_at: deadlineAbsolute(input.deadline_at),
+    deadline_ms: input.deadline_ms === void 0 || input.deadline_ms === null ? null : integer(input.deadline_ms, "deadline_ms", 1e3, DEADLINE_MAX_MS, 6e4),
+    // Происхождение ставит только RunService.retry; клиент не может его подделать.
+    retry_of: null,
+    retry_attempt: 0,
+    idempotency_key: key,
+    idempotency_fingerprint: null,
+    // Потолок ставится при первом получении работы, а не при постановке.
+    lease_ceiling_at: null
   };
+  normalized.idempotency_fingerprint = key ? requestFingerprint(normalized) : null;
+  return normalized;
 }
 function leaseValue(raw, fallback) {
   return integer(raw, "lease_ms", LEASE_MIN_MS, LEASE_MAX_MS, fallback);
@@ -823,14 +1182,20 @@ function requiredOutcome(raw) {
   }
   return oneOf(raw, "outcome", RUN_OUTCOMES, "failed");
 }
-function queueRun(input, now) {
+function queueRun(input, now, options = {}) {
   const at = now.toISOString();
+  const { deadline_ms: relativeDeadline, ...base } = input;
+  const deadlineAt = base.deadline_at ?? (relativeDeadline === null ? null : new Date(now.getTime() + relativeDeadline).toISOString());
+  const ttlMs = options.idempotency_ttl_ms ?? DEFAULT_IDEMPOTENCY_TTL_MS;
   const run = {
     id: newId("run"),
-    ...input,
+    ...base,
+    idempotency_expires_at: base.idempotency_key ? new Date(now.getTime() + ttlMs).toISOString() : null,
+    deadline_at: deadlineAt,
     status: "queued",
     attempt: 0,
     lease_owner: null,
+    lease_ceiling_at: null,
     lease_epoch: 0,
     lease_expires_at: null,
     cancel_requested_at: null,
@@ -851,15 +1216,25 @@ function queueRun(input, now) {
       run_id: run.id,
       type: "run.queued",
       actor: run.agent,
-      payload: { agent: run.agent, model: run.model, task_id: run.task_id, max_attempts: run.max_attempts },
+      payload: {
+        agent: run.agent,
+        model: run.model,
+        task_id: run.task_id,
+        max_attempts: run.max_attempts,
+        retry_of: run.retry_of,
+        retry_attempt: run.retry_attempt,
+        deadline_at: run.deadline_at
+      },
       created_at: at
     }
   };
 }
+var DEFAULT_LEASE_CEILING_MS = 12 * 60 * 60 * 1e3;
+var LEASE_CEILING_ERROR_CLASS = "lease_ceiling_reached";
 function leaseDeadline(now, ttlMs) {
   return new Date(now.getTime() + ttlMs).toISOString();
 }
-function claimRun(run, claim, now) {
+function claimRun(run, claim, now, options = {}) {
   if (run.status !== "queued") {
     throw new ConflictError(`\u0417\u0430\u043F\u0443\u0441\u043A \u043D\u0435 \u0432 \u043E\u0447\u0435\u0440\u0435\u0434\u0438: \u0441\u0442\u0430\u0442\u0443\u0441 \xAB${run.status}\xBB`, { current: run });
   }
@@ -869,14 +1244,33 @@ function claimRun(run, claim, now) {
       max_attempts: run.max_attempts
     });
   }
+  if (run.deadline_at && Date.parse(run.deadline_at) <= now.getTime()) {
+    throw new ConflictError("\u0414\u0435\u0434\u043B\u0430\u0439\u043D \u0437\u0430\u043F\u0443\u0441\u043A\u0430 \u0438\u0441\u0442\u0451\u043A: \u0440\u0430\u0431\u043E\u0442\u0430 \u043D\u0435 \u043D\u0430\u0447\u0438\u043D\u0430\u0435\u0442\u0441\u044F", {
+      current: run,
+      reason: DEADLINE_ERROR_CLASS,
+      deadline_at: run.deadline_at
+    });
+  }
   const at = nextTimestamp(run.updated_at, now);
+  const ceilingMs = options.ceiling_ms ?? DEFAULT_LEASE_CEILING_MS;
+  const ceiling = run.lease_ceiling_at ?? new Date(now.getTime() + ceilingMs).toISOString();
+  if (Date.parse(ceiling) <= now.getTime()) {
+    throw new ConflictError("\u041F\u043E\u0442\u043E\u043B\u043E\u043A \u0430\u0440\u0435\u043D\u0434\u044B \u0434\u043E\u0441\u0442\u0438\u0433\u043D\u0443\u0442: \u0440\u0430\u0431\u043E\u0442\u0430 \u043D\u0435 \u043D\u0430\u0447\u0438\u043D\u0430\u0435\u0442\u0441\u044F", {
+      current: run,
+      reason: LEASE_CEILING_ERROR_CLASS,
+      run_id: run.id,
+      ceiling_at: ceiling
+    });
+  }
+  const wanted = leaseDeadline(now, claim.lease_ms);
   const next = {
     ...run,
     status: "running",
     attempt: run.attempt + 1,
     lease_owner: claim.owner,
     lease_epoch: run.lease_epoch + 1,
-    lease_expires_at: leaseDeadline(now, claim.lease_ms),
+    lease_ceiling_at: ceiling,
+    lease_expires_at: Date.parse(wanted) > Date.parse(ceiling) ? ceiling : wanted,
     not_before: null,
     started_at: run.started_at ?? at,
     revision: run.revision + 1,
@@ -919,12 +1313,56 @@ function assertActiveLease(run, lease, now) {
   }
 }
 function heartbeatRun(run, lease, now) {
+  const ceiling = run.lease_ceiling_at ? Date.parse(run.lease_ceiling_at) : null;
+  if (ceiling !== null && ceiling <= now.getTime()) {
+    throw new ConflictError("\u041F\u043E\u0442\u043E\u043B\u043E\u043A \u0430\u0440\u0435\u043D\u0434\u044B \u0434\u043E\u0441\u0442\u0438\u0433\u043D\u0443\u0442: \u043F\u0440\u043E\u0434\u043B\u0435\u043D\u0438\u0435 \u043D\u0435\u0432\u043E\u0437\u043C\u043E\u0436\u043D\u043E", {
+      current: run,
+      reason: LEASE_CEILING_ERROR_CLASS,
+      run_id: run.id,
+      ceiling_at: run.lease_ceiling_at
+    });
+  }
   assertActiveLease(run, lease, now);
+  const wanted = leaseDeadline(now, lease.lease_ms);
   return {
     ...run,
-    lease_expires_at: leaseDeadline(now, lease.lease_ms),
+    // Аренда не может выйти за потолок, даже если клиент просит длиннее.
+    lease_expires_at: ceiling !== null && Date.parse(wanted) > ceiling ? new Date(ceiling).toISOString() : wanted,
     revision: run.revision + 1,
     updated_at: nextTimestamp(run.updated_at, now)
+  };
+}
+function failAtLeaseCeiling(run, now) {
+  if (run.status !== "queued" && run.status !== "running") return null;
+  if (!run.lease_ceiling_at) return null;
+  if (Date.parse(run.lease_ceiling_at) > now.getTime()) return null;
+  const at = nextTimestamp(run.updated_at, now);
+  const next = {
+    ...run,
+    status: "failed",
+    error_class: LEASE_CEILING_ERROR_CLASS,
+    error_message: `\u041F\u043E\u0442\u043E\u043B\u043E\u043A \u0430\u0440\u0435\u043D\u0434\u044B ${run.lease_ceiling_at} \u0438\u0441\u0442\u0451\u043A`,
+    lease_owner: null,
+    lease_expires_at: null,
+    finished_at: at,
+    revision: run.revision + 1,
+    updated_at: at
+  };
+  return {
+    run: next,
+    event: {
+      run_id: run.id,
+      type: "run.failed",
+      actor: "watchdog",
+      payload: {
+        reason: LEASE_CEILING_ERROR_CLASS,
+        ceiling_at: run.lease_ceiling_at,
+        status_before: run.status,
+        attempt: run.attempt,
+        error_class: LEASE_CEILING_ERROR_CLASS
+      },
+      created_at: at
+    }
   };
 }
 function completeRun(run, report, lease, now) {
@@ -1106,6 +1544,38 @@ function recoverExpired(run, now) {
     }
   };
 }
+function expireRun(run, now) {
+  if (run.status !== "queued" && run.status !== "running") return null;
+  if (!run.deadline_at) return null;
+  if (Date.parse(run.deadline_at) > now.getTime()) return null;
+  const at = nextTimestamp(run.updated_at, now);
+  const next = {
+    ...run,
+    status: "failed",
+    error_class: DEADLINE_ERROR_CLASS,
+    error_message: `\u0414\u0435\u0434\u043B\u0430\u0439\u043D ${run.deadline_at} \u0438\u0441\u0442\u0451\u043A \u0434\u043E \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0438\u044F \u0440\u0430\u0431\u043E\u0442\u044B`,
+    lease_owner: null,
+    lease_expires_at: null,
+    finished_at: at,
+    revision: run.revision + 1,
+    updated_at: at
+  };
+  return {
+    run: next,
+    event: {
+      run_id: run.id,
+      type: "run.failed",
+      actor: "watchdog",
+      payload: {
+        reason: DEADLINE_ERROR_CLASS,
+        deadline_at: run.deadline_at,
+        status_before: run.status,
+        error_class: DEADLINE_ERROR_CLASS
+      },
+      created_at: at
+    }
+  };
+}
 
 // src/app/run-service.ts
 var SWEEP_BATCH = 200;
@@ -1116,22 +1586,76 @@ var RunService = class {
   #clock;
   #log;
   #defaultLeaseMs;
+  #leaseCeilingMs;
+  #idempotencyTtlMs;
+  #processTrees;
   constructor(repo, bus, clock, log, options = {}) {
     this.#repo = repo;
     this.#bus = bus;
     this.#clock = clock;
     this.#log = log.child({ module: "runs" });
     this.#defaultLeaseMs = options.defaultLeaseMs ?? DEFAULT_LEASE_MS;
+    this.#leaseCeilingMs = options.leaseCeilingMs ?? DEFAULT_LEASE_CEILING_MS;
+    this.#idempotencyTtlMs = options.idempotencyTtlMs ?? DEFAULT_IDEMPOTENCY_TTL_MS;
+    if (!Number.isInteger(this.#idempotencyTtlMs) || this.#idempotencyTtlMs < 1) {
+      throw new ValidationError("TTL \u0438\u0434\u0435\u043C\u043F\u043E\u0442\u0435\u043D\u0442\u043D\u043E\u0441\u0442\u0438 \u0434\u043E\u043B\u0436\u0435\u043D \u0431\u044B\u0442\u044C \u043F\u043E\u043B\u043E\u0436\u0438\u0442\u0435\u043B\u044C\u043D\u044B\u043C \u0446\u0435\u043B\u044B\u043C");
+    }
+    this.#processTrees = options.processTrees ?? null;
   }
-  create(raw) {
+  create(raw, lineage = null) {
     const input = normalizeNewRun(raw);
-    const { run, event } = queueRun(input, this.#clock.now());
+    if (lineage) {
+      input.retry_of = lineage.retry_of;
+      input.retry_attempt = lineage.retry_attempt;
+    }
+    const now = this.#clock.now();
+    if (input.idempotency_key) {
+      const released = this.#repo.releaseExpiredIdempotency(now);
+      if (released > 0) {
+        this.#log.info("\u0418\u0441\u0442\u0451\u043A\u0448\u0438\u0435 \u043A\u043B\u044E\u0447\u0438 \u0438\u0434\u0435\u043C\u043F\u043E\u0442\u0435\u043D\u0442\u043D\u043E\u0441\u0442\u0438 \u043E\u0441\u0432\u043E\u0431\u043E\u0436\u0434\u0435\u043D\u044B", { count: released });
+      }
+    }
+    const { run, event } = queueRun(input, now, { idempotency_ttl_ms: this.#idempotencyTtlMs });
     if (!this.#repo.insert(run, event)) {
       if (!run.idempotency_key) throw new ConflictError("\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043F\u043E\u0441\u0442\u0430\u0432\u0438\u0442\u044C \u0437\u0430\u043F\u0443\u0441\u043A \u0432 \u043E\u0447\u0435\u0440\u0435\u0434\u044C");
-      const existing = this.#repo.findByIdempotencyKey(run.idempotency_key);
+      let existing = this.#repo.findByIdempotencyKey(run.idempotency_key);
       if (!existing) throw new ConflictError("\u0418\u0434\u0435\u043C\u043F\u043E\u0442\u0435\u043D\u0442\u043D\u044B\u0439 \u043A\u043B\u044E\u0447 \u0437\u0430\u043D\u044F\u0442 \u043D\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043D\u044B\u043C \u0437\u0430\u043F\u0443\u0441\u043A\u043E\u043C", {
         idempotency_key: run.idempotency_key
       });
+      if (existing.idempotency_expires_at && Date.parse(existing.idempotency_expires_at) <= now.getTime()) {
+        this.#repo.releaseExpiredIdempotency(now);
+        if (this.#repo.insert(run, event)) {
+          this.#publish(event);
+          this.#log.info("\u0417\u0430\u043F\u0443\u0441\u043A \u043F\u043E\u0441\u0442\u0430\u0432\u043B\u0435\u043D \u0432 \u043E\u0447\u0435\u0440\u0435\u0434\u044C \u043F\u043E\u0441\u043B\u0435 \u0438\u0441\u0442\u0435\u0447\u0435\u043D\u0438\u044F \u043A\u043B\u044E\u0447\u0430", {
+            run_id: run.id,
+            agent: run.agent,
+            model: run.model
+          });
+          return { run, deduplicated: false };
+        }
+        existing = this.#repo.findByIdempotencyKey(run.idempotency_key);
+        if (!existing) throw new ConflictError("\u0418\u0434\u0435\u043C\u043F\u043E\u0442\u0435\u043D\u0442\u043D\u044B\u0439 \u043A\u043B\u044E\u0447 \u0437\u0430\u043D\u044F\u0442 \u043D\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043D\u044B\u043C \u0437\u0430\u043F\u0443\u0441\u043A\u043E\u043C", {
+          idempotency_key: run.idempotency_key
+        });
+        if (existing.idempotency_expires_at && Date.parse(existing.idempotency_expires_at) <= now.getTime()) {
+          throw new ConflictError("\u0418\u0441\u0442\u0451\u043A\u0448\u0438\u0439 \u043A\u043B\u044E\u0447 \u0438\u0434\u0435\u043C\u043F\u043E\u0442\u0435\u043D\u0442\u043D\u043E\u0441\u0442\u0438 \u043D\u0435 \u043E\u0441\u0432\u043E\u0431\u043E\u0434\u0438\u043B\u0441\u044F", {
+            reason: "idempotency_cleanup_failed",
+            idempotency_key: run.idempotency_key,
+            run_id: existing.id
+          });
+        }
+      }
+      if (existing.idempotency_fingerprint && run.idempotency_fingerprint && existing.idempotency_fingerprint !== run.idempotency_fingerprint) {
+        this.#log.warn("\u041A\u043B\u044E\u0447 \u0438\u0434\u0435\u043C\u043F\u043E\u0442\u0435\u043D\u0442\u043D\u043E\u0441\u0442\u0438 \u0438\u0441\u043F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u043D \u0441 \u0434\u0440\u0443\u0433\u0438\u043C \u0442\u0435\u043B\u043E\u043C \u0437\u0430\u043F\u0440\u043E\u0441\u0430", {
+          run_id: existing.id,
+          idempotency_key: run.idempotency_key
+        });
+        throw new ConflictError("\u041A\u043B\u044E\u0447 \u0438\u0434\u0435\u043C\u043F\u043E\u0442\u0435\u043D\u0442\u043D\u043E\u0441\u0442\u0438 \u0443\u0436\u0435 \u0438\u0441\u043F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u043D \u0441 \u0434\u0440\u0443\u0433\u0438\u043C \u0442\u0435\u043B\u043E\u043C \u0437\u0430\u043F\u0440\u043E\u0441\u0430", {
+          reason: "idempotency_conflict",
+          idempotency_key: run.idempotency_key,
+          run_id: existing.id
+        });
+      }
       this.#log.info("\u041F\u043E\u0432\u0442\u043E\u0440\u043D\u0430\u044F \u043F\u043E\u0441\u0442\u0430\u043D\u043E\u0432\u043A\u0430 \u0437\u0430\u043F\u0443\u0441\u043A\u0430", {
         run_id: existing.id,
         idempotency_key: run.idempotency_key
@@ -1146,6 +1670,9 @@ var RunService = class {
     const run = this.#repo.get(id);
     if (!run) throw new NotFoundError(`\u0417\u0430\u043F\u0443\u0441\u043A ${id} \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D`);
     return { run, events: this.#repo.events(id, 100) };
+  }
+  metrics() {
+    return this.#repo.metrics(this.#clock.now());
   }
   /** Вся история запусков для выгрузки. */
   exportAll() {
@@ -1180,11 +1707,34 @@ var RunService = class {
   claimNext(raw, allowedTaskIds, modelFilter = "any") {
     const claim = normalizeClaim(raw, this.#defaultLeaseMs);
     const now = this.#clock.now();
-    const decision = this.#repo.claimNext(
-      (queued) => claimRun(queued, claim, now),
-      allowedTaskIds,
-      modelFilter
-    );
+    this.expireOverdue(now);
+    let decision = null;
+    for (let guard = 0; guard < SWEEP_MAX_BATCHES; guard += 1) {
+      try {
+        decision = this.#repo.claimNext(
+          (queued) => claimRun(queued, claim, now, { ceiling_ms: this.#leaseCeilingMs }),
+          allowedTaskIds,
+          modelFilter
+        );
+        break;
+      } catch (error) {
+        if (!(error instanceof ConflictError) || error.details.reason !== LEASE_CEILING_ERROR_CLASS) {
+          throw error;
+        }
+        const stuck = this.#repo.get(String(error.details.run_id ?? ""));
+        if (!stuck) throw error;
+        const transition = failAtLeaseCeiling(stuck, now);
+        if (!transition || !this.#repo.update(transition.run, stuck.revision, transition.event)) {
+          throw error;
+        }
+        this.#publish(transition.event);
+        this.#log.warn("\u0417\u0430\u043F\u0443\u0441\u043A \u0437\u0430\u043A\u0440\u044B\u0442 \u043F\u043E \u043F\u043E\u0442\u043E\u043B\u043A\u0443 \u0430\u0440\u0435\u043D\u0434\u044B", {
+          run_id: stuck.id,
+          ceiling_at: stuck.lease_ceiling_at
+        });
+        decision = null;
+      }
+    }
     if (!decision) return null;
     this.#publish(decision.event);
     this.#log.info("\u0417\u0430\u043F\u0443\u0441\u043A \u0437\u0430\u0445\u0432\u0430\u0447\u0435\u043D", {
@@ -1194,6 +1744,41 @@ var RunService = class {
       lease_expires_at: decision.run.lease_expires_at
     });
     return decision.run;
+  }
+  /**
+   * Просроченные абсолютные дедлайны (CAP-0027). Отдельный проход, чтобы время
+   * задавалось часами, а не таймером: сон машины и перевод часов не съедают
+   * работу молча — после пробуждения всё, что просрочено, закрывается явно.
+   * Для `running` CAS по revision выигрывает у исполнителя: дедлайн сильнее.
+   */
+  expireOverdue(now = this.#clock.now()) {
+    const expired = [];
+    for (let batch = 0; batch < SWEEP_MAX_BATCHES; batch += 1) {
+      const overdue = this.#repo.listOverdue(now, SWEEP_BATCH);
+      if (!overdue.length) break;
+      let progressed = 0;
+      for (const run of overdue) {
+        const transition = expireRun(run, now);
+        if (!transition) continue;
+        if (!this.#repo.update(transition.run, run.revision, transition.event)) continue;
+        this.#publish(transition.event);
+        this.#log.warn("\u0417\u0430\u043F\u0443\u0441\u043A \u0437\u0430\u043A\u0440\u044B\u0442 \u043F\u043E \u0434\u0435\u0434\u043B\u0430\u0439\u043D\u0443", {
+          run_id: run.id,
+          deadline_at: run.deadline_at,
+          status_before: run.status
+        });
+        const tree = run.status === "running" ? this.#killTree(run.id) : null;
+        expired.push({
+          run_id: run.id,
+          deadline_at: run.deadline_at ?? "",
+          status_before: run.status,
+          tree_killed: tree?.killed ?? false
+        });
+        progressed += 1;
+      }
+      if (!progressed) break;
+    }
+    return expired;
   }
   heartbeat(id, raw) {
     const lease = normalizeLease(raw, this.#defaultLeaseMs);
@@ -1306,15 +1891,26 @@ var RunService = class {
         status: source.status
       });
     }
-    const created = this.create({
-      agent: source.agent,
-      model: source.model ?? void 0,
-      task_id: source.task_id ?? void 0,
-      max_attempts: source.max_attempts
-    });
+    const retryAttempt = source.retry_attempt + 1;
+    if (retryAttempt > MAX_MANUAL_RETRIES) {
+      throw new ConflictError(
+        `\u041F\u0440\u0435\u0434\u0435\u043B \u0440\u0443\u0447\u043D\u044B\u0445 \u043F\u043E\u0432\u0442\u043E\u0440\u043E\u0432: ${MAX_MANUAL_RETRIES} \u043D\u0430 \u0446\u0435\u043F\u043E\u0447\u043A\u0443`,
+        { source_id: source.id, retry_attempt: source.retry_attempt }
+      );
+    }
+    const created = this.create(
+      {
+        agent: source.agent,
+        model: source.model ?? void 0,
+        task_id: source.task_id ?? void 0,
+        max_attempts: source.max_attempts
+      },
+      { retry_of: source.id, retry_attempt: retryAttempt }
+    );
     this.#log.info("\u0417\u0430\u043F\u0443\u0441\u043A \u043F\u043E\u0432\u0442\u043E\u0440\u0451\u043D \u0432\u0440\u0443\u0447\u043D\u0443\u044E", {
       source_id: source.id,
-      run_id: created.run.id
+      run_id: created.run.id,
+      retry_attempt: retryAttempt
     });
     return { run: created.run, source_id: source.id, deduplicated: created.deduplicated };
   }
@@ -1326,19 +1922,21 @@ var RunService = class {
       const now = this.#clock.now();
       const result = requestCancel(current, actor, now);
       if (!result.changed) {
-        return { run: result.run, requested: false, finished: result.finished };
+        return { run: result.run, requested: false, finished: result.finished, tree: null };
       }
       if (!this.#repo.update(result.run, current.revision, result.event)) {
         continue;
       }
       if (result.event) this.#publish(result.event);
+      const tree = current.status === "running" ? this.#killTree(id) : null;
       this.#log.info("\u041E\u0442\u043C\u0435\u043D\u0430 \u0437\u0430\u043F\u0443\u0441\u043A\u0430 \u0437\u0430\u043F\u0440\u043E\u0448\u0435\u043D\u0430", {
         run_id: id,
         actor,
         from: current.status,
-        finished: result.finished
+        finished: result.finished,
+        tree_killed: tree?.killed ?? null
       });
-      return { run: result.run, requested: true, finished: result.finished };
+      return { run: result.run, requested: true, finished: result.finished, tree };
     }
     throw this.#leaseLost(id);
   }
@@ -1373,6 +1971,41 @@ var RunService = class {
       if (!progressed) break;
     }
     return results;
+  }
+  /**
+   * Публичный журнал последней остановки дерева: какие сигналы, в каком порядке
+   * и на какой стадии получил каждый pid. Не зависит от внутренних логов.
+   */
+  treeJournal(id) {
+    this.#requireRun(id);
+    const journal = this.#processTrees?.journal?.(id) ?? [];
+    const hard = journal.find((entry) => entry.stage === "hard");
+    return {
+      run_id: id,
+      soft_window_ms: hard?.waited_ms ?? 0,
+      journal
+    };
+  }
+  /** Гашение дерева: ошибка адаптера не должна ломать переход статуса. */
+  #killTree(runId) {
+    if (!this.#processTrees) return null;
+    try {
+      const result = this.#processTrees.kill(runId);
+      if (!result.killed) {
+        this.#log.error("\u0414\u0435\u0440\u0435\u0432\u043E \u043F\u0440\u043E\u0446\u0435\u0441\u0441\u043E\u0432 \u043D\u0435 \u043F\u043E\u0434\u0442\u0432\u0435\u0440\u0434\u0438\u043B\u043E \u043E\u0441\u0442\u0430\u043D\u043E\u0432\u043A\u0443", {
+          run_id: runId,
+          pid: result.pid,
+          error: result.error
+        });
+      }
+      return result;
+    } catch (error) {
+      this.#log.error("\u0413\u0430\u0448\u0435\u043D\u0438\u0435 \u0434\u0435\u0440\u0435\u0432\u0430 \u043F\u0440\u043E\u0446\u0435\u0441\u0441\u043E\u0432 \u0443\u043F\u0430\u043B\u043E", {
+        run_id: runId,
+        error: error instanceof Error ? error.stack : String(error)
+      });
+      return null;
+    }
   }
   #notBefore(raw) {
     if (raw === void 0 || raw === null || raw === "") return this.#clock.now();
@@ -1438,6 +2071,16 @@ var RunWatchdog = class {
   }
   sweep(now) {
     try {
+      const expired = this.#service.expireOverdue(now);
+      if (expired.length) {
+        this.#log.warn("\u0417\u0430\u043F\u0443\u0441\u043A\u0438 \u0437\u0430\u043A\u0440\u044B\u0442\u044B \u043F\u043E \u0434\u0435\u0434\u043B\u0430\u0439\u043D\u0443", { count: expired.length });
+      }
+    } catch (error) {
+      this.#log.error("\u041E\u0431\u0445\u043E\u0434 \u0434\u0435\u0434\u043B\u0430\u0439\u043D\u043E\u0432 \u0443\u043F\u0430\u043B", {
+        error: error instanceof Error ? error.stack : String(error)
+      });
+    }
+    try {
       return this.#service.sweepExpired(now);
     } catch (error) {
       this.#log.error("\u041E\u0431\u0445\u043E\u0434 \u043F\u0440\u043E\u0441\u0440\u043E\u0447\u0435\u043D\u043D\u044B\u0445 \u0430\u0440\u0435\u043D\u0434 \u0443\u043F\u0430\u043B", {
@@ -1448,91 +2091,9 @@ var RunWatchdog = class {
   }
 };
 
-// src/adapters/agents/file-registry.ts
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
-function defaultAgents() {
-  if (process.platform === "win32") {
-    return [{
-      id: "demo",
-      command: "cmd",
-      // ping из System32, а не `timeout`: в PATH может оказаться GNU timeout.
-      args: ["/c", "for /l %i in (1,1,15) do @(echo line %i & %SystemRoot%\\System32\\ping.exe -n 2 127.0.0.1 >nul)"],
-      cwd: null,
-      env: {},
-      timeout_ms: 6e4
-    }];
-  }
-  return [{
-    id: "demo",
-    command: "sh",
-    args: ["-c", "for i in $(seq 1 15); do echo line $i; sleep 1; done"],
-    cwd: null,
-    env: {},
-    timeout_ms: 6e4
-  }];
-}
-function normalizeAgent(raw, index) {
-  const input = record(raw, `\u0410\u0433\u0435\u043D\u0442 #${index + 1}`);
-  const id = text(input.id, "id", 100, true);
-  const argsRaw = input.args ?? [];
-  if (!Array.isArray(argsRaw)) throw new ValidationError(`\u0410\u0433\u0435\u043D\u0442 \xAB${id}\xBB: args \u0434\u043E\u043B\u0436\u0435\u043D \u0431\u044B\u0442\u044C \u0441\u043F\u0438\u0441\u043A\u043E\u043C`);
-  const envRaw = input.env ?? {};
-  const envInput = record(envRaw, `\u0410\u0433\u0435\u043D\u0442 \xAB${id}\xBB: env`);
-  const env = {};
-  for (const [key, value] of Object.entries(envInput)) {
-    if (typeof value !== "string") throw new ValidationError(`\u0410\u0433\u0435\u043D\u0442 \xAB${id}\xBB: env.${key} \u0434\u043E\u043B\u0436\u0435\u043D \u0431\u044B\u0442\u044C \u0441\u0442\u0440\u043E\u043A\u043E\u0439`);
-    env[key] = value;
-  }
-  return {
-    id,
-    command: text(input.command, "command", 500, true),
-    args: argsRaw.map((arg, argIndex) => text(arg, `args[${argIndex}]`, 500, true)),
-    cwd: text(input.cwd, "cwd", 500) || null,
-    env,
-    timeout_ms: input.timeout_ms === void 0 || input.timeout_ms === null ? null : integer(input.timeout_ms, "timeout_ms", 1e3, 36e5, 6e4)
-  };
-}
-function serialize(agent) {
-  return {
-    id: agent.id,
-    command: agent.command,
-    args: [...agent.args],
-    ...agent.cwd ? { cwd: agent.cwd } : {},
-    ...Object.keys(agent.env).length ? { env: agent.env } : {},
-    ...agent.timeout_ms ? { timeout_ms: agent.timeout_ms } : {}
-  };
-}
-function loadAgentRegistry(file, log) {
-  if (!existsSync(file)) {
-    mkdirSync(dirname(file), { recursive: true });
-    const seed = { agents: defaultAgents().map(serialize) };
-    writeFileSync(file, `${JSON.stringify(seed, null, 2)}
-`, "utf8");
-    log.info("\u0421\u043E\u0437\u0434\u0430\u043D \u0444\u0430\u0439\u043B \u0430\u0433\u0435\u043D\u0442\u043E\u0432", { file });
-  }
-  let parsed;
-  try {
-    parsed = JSON.parse(readFileSync(file, "utf8"));
-  } catch (error) {
-    throw new ValidationError(`\u0424\u0430\u0439\u043B \u0430\u0433\u0435\u043D\u0442\u043E\u0432 \xAB${file}\xBB: \u043D\u0435\u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u044B\u0439 JSON`, { error: String(error) });
-  }
-  const input = record(parsed, "\u0424\u0430\u0439\u043B \u0430\u0433\u0435\u043D\u0442\u043E\u0432");
-  if (!Array.isArray(input.agents)) {
-    throw new ValidationError(`\u0424\u0430\u0439\u043B \u0430\u0433\u0435\u043D\u0442\u043E\u0432 \xAB${file}\xBB: \u043E\u0436\u0438\u0434\u0430\u043B\u0441\u044F \u043C\u0430\u0441\u0441\u0438\u0432 agents`);
-  }
-  const agents = input.agents.map(normalizeAgent);
-  if (!agents.length) throw new ValidationError(`\u0424\u0430\u0439\u043B \u0430\u0433\u0435\u043D\u0442\u043E\u0432 \xAB${file}\xBB: \u043D\u0435\u0442 \u043D\u0438 \u043E\u0434\u043D\u043E\u0433\u043E \u0430\u0433\u0435\u043D\u0442\u0430`);
-  const map = /* @__PURE__ */ new Map();
-  for (const agent of agents) {
-    if (map.has(agent.id)) throw new ValidationError(`\u0424\u0430\u0439\u043B \u0430\u0433\u0435\u043D\u0442\u043E\u0432 \xAB${file}\xBB: \u043F\u043E\u0432\u0442\u043E\u0440\u044F\u0435\u0442\u0441\u044F id \xAB${agent.id}\xBB`);
-    map.set(agent.id, agent);
-  }
-  log.info("\u0410\u0433\u0435\u043D\u0442\u044B \u0437\u0430\u0433\u0440\u0443\u0436\u0435\u043D\u044B", { file, agents: [...map.keys()] });
-  return {
-    get: (id) => map.get(id) ?? null,
-    ids: () => [...map.keys()]
-  };
+// src/domain/runs/metrics.ts
+function emptyStatusCounts() {
+  return Object.fromEntries(RUN_STATUSES.map((status) => [status, 0]));
 }
 
 // src/adapters/storage/cursor.ts
@@ -1549,13 +2110,15 @@ function decodeCursor(cursor) {
 }
 
 // src/adapters/storage/sqlite-runs.ts
-var COLUMNS = `id, task_id, agent, model, status, attempt, max_attempts, idempotency_key,
-  lease_owner, lease_epoch, lease_expires_at, cancel_requested_at, exit_code, error_class,
-  error_message, result, not_before, revision, created_at, started_at, finished_at, updated_at`;
+var COLUMNS = `id, task_id, agent, model, status, attempt, max_attempts, retry_of, retry_attempt,
+  idempotency_key, idempotency_fingerprint, idempotency_expires_at, lease_owner, lease_ceiling_at, lease_epoch, lease_expires_at, cancel_requested_at, exit_code,
+  error_class, error_message, result, not_before, deadline_at, revision, created_at, started_at, finished_at,
+  updated_at`;
 var SET = `task_id = ?, agent = ?, model = ?, status = ?, attempt = ?, max_attempts = ?,
-  idempotency_key = ?, lease_owner = ?, lease_epoch = ?, lease_expires_at = ?,
-  cancel_requested_at = ?, exit_code = ?, error_class = ?, error_message = ?, result = ?,
-  not_before = ?, revision = ?, created_at = ?, started_at = ?, finished_at = ?, updated_at = ?`;
+  retry_of = ?, retry_attempt = ?, idempotency_key = ?, idempotency_fingerprint = ?, idempotency_expires_at = ?, lease_owner = ?, lease_ceiling_at = ?, lease_epoch = ?,
+  lease_expires_at = ?, cancel_requested_at = ?, exit_code = ?, error_class = ?,
+  error_message = ?, result = ?, not_before = ?, deadline_at = ?, revision = ?, created_at = ?, started_at = ?,
+  finished_at = ?, updated_at = ?`;
 function toRun(row) {
   return {
     id: row.id,
@@ -1565,8 +2128,13 @@ function toRun(row) {
     status: row.status,
     attempt: row.attempt,
     max_attempts: row.max_attempts,
+    retry_of: row.retry_of,
+    retry_attempt: row.retry_attempt,
     idempotency_key: row.idempotency_key,
+    idempotency_fingerprint: row.idempotency_fingerprint,
+    idempotency_expires_at: row.idempotency_expires_at,
     lease_owner: row.lease_owner,
+    lease_ceiling_at: row.lease_ceiling_at,
     lease_epoch: row.lease_epoch,
     lease_expires_at: row.lease_expires_at,
     cancel_requested_at: row.cancel_requested_at,
@@ -1575,6 +2143,7 @@ function toRun(row) {
     error_message: row.error_message,
     result: row.result,
     not_before: row.not_before,
+    deadline_at: row.deadline_at,
     revision: row.revision,
     created_at: row.created_at,
     started_at: row.started_at,
@@ -1599,8 +2168,13 @@ function values(run) {
     run.status,
     run.attempt,
     run.max_attempts,
+    run.retry_of,
+    run.retry_attempt,
     run.idempotency_key,
+    run.idempotency_fingerprint,
+    run.idempotency_expires_at,
     run.lease_owner,
+    run.lease_ceiling_at,
     run.lease_epoch,
     run.lease_expires_at,
     run.cancel_requested_at,
@@ -1609,6 +2183,7 @@ function values(run) {
     run.error_message,
     run.result,
     run.not_before,
+    run.deadline_at,
     run.revision,
     run.created_at,
     run.started_at,
@@ -1623,7 +2198,7 @@ var SqliteRunRepository = class {
   }
   insert(run, event) {
     return this.#db.transaction(() => {
-      const result = this.#db.raw.prepare(`INSERT INTO runs (${COLUMNS}) VALUES (${", ?".repeat(22).slice(1)})
+      const result = this.#db.raw.prepare(`INSERT INTO runs (${COLUMNS}) VALUES (${", ?".repeat(28).slice(1)})
           ON CONFLICT DO NOTHING`).run(run.id, ...values(run));
       if (Number(result.changes) !== 1) return false;
       this.#appendEvent(event);
@@ -1637,6 +2212,14 @@ var SqliteRunRepository = class {
   findByIdempotencyKey(key) {
     const row = this.#db.raw.prepare(`SELECT ${COLUMNS} FROM runs WHERE idempotency_key = ?`).get(key);
     return row ? toRun(row) : null;
+  }
+  releaseExpiredIdempotency(now) {
+    const result = this.#db.raw.prepare(`UPDATE runs
+        SET idempotency_key = NULL, idempotency_fingerprint = NULL, idempotency_expires_at = NULL
+        WHERE idempotency_key IS NOT NULL
+          AND idempotency_expires_at IS NOT NULL
+          AND idempotency_expires_at <= ?`).run(now.toISOString());
+    return Number(result.changes);
   }
   list(query) {
     const where = [];
@@ -1729,12 +2312,153 @@ var SqliteRunRepository = class {
         ORDER BY lease_expires_at ASC LIMIT ?`).all(now.toISOString(), Math.min(Math.max(limit, 1), 500));
     return rows.map(toRun);
   }
+  listOverdue(now, limit) {
+    const rows = this.#db.raw.prepare(`SELECT ${COLUMNS} FROM runs
+        WHERE status IN ('queued', 'running') AND deadline_at IS NOT NULL AND deadline_at <= ?
+        ORDER BY deadline_at ASC LIMIT ?`).all(now.toISOString(), Math.min(Math.max(limit, 1), 500));
+    return rows.map(toRun);
+  }
+  metrics(now) {
+    const by_status = emptyStatusCounts();
+    const statusRows = this.#db.raw.prepare("SELECT status, COUNT(*) AS count FROM runs GROUP BY status").all();
+    for (const row of statusRows) {
+      if (row.status in by_status) by_status[row.status] = Number(row.count);
+    }
+    const totals = this.#db.raw.prepare(`SELECT COUNT(*) AS total,
+        SUM(CASE WHEN retry_of IS NOT NULL THEN 1 ELSE 0 END) AS manual,
+        MIN(CASE WHEN status = 'queued' THEN created_at END) AS oldest
+        FROM runs`).get();
+    const durationRows = this.#db.raw.prepare(`SELECT (julianday(finished_at) - julianday(started_at)) * 86400000 AS ms
+        FROM runs WHERE started_at IS NOT NULL AND finished_at IS NOT NULL`).all();
+    const durations = durationRows.map((row) => Number(row.ms)).filter((value) => Number.isFinite(value) && value >= 0).sort((left, right) => left - right);
+    const at = (fraction) => durations.length ? Math.round(durations[Math.floor((durations.length - 1) * fraction)]) : null;
+    const average = durations.length ? Math.round(durations.reduce((sum, value) => sum + value, 0) / durations.length) : null;
+    const errors = this.#db.raw.prepare(`SELECT error_class, COUNT(*) AS count FROM runs
+        WHERE error_class IS NOT NULL AND error_class <> ''
+        GROUP BY error_class ORDER BY count DESC, error_class ASC LIMIT 10`).all();
+    const succeeded = by_status.succeeded;
+    const failed = by_status.failed;
+    const terminal = succeeded + failed;
+    return {
+      total: Number(totals.total ?? 0),
+      by_status,
+      queued: by_status.queued,
+      running: by_status.running,
+      oldest_queued_at: totals.oldest ?? null,
+      outcomes: {
+        succeeded,
+        failed,
+        cancelled: by_status.cancelled,
+        success_rate: terminal ? Math.round(succeeded / terminal * 1e3) / 1e3 : null
+      },
+      duration_ms: {
+        average,
+        p50: at(0.5),
+        p90: at(0.9),
+        maximum: durations.length ? Math.round(durations[durations.length - 1]) : null
+      },
+      errors: errors.map((row) => ({ error_class: row.error_class, count: Number(row.count) })),
+      retries: { manual: Number(totals.manual ?? 0) },
+      updated_at: now.toISOString()
+    };
+  }
   #appendEvent(event) {
     this.#db.raw.prepare("INSERT INTO run_events (run_id, type, actor, payload, created_at) VALUES (?, ?, ?, ?, ?)").run(event.run_id, event.type, event.actor, JSON.stringify(event.payload), event.created_at);
   }
 };
 
-// src/app/export-format.ts
+// src/adapters/process/system-process-tree.ts
+import { spawnSync } from "node:child_process";
+function pidAlive2(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+var SystemProcessTree = class {
+  #platform;
+  #isAlive;
+  #terminate;
+  #pids = /* @__PURE__ */ new Map();
+  constructor(options = {}) {
+    this.#platform = options.platform ?? process.platform;
+    this.#isAlive = options.isAlive ?? pidAlive2;
+    this.#terminate = options.terminate ?? ((pid) => this.#terminateDefault(pid));
+  }
+  attach(runId, pid) {
+    if (!Number.isInteger(pid) || pid <= 0) {
+      throw new ValidationError("pid \u0434\u0435\u0440\u0435\u0432\u0430 \u043F\u0440\u043E\u0446\u0435\u0441\u0441\u043E\u0432 \u0434\u043E\u043B\u0436\u0435\u043D \u0431\u044B\u0442\u044C \u043F\u043E\u043B\u043E\u0436\u0438\u0442\u0435\u043B\u044C\u043D\u044B\u043C \u0446\u0435\u043B\u044B\u043C", { pid });
+    }
+    this.#pids.set(runId, pid);
+  }
+  detach(runId) {
+    this.#pids.delete(runId);
+  }
+  alive(runId) {
+    const pid = this.#pids.get(runId);
+    if (pid === void 0) return false;
+    if (this.#isAlive(pid)) return true;
+    this.#pids.delete(runId);
+    return false;
+  }
+  size() {
+    return this.#pids.size;
+  }
+  kill(runId) {
+    const pid = this.#pids.get(runId);
+    if (pid === void 0) {
+      return { run_id: runId, pid: null, killed: true, processes: 0, method: "none", error: null };
+    }
+    const processes = this.#isAlive(pid) ? 1 : 0;
+    const error = this.#terminate(pid);
+    const stillAlive = this.#isAlive(pid);
+    if (!stillAlive) this.#pids.delete(runId);
+    return {
+      run_id: runId,
+      pid,
+      killed: !stillAlive,
+      processes,
+      method: this.#platform === "win32" ? "taskkill" : "signal",
+      error: stillAlive ? error ?? "\u043F\u0440\u043E\u0446\u0435\u0441\u0441 \u043E\u0441\u0442\u0430\u043B\u0441\u044F \u0436\u0438\u0432 \u043F\u043E\u0441\u043B\u0435 \u043A\u043E\u043C\u0430\u043D\u0434\u044B \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0438\u044F" : error
+    };
+  }
+  #terminateDefault(pid) {
+    if (this.#platform === "win32") {
+      const result = spawnSync("taskkill", ["/PID", String(pid), "/T", "/F"], {
+        windowsHide: true,
+        stdio: "ignore"
+      });
+      if (result.error) return String(result.error);
+      if (result.status !== 0 && this.#isAlive(pid)) {
+        return `taskkill \u0437\u0430\u0432\u0435\u0440\u0448\u0438\u043B\u0441\u044F \u0441 \u043A\u043E\u0434\u043E\u043C ${result.status ?? "\u043D\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043D\u043E"}`;
+      }
+      return null;
+    }
+    try {
+      process.kill(-pid, "SIGTERM");
+    } catch {
+      try {
+        process.kill(pid, "SIGTERM");
+      } catch {
+      }
+    }
+    if (this.#isAlive(pid)) {
+      try {
+        process.kill(-pid, "SIGKILL");
+      } catch {
+        try {
+          process.kill(pid, "SIGKILL");
+        } catch {
+        }
+      }
+    }
+    return null;
+  }
+};
+
+// src/domain/exports/csv.ts
 function csv(rows, columns) {
   const cell = (value) => {
     let text2 = value === null || value === void 0 ? "" : String(value);
@@ -1745,6 +2469,8 @@ function csv(rows, columns) {
   return `\uFEFF${lines.join("\r\n")}\r
 `;
 }
+
+// src/app/export-format.ts
 function downloadHeaders(name, format) {
   const extension = format === "csv" ? "csv" : "json";
   return {
@@ -1752,6 +2478,22 @@ function downloadHeaders(name, format) {
     "cache-control": "no-store"
   };
 }
+
+// src/adapters/storage/sqlite-process-tree-journal.ts
+var processTreeJournalMigrations = [
+  {
+    // Журнал сигналов — публичное доказательство остановки, поэтому он живёт
+    // в БД, а не только в памяти процесса. run_id — один последний журнал.
+    version: "runs/0009_process_tree_journal",
+    sql: `CREATE TABLE process_tree_journals (
+      run_id TEXT PRIMARY KEY,
+      pid INTEGER,
+      soft_window_ms INTEGER NOT NULL,
+      entries TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );`
+  }
+];
 
 // src/modules/runs/schema.ts
 var runsMigrations = [
@@ -1809,7 +2551,78 @@ var runsMigrations = [
       ALTER TABLE runs ADD COLUMN not_before TEXT;
       CREATE INDEX runs_ready ON runs (status, not_before, created_at);
     `
-  }
+  },
+  {
+    // Ручной повтор хранит источник и глубину цепочки: без этого нельзя ни
+    // показать происхождение, ни ограничить бесконечные «повторить».
+    version: "runs/0003_retry_provenance",
+    sql: `
+      ALTER TABLE runs ADD COLUMN retry_of TEXT;
+      ALTER TABLE runs ADD COLUMN retry_attempt INTEGER NOT NULL DEFAULT 0;
+      CREATE INDEX runs_retry ON runs (retry_of);
+    `
+  },
+  {
+    // Абсолютный дедлайн (CAP-0027): момент, после которого работу нельзя ни
+    // начать, ни продолжить. NULL — запуск без срока.
+    version: "runs/0004_deadline",
+    sql: `
+      ALTER TABLE runs ADD COLUMN deadline_at TEXT;
+      CREATE INDEX runs_deadline ON runs (status, deadline_at);
+    `
+  },
+  {
+    // Ключ идемпотентности без отпечатка тела позволяет выдать старый запуск
+    // за ответ на другой запрос. Отпечаток хранится рядом с ключом.
+    version: "runs/0005_idempotency_fingerprint",
+    sql: `
+      ALTER TABLE runs ADD COLUMN idempotency_fingerprint TEXT;
+    `
+  },
+  {
+    // Потолок аренды — отдельный абсолютный момент: heartbeat продлевает
+    // аренду, но не может сдвинуть потолок вперёд.
+    version: "runs/0006_lease_ceiling",
+    sql: `
+      ALTER TABLE runs ADD COLUMN lease_ceiling_at TEXT;
+    `
+  },
+  {
+    // Ключ идемпотентности живёт 24 часа (CAP-0030). Старым строкам срок
+    // вычисляется от created_at, чтобы обновление не оставило вечные ключи.
+    version: "runs/0007_idempotency_ttl",
+    sql: `
+      ALTER TABLE runs ADD COLUMN idempotency_expires_at TEXT;
+      UPDATE runs
+        SET idempotency_expires_at = strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+24 hours')
+        WHERE idempotency_key IS NOT NULL AND idempotency_expires_at IS NULL;
+      CREATE INDEX runs_idempotency_expiry ON runs (idempotency_expires_at)
+        WHERE idempotency_key IS NOT NULL;
+    `
+  },
+  {
+    // S48: точный ответ и блокировка ключа. Тройка (method, path, key) не даёт
+    // смешать одинаковый ключ на разных маршрутах; UNIQUE — межпроцессный lock.
+    version: "runs/0008_idempotency_response",
+    sql: `
+      CREATE TABLE idempotency_responses (
+        method TEXT NOT NULL,
+        path TEXT NOT NULL,
+        key TEXT NOT NULL,
+        fingerprint TEXT NOT NULL,
+        state TEXT NOT NULL,
+        status INTEGER,
+        body TEXT,
+        owner TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        completed_at TEXT,
+        PRIMARY KEY (method, path, key)
+      );
+      CREATE INDEX idempotency_expiry ON idempotency_responses (expires_at);
+    `
+  },
+  ...processTreeJournalMigrations
 ];
 
 // src/modules/agents/schema.ts
@@ -1841,30 +2654,34 @@ var PAGE = `<!doctype html>
 <title>\u0417\u0430\u043F\u0443\u0441\u043A\u0438 \u2014 \u043C\u043E\u0434\u0443\u043B\u044C</title>
 <style>
   :root { color-scheme: light dark; }
-  body { margin: 0; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; background: #0f1216; color: #e6e9ef; }
-  header { display: flex; gap: 12px; align-items: baseline; padding: 20px 24px; border-bottom: 1px solid #232833; }
+  body { margin: 0; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); }
+  header { display: flex; gap: 12px; align-items: baseline; padding: 20px 24px; border-bottom: 1px solid var(--line); }
   header h1 { margin: 0; font-size: 19px; }
-  header a { color: #8fb4ff; font-size: 13px; }
+  header a { color: var(--accent); font-size: 13px; }
   main { display: grid; gap: 20px; grid-template-columns: minmax(280px, 360px) 1fr; padding: 24px; align-items: start; }
   @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
-  section { background: #151a21; border: 1px solid #232833; border-radius: 12px; padding: 16px; }
-  h2 { margin: 0 0 12px; font-size: 15px; color: #aab4c5; font-weight: 600; }
-  label { display: grid; gap: 4px; font-size: 13px; color: #aab4c5; margin-bottom: 10px; }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  h2 { margin: 0 0 12px; font-size: 15px; color: var(--muted); font-weight: 600; }
+  label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); margin-bottom: 10px; }
   input, select, button { font: inherit; }
-  input, select { background: #0f1216; color: inherit; border: 1px solid #2b3240; border-radius: 8px; padding: 8px 10px; }
-  button { background: #2d5bff; color: #fff; border: 0; border-radius: 8px; padding: 8px 14px; cursor: pointer; }
-  button.ghost { background: #222a36; color: #cbd4e1; }
+  input, select { background: var(--bg); color: inherit; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+  button { background: var(--accent); color: var(--on-accent); border: 0; border-radius: 8px; padding: 8px 14px; cursor: pointer; }
+  button.ghost { background: var(--panel-soft); color: var(--text); }
   ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
-  li { border: 1px solid #232833; border-radius: 10px; padding: 12px; }
+  li { border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
   .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-  .id { font-family: ui-monospace, Consolas, monospace; font-size: 12px; color: #cbd4e1; }
-  .meta { color: #7f8a9c; font-size: 12px; white-space: pre-wrap; }
-  .status { text-transform: uppercase; font-size: 11px; letter-spacing: .04em; padding: 2px 8px; border-radius: 999px; background: #222a36; }
-  .status-running { background: #24304a; color: #a8c5ff; }
+  .id { font-family: ui-monospace, Consolas, monospace; font-size: 12px; color: var(--text); }
+  .meta { color: var(--muted); font-size: 12px; white-space: pre-wrap; }
+  .status { text-transform: uppercase; font-size: 11px; letter-spacing: .04em; padding: 2px 8px; border-radius: 999px; background: var(--panel-soft); }
+  .status-running { background: rgba(76, 201, 240, 0.14); color: var(--accent); }
   .status-succeeded { background: #1d3a2a; color: #8be0ab; }
+  .status-demo { background: #3b3324; color: #ffcf70; }
   .status-failed { background: #3a2426; color: #ff9a9a; }
   .error { color: #ff9a9a; font-size: 13px; min-height: 18px; }
-  .empty { color: #7f8a9c; }
+  .empty { color: var(--muted); }
+  .result { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 30em; overflow: auto; font: inherit; }
+  details { margin-top: 10px; }
+  .choices { margin: -4px 0 10px; }
 </style>
 </head>
 <body>
@@ -1876,10 +2693,16 @@ var PAGE = `<!doctype html>
 <main>
   <section>
     <h2>\u041F\u043E\u0441\u0442\u0430\u0432\u0438\u0442\u044C \u0432 \u043E\u0447\u0435\u0440\u0435\u0434\u044C</h2>
+    <p class="meta" id="demo-note" hidden>\u0414\u0435\u043C\u043E-\u0438\u0441\u043F\u043E\u043B\u043D\u0438\u0442\u0435\u043B\u044C <code>demo</code> \u0442\u043E\u043B\u044C\u043A\u043E \u043F\u0435\u0447\u0430\u0442\u0430\u0435\u0442 \u0441\u0442\u0440\u043E\u043A\u0438: \u043E\u043D \u043F\u0440\u043E\u0432\u0435\u0440\u044F\u0435\u0442 \u043E\u0447\u0435\u0440\u0435\u0434\u044C \u0438 \u0432\u044B\u0432\u043E\u0434, \u043D\u043E \u043D\u0435 \u0447\u0438\u0442\u0430\u0435\u0442 \u0438 \u043D\u0435 \u0438\u0437\u043C\u0435\u043D\u044F\u0435\u0442 \u043F\u0440\u043E\u0435\u043A\u0442. \u0414\u043B\u044F \u0440\u0435\u0430\u043B\u044C\u043D\u043E\u0439 \u0440\u0430\u0431\u043E\u0442\u044B \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u0442\u0435 \u0430\u0433\u0435\u043D\u0442\u0430, \u043A\u043E\u0442\u043E\u0440\u044B\u0439 \u0432\u044B\u043F\u043E\u043B\u043D\u044F\u0435\u0442 \u0437\u0430\u0434\u0430\u0447\u0443 \u0432 \u0432\u044B\u0431\u0440\u0430\u043D\u043D\u043E\u0439 \u0440\u0430\u0431\u043E\u0447\u0435\u0439 \u043F\u0430\u043F\u043A\u0435, \u0438 \u043F\u0440\u0438\u0432\u044F\u0436\u0438\u0442\u0435 \u0437\u0430\u043F\u0443\u0441\u043A \u043A \u043A\u0430\u0440\u0442\u043E\u0447\u043A\u0435. \u0421\u0442\u0430\u0442\u0443\u0441 \xAB\u0443\u0441\u043F\u0435\u0448\u043D\u043E\xBB \u043E\u0437\u043D\u0430\u0447\u0430\u0435\u0442 \u0442\u043E\u043B\u044C\u043A\u043E, \u0447\u0442\u043E \u043A\u043E\u043C\u0430\u043D\u0434\u0430 \u0437\u0430\u0432\u0435\u0440\u0448\u0438\u043B\u0430\u0441\u044C \u0431\u0435\u0437 \u043E\u0448\u0438\u0431\u043A\u0438; \u0440\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442 \u0440\u0430\u0437\u0440\u0430\u0431\u043E\u0442\u043A\u0438 \u043D\u0443\u0436\u043D\u043E \u043F\u0440\u043E\u0432\u0435\u0440\u0438\u0442\u044C \u043E\u0442\u0434\u0435\u043B\u044C\u043D\u043E.</p>
     <form id="create">
       <label>\u0410\u0433\u0435\u043D\u0442<select name="agent" id="agent" required></select></label>
-      <label>\u041A\u0430\u0440\u0442\u043E\u0447\u043A\u0430<input name="task_id" maxlength="100" placeholder="\u043D\u0435\u043E\u0431\u044F\u0437\u0430\u0442\u0435\u043B\u044C\u043D\u043E"></label>
-      <label>\u041C\u043E\u0434\u0435\u043B\u044C<input name="model" maxlength="100" placeholder="\u043D\u0435\u043E\u0431\u044F\u0437\u0430\u0442\u0435\u043B\u044C\u043D\u043E"></label>
+      <label>\u041A\u0430\u0440\u0442\u043E\u0447\u043A\u0430<input name="task_id" id="task-id" list="task-options" maxlength="100" placeholder="\u0438\u0434\u0435\u043D\u0442\u0438\u0444\u0438\u043A\u0430\u0442\u043E\u0440 \u0437\u0430\u0434\u0430\u0447\u0438"></label>
+      <datalist id="task-options"></datalist>
+      <button class="ghost choices" type="button" id="load-tasks">\u041F\u043E\u043A\u0430\u0437\u0430\u0442\u044C \u043F\u043E\u0441\u043B\u0435\u0434\u043D\u0438\u0435 \u0437\u0430\u0434\u0430\u0447\u0438</button>
+      <label>\u041C\u043E\u0434\u0435\u043B\u044C<input name="model" id="model" list="model-options" maxlength="100" placeholder="\u043D\u0435\u043E\u0431\u044F\u0437\u0430\u0442\u0435\u043B\u044C\u043D\u043E"></label>
+      <datalist id="model-options"></datalist>
+      <button class="ghost choices" type="button" id="load-models">\u041F\u043E\u043A\u0430\u0437\u0430\u0442\u044C \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u044B\u0435 \u043C\u043E\u0434\u0435\u043B\u0438 Ollama</button>
+      <p class="meta" id="choices-status" role="status"></p>
       <label>\u041F\u043E\u043F\u044B\u0442\u043E\u043A<input name="max_attempts" type="number" min="1" max="10" value="3"></label>
       <button type="submit">\u0417\u0430\u043F\u0443\u0441\u0442\u0438\u0442\u044C</button>
       <p class="error" id="create-error"></p>
@@ -1896,6 +2719,10 @@ var PAGE = `<!doctype html>
   var count = document.getElementById('count');
   var createError = document.getElementById('create-error');
   var select = document.getElementById('agent');
+  var demoNote = document.getElementById('demo-note');
+  var builtinDemo = false;
+  var agentsReady = Promise.resolve();
+  var openResults = new Set();
 
   function el(tag, className, text) {
     var node = document.createElement(tag);
@@ -1917,6 +2744,8 @@ var PAGE = `<!doctype html>
     return request('/api/agents').then(function (body) {
       select.textContent = '';
       var agents = body.agents || [];
+      builtinDemo = body.builtin_demo === true || agents.some(function (agent) { return agent.builtin_demo === true; });
+      if (demoNote) demoNote.hidden = !builtinDemo;
       if (!agents.length) {
         select.appendChild(el('option', '', '\u041D\u0435\u0442 \u043D\u0430\u0441\u0442\u0440\u043E\u0435\u043D\u043D\u044B\u0445 \u0430\u0433\u0435\u043D\u0442\u043E\u0432'));
         select.disabled = true;
@@ -1933,6 +2762,26 @@ var PAGE = `<!doctype html>
     });
   }
 
+  document.getElementById('load-tasks').addEventListener('click', function () {
+    var button = this, status = document.getElementById('choices-status'); button.disabled = true;
+    document.getElementById('task-options').textContent = '';
+    request('/api/tasks?limit=50').then(function (body) {
+      var options = document.getElementById('task-options'); options.textContent = '';
+      (body.items || []).forEach(function (task) { var option = document.createElement('option'); option.value = task.id; option.label = task.title; options.appendChild(option); });
+      status.textContent = '\u0417\u0430\u0433\u0440\u0443\u0436\u0435\u043D\u043E \u0437\u0430\u0434\u0430\u0447: ' + options.children.length + '. \u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0438\u0434\u0435\u043D\u0442\u0438\u0444\u0438\u043A\u0430\u0442\u043E\u0440 \u0432 \u043F\u043E\u043B\u0435 \u043A\u0430\u0440\u0442\u043E\u0447\u043A\u0438.';
+    }).catch(function (error) { status.textContent = '\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0437\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044C \u0437\u0430\u0434\u0430\u0447\u0438: ' + error.message; }).finally(function () { button.disabled = false; });
+  });
+
+  document.getElementById('load-models').addEventListener('click', function () {
+    var button = this, status = document.getElementById('choices-status'); button.disabled = true;
+    document.getElementById('model-options').textContent = '';
+    request('/api/tools/ollama-local/models').then(function (body) {
+      var options = document.getElementById('model-options'); options.textContent = '';
+      (body.models || []).forEach(function (model) { var option = document.createElement('option'); option.value = model.name; options.appendChild(option); });
+      status.textContent = '\u041B\u043E\u043A\u0430\u043B\u044C\u043D\u044B\u0445 \u043C\u043E\u0434\u0435\u043B\u0435\u0439: ' + options.children.length + '. \u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u043C\u043E\u0434\u0435\u043B\u044C \u0432 \u043F\u043E\u043B\u0435 \u0432\u044B\u0448\u0435.';
+    }).catch(function (error) { status.textContent = '\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0437\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044C \u043C\u043E\u0434\u0435\u043B\u0438: ' + error.message; }).finally(function () { button.disabled = false; });
+  });
+
   function action(run, name) {
     return request('/api/runs/' + encodeURIComponent(run.id) + '/' + name, {
       method: 'POST',
@@ -1944,13 +2793,26 @@ var PAGE = `<!doctype html>
   function show(run) {
     var item = el('li');
     var row = el('div', 'row');
+    var demoSuccess = builtinDemo && run.agent === 'demo' && run.status === 'succeeded';
     row.appendChild(el('span', 'id', run.id));
-    row.appendChild(el('span', 'status status-' + run.status, run.status));
+    row.appendChild(el('span', 'status ' + (demoSuccess ? 'status-demo' : 'status-' + run.status), demoSuccess ? '\u043A\u043E\u043C\u0430\u043D\u0434\u0430 \u0437\u0430\u0432\u0435\u0440\u0448\u0438\u043B\u0430\u0441\u044C' : run.status));
     row.appendChild(el('span', 'meta', run.agent + (run.model ? ' \xB7 ' + run.model : '')));
     if (run.attempt) row.appendChild(el('span', 'meta', '\u043F\u043E\u043F\u044B\u0442\u043A\u0430 ' + run.attempt + '/' + run.max_attempts));
+    if (run.retry_of) {
+      row.appendChild(el('span', 'meta', '\u0440\u0443\u0447\u043D\u043E\u0439 \u043F\u043E\u0432\u0442\u043E\u0440 ' + run.retry_attempt + ' \u043E\u0442 ' + String(run.retry_of).slice(-8)));
+    }
     item.appendChild(row);
+    if (demoSuccess) item.appendChild(el('div', 'meta demo-result-warning', '\u0422\u0435\u0441\u0442\u043E\u0432\u044B\u0439 \u0432\u044B\u0432\u043E\u0434: \u043A\u043E\u043C\u0430\u043D\u0434\u0430 demo \u043F\u0435\u0447\u0430\u0442\u0430\u0435\u0442 \u0441\u0442\u0440\u043E\u043A\u0438, \u043F\u0440\u043E\u0435\u043A\u0442 \u043D\u0435 \u0438\u0437\u043C\u0435\u043D\u0451\u043D. \u042D\u0442\u043E \u043D\u0435 \u043E\u0437\u043D\u0430\u0447\u0430\u0435\u0442, \u0447\u0442\u043E \u0437\u0430\u0434\u0430\u0447\u0430 \u0440\u0430\u0437\u0440\u0430\u0431\u043E\u0442\u043A\u0438 \u0432\u044B\u043F\u043E\u043B\u043D\u0435\u043D\u0430.'));
     item.appendChild(el('div', 'meta', run.task_id ? '\u043A\u0430\u0440\u0442\u043E\u0447\u043A\u0430 ' + run.task_id : '\u0431\u0435\u0437 \u043A\u0430\u0440\u0442\u043E\u0447\u043A\u0438'));
     if (run.error_message) item.appendChild(el('div', 'meta', run.error_class + ': ' + run.error_message));
+    if (typeof run.result === 'string' && run.result) {
+      var details = document.createElement('details');
+      details.open = openResults.has(run.id);
+      details.addEventListener('toggle', function () { if (details.open) openResults.add(run.id); else openResults.delete(run.id); });
+      details.appendChild(el('summary', '', '\u0420\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442 (\u0432\u044B\u0432\u043E\u0434 \u043C\u043E\u0436\u0435\u0442 \u0431\u044B\u0442\u044C \u0441\u043E\u043A\u0440\u0430\u0449\u0451\u043D)'));
+      details.appendChild(el('pre', 'result', run.result));
+      item.appendChild(details);
+    }
 
     var actions = el('div', 'row');
     if (run.status === 'queued' || run.status === 'running') {
@@ -1981,8 +2843,18 @@ var PAGE = `<!doctype html>
     return item;
   }
 
+  // \u041E\u0434\u0438\u043D \u043E\u043F\u0440\u043E\u0441: \u043B\u0438\u0431\u043E \u0442\u0435\u043A\u0443\u0449\u0438\u0439 \u0437\u0430\u043F\u0440\u043E\u0441, \u043B\u0438\u0431\u043E \u043E\u0434\u0438\u043D \u0437\u0430\u043F\u0440\u043E\u0441 \u0432 \u043E\u0436\u0438\u0434\u0430\u043D\u0438\u0438. \u041F\u043E\u0432\u0442\u043E\u0440\u043D\u044B\u0435
+  // \u0432\u044B\u0437\u043E\u0432\u044B (\u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0435, \u0438\u043D\u0442\u0435\u0440\u0432\u0430\u043B, \u0432\u043E\u0437\u0432\u0440\u0430\u0442 \u043D\u0430 \u0432\u043A\u043B\u0430\u0434\u043A\u0443) \u043D\u0435 \u0441\u043E\u0437\u0434\u0430\u044E\u0442 \u0434\u0443\u0431\u043B\u0435\u0439 \u0438 \u043D\u0435
+  // \u043D\u0430\u0441\u043B\u0430\u0438\u0432\u0430\u044E\u0442\u0441\u044F \u0434\u0440\u0443\u0433 \u043D\u0430 \u0434\u0440\u0443\u0433\u0430.
+  var inFlight = false;
+  var queued = false;
+  var pollTimer = null;
+  var POLL_MS = 5000;
+
   function load() {
-    return request('/api/runs?limit=50').then(function (page) {
+    if (inFlight) { queued = true; return; }
+    inFlight = true;
+    agentsReady.then(function () { return request('/api/runs?limit=50'); }).then(function (page) {
       list.textContent = '';
       var items = page.items || [];
       count.textContent = '\xB7 ' + (page.total === undefined ? items.length : page.total);
@@ -1994,8 +2866,37 @@ var PAGE = `<!doctype html>
     }).catch(function (error) {
       list.textContent = '';
       list.appendChild(el('li', 'empty', error.message));
+    }).then(function () {
+      inFlight = false;
+      if (!queued) return;
+      queued = false;
+      load();
     });
   }
+
+  // \u041F\u043E\u043B\u043B\u0438\u043D\u0433-\u0446\u0438\u043A\u043B \u043E\u0434\u0438\u043D: \u0441\u043B\u0435\u0434\u0443\u044E\u0449\u0438\u0439 \u0442\u0438\u043A \u0441\u0442\u0430\u0432\u0438\u0442\u0441\u044F \u0442\u043E\u043B\u044C\u043A\u043E \u043F\u043E\u0441\u043B\u0435 \u043F\u0440\u0435\u0434\u044B\u0434\u0443\u0449\u0435\u0433\u043E, \u0438
+  // \u0442\u043E\u043B\u044C\u043A\u043E \u0434\u043B\u044F \u0432\u0438\u0434\u0438\u043C\u043E\u0439 \u0432\u043A\u043B\u0430\u0434\u043A\u0438 \u2014 \u0441\u043A\u0440\u044B\u0442\u0430\u044F \u0441\u0442\u0440\u0430\u043D\u0438\u0446\u0430 API \u043D\u0435 \u0434\u0451\u0440\u0433\u0430\u0435\u0442.
+  function schedulePoll() {
+    if (pollTimer !== null || document.hidden) return;
+    pollTimer = setTimeout(function () {
+      pollTimer = null;
+      if (document.hidden) return;
+      load();
+      schedulePoll();
+    }, POLL_MS);
+  }
+
+  function stopPoll() {
+    if (pollTimer === null) return;
+    clearTimeout(pollTimer);
+    pollTimer = null;
+  }
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) { stopPoll(); return; }
+    load();
+    schedulePoll();
+  });
 
   document.getElementById('create').addEventListener('submit', function (event) {
     event.preventDefault();
@@ -2022,9 +2923,9 @@ var PAGE = `<!doctype html>
     });
   });
 
-  loadAgents();
+  agentsReady = loadAgents();
   load();
-  setInterval(load, 5000);
+  schedulePoll();
 })();
 </script>
 </body>
@@ -2038,16 +2939,20 @@ var module = {
   migrations: [...runsMigrations, ...agentsMigrations],
   register(ctx) {
     const availability = new AgentAvailability(ctx.storage, ctx.log);
+    const processTrees = new SystemProcessTree();
     const runs = new RunService(new SqliteRunRepository(ctx.storage), ctx.bus, systemClock, ctx.log, {
-      defaultLeaseMs: ctx.settings.executor.leaseMs
+      defaultLeaseMs: ctx.settings.executor.leaseMs,
+      processTrees
     });
     const shared = ctx.settings.executorHandle?.() ?? null;
+    const registry = loadAgentRegistry(ctx.settings.executor.agentsFile, ctx.log);
     let executor = shared;
     if (!executor && ctx.settings.executor.enabled) {
-      executor = new AgentExecutor(runs, loadAgentRegistry(ctx.settings.executor.agentsFile, ctx.log), ctx.log, {
+      executor = new AgentExecutor(runs, registry, ctx.log, {
         owner: `executor-${process.pid}`,
         intervalMs: ctx.settings.executor.intervalMs,
-        leaseMs: ctx.settings.executor.leaseMs
+        leaseMs: ctx.settings.executor.leaseMs,
+        processTrees
       });
       ctx.onShutdown(async () => {
         await executor?.stop();
@@ -2063,7 +2968,8 @@ var module = {
     }));
     ctx.api.add("GET", "/api/agents", () => {
       const agents = executor?.list() ?? [];
-      return { body: { ok: true, agents, default: agents[0]?.id ?? null } };
+      const builtin_demo = listAgentInfos(registry).some((agent) => agent.builtin_demo);
+      return { body: { ok: true, agents, default: agents[0]?.id ?? null, builtin_demo } };
     });
     ctx.api.add("GET", "/api/agents/availability", () => ({
       body: { ok: true, agents: availability.list() }

@@ -14,8 +14,8 @@ var AppError = class extends Error {
   }
 };
 var ValidationError = class extends AppError {
-  constructor(message, details = {}) {
-    super("validation_failed", message, 400, details);
+  constructor(message, details = {}, options = {}) {
+    super(options.code ?? "validation_failed", message, options.status ?? 400, details);
   }
 };
 var UpstreamError = class extends AppError {
@@ -55,6 +55,7 @@ var CdpSession = class _CdpSession {
   #socket;
   #nextId = 0;
   #pending = /* @__PURE__ */ new Map();
+  #events = /* @__PURE__ */ new Map();
   #closed = false;
   constructor(socket) {
     this.#socket = socket;
@@ -93,6 +94,16 @@ var CdpSession = class _CdpSession {
       socket.addEventListener("error", onError);
     });
   }
+  /** Подписка на события CDP (`Runtime.exceptionThrown`, `Network.*`). */
+  on(method, handler) {
+    const handlers = this.#events.get(method) ?? /* @__PURE__ */ new Set();
+    handlers.add(handler);
+    this.#events.set(method, handlers);
+    return () => {
+      handlers.delete(handler);
+      if (!handlers.size) this.#events.delete(method);
+    };
+  }
   #onMessage(event) {
     let message;
     try {
@@ -100,7 +111,12 @@ var CdpSession = class _CdpSession {
     } catch {
       return;
     }
-    if (typeof message.id !== "number") return;
+    if (typeof message.id !== "number") {
+      if (message.method) {
+        for (const handler of this.#events.get(message.method) ?? []) handler(message.params ?? {});
+      }
+      return;
+    }
     const pending = this.#pending.get(message.id);
     if (!pending) return;
     this.#pending.delete(message.id);
@@ -177,9 +193,11 @@ async function getJson(url, timeoutMs = 3e3) {
 function version(port, timeoutMs = 3e3) {
   return getJson(`http://127.0.0.1:${port}/json/version`, timeoutMs);
 }
+function targets(port, timeoutMs = 4e3) {
+  return getJson(`http://127.0.0.1:${port}/json/list`, timeoutMs);
+}
 async function pages(port, timeoutMs = 4e3) {
-  const list = await getJson(`http://127.0.0.1:${port}/json/list`, timeoutMs);
-  return list.filter((target) => target.type === "page" && Boolean(target.webSocketDebuggerUrl));
+  return (await targets(port, timeoutMs)).filter((target) => target.type === "page" && Boolean(target.webSocketDebuggerUrl));
 }
 async function alive(port) {
   if (!port) return false;
@@ -600,9 +618,9 @@ var BrowserService = class {
       error: running || !this.#executablePath ? null : "Edge \u0438\u043B\u0438 Chrome \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D"
     };
   }
-  #describe(targets) {
+  #describe(targets2) {
     const leases = this.#store.listLeases();
-    return targets.map((target) => {
+    return targets2.map((target) => {
       const owners = leases.filter((lease) => lease.target_id === target.id).map((lease) => lease.name);
       return {
         id: target.id,
@@ -632,19 +650,19 @@ var BrowserService = class {
   }
   async #page(agent) {
     const runtime = await this.#ensure();
-    const targets = await this.#listPages(runtime.port);
+    const targets2 = await this.#listPages(runtime.port);
     const leases = this.#store.listLeases();
-    const known = new Set(targets.map((target2) => target2.id));
-    if (leases.some((lease2) => !known.has(lease2.target_id))) this.#store.prune(targets.map((target2) => target2.id));
+    const known = new Set(targets2.map((target2) => target2.id));
+    if (leases.some((lease2) => !known.has(lease2.target_id))) this.#store.prune(targets2.map((target2) => target2.id));
     const lease = this.#store.readLease(agent);
     if (lease) {
-      const target2 = targets.find((entry) => entry.id === lease.target_id);
+      const target2 = targets2.find((entry) => entry.id === lease.target_id);
       if (target2) {
         return { target: target2, lease: this.#touch(agent, lease, target2) };
       }
     }
-    const ordinary = targets.filter((entry) => /^https?:/i.test(entry.url));
-    const fallback = agent === "default" ? ordinary[0] ?? targets[0] : void 0;
+    const ordinary = targets2.filter((entry) => /^https?:/i.test(entry.url));
+    const fallback = agent === "default" ? ordinary[0] ?? targets2[0] : void 0;
     const target = fallback ?? await this.#createTab(runtime.port);
     return { target, lease: this.#touch(agent, lease, target, Boolean(fallback)) };
   }
@@ -1383,22 +1401,22 @@ var PAGE = `<!doctype html>
 <title>\u0411\u0440\u0430\u0443\u0437\u0435\u0440 \u2014 \u043C\u043E\u0434\u0443\u043B\u044C</title>
 <style>
   :root { color-scheme: light dark; }
-  body { margin: 0; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; background: #0f1216; color: #e6e9ef; }
-  header { display: flex; gap: 12px; align-items: baseline; padding: 20px 24px; border-bottom: 1px solid #232833; }
+  body { margin: 0; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); }
+  header { display: flex; gap: 12px; align-items: baseline; padding: 20px 24px; border-bottom: 1px solid var(--line); }
   header h1 { margin: 0; font-size: 19px; }
-  header a { color: #8fb4ff; font-size: 13px; }
+  header a { color: var(--accent); font-size: 13px; }
   main { display: grid; gap: 20px; padding: 24px; max-width: 960px; }
-  section { background: #151a21; border: 1px solid #232833; border-radius: 12px; padding: 16px; }
-  h2 { margin: 0 0 12px; font-size: 15px; color: #aab4c5; font-weight: 600; }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  h2 { margin: 0 0 12px; font-size: 15px; color: var(--muted); font-weight: 600; }
   .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-  .state { text-transform: uppercase; font-size: 11px; letter-spacing: .04em; padding: 2px 8px; border-radius: 999px; background: #222a36; }
+  .state { text-transform: uppercase; font-size: 11px; letter-spacing: .04em; padding: 2px 8px; border-radius: 999px; background: var(--panel-soft); }
   .state-ready { background: #1d3a2a; color: #8be0ab; }
   .state-setup { background: #3a3320; color: #e8ce8b; }
   ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-  li { border: 1px solid #232833; border-radius: 10px; padding: 10px 12px; }
-  .type { font-family: ui-monospace, Consolas, monospace; font-size: 12px; color: #cbd4e1; }
-  .meta { color: #7f8a9c; font-size: 12px; }
-  .empty { color: #7f8a9c; }
+  li { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+  .type { font-family: ui-monospace, Consolas, monospace; font-size: 12px; color: var(--text); }
+  .meta { color: var(--muted); font-size: 12px; }
+  .empty { color: var(--muted); }
 </style>
 </head>
 <body>

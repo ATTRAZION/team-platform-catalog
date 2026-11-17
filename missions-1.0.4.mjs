@@ -14,13 +14,14 @@ var AppError = class extends Error {
   }
 };
 var ValidationError = class extends AppError {
-  constructor(message, details = {}) {
-    super("validation_failed", message, 400, details);
+  constructor(message, details = {}, options = {}) {
+    super(options.code ?? "validation_failed", message, options.status ?? 400, details);
   }
 };
 var NotFoundError = class extends AppError {
-  constructor(message = "\u041D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u043E") {
-    super("not_found", message, 404);
+  /** Детали необязательны: старые вызовы без них продолжают работать. */
+  constructor(message = "\u041D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u043E", details = {}) {
+    super("not_found", message, 404, details);
   }
 };
 var ConflictError = class extends AppError {
@@ -82,6 +83,28 @@ function stageView(stage) {
     status: stage.status
   };
 }
+function normalizeArtifactPath(raw, label) {
+  const value = text(raw, label, 500, true).replaceAll("\\", "/");
+  if (value.startsWith("/") || value.startsWith("//") || /^[a-zA-Z]:/.test(value)) {
+    throw new ValidationError(`${label}: \u043F\u0443\u0442\u044C \u0430\u0440\u0442\u0435\u0444\u0430\u043A\u0442\u0430 \u0434\u043E\u043B\u0436\u0435\u043D \u0431\u044B\u0442\u044C \u043E\u0442\u043D\u043E\u0441\u0438\u0442\u0435\u043B\u044C\u043D\u044B\u043C`);
+  }
+  const parts = value.split("/");
+  if (parts.some((part) => !part || part === "." || part === "..")) {
+    throw new ValidationError(`${label}: \u043F\u0443\u0442\u044C \u043D\u0435 \u0434\u043E\u043B\u0436\u0435\u043D \u0441\u043E\u0434\u0435\u0440\u0436\u0430\u0442\u044C \u043F\u0443\u0441\u0442\u044B\u0445 \u0441\u0435\u0433\u043C\u0435\u043D\u0442\u043E\u0432, \xAB.\xBB \u0438\u043B\u0438 \xAB..\xBB`);
+  }
+  return value;
+}
+function artifactPaths(raw, label) {
+  if (raw === void 0 || raw === null) return [];
+  if (!Array.isArray(raw)) throw new ValidationError(`${label}: artifacts \u0434\u043E\u043B\u0436\u0435\u043D \u0431\u044B\u0442\u044C \u0441\u043F\u0438\u0441\u043A\u043E\u043C \u043F\u0443\u0442\u0435\u0439`);
+  if (raw.length > 20) throw new ValidationError(`${label}: \u043D\u0435 \u0431\u043E\u043B\u044C\u0448\u0435 20 \u0430\u0440\u0442\u0435\u0444\u0430\u043A\u0442\u043E\u0432 \u043D\u0430 \u044D\u0442\u0430\u043F`);
+  const result = [];
+  for (const item of raw) {
+    const value = normalizeArtifactPath(item, `${label}.artifacts`);
+    if (!result.includes(value)) result.push(value);
+  }
+  return result;
+}
 function dependencyKeys(raw, label, known) {
   if (raw === void 0 || raw === null) return [];
   if (!Array.isArray(raw)) throw new ValidationError(`${label}: depends_on \u0434\u043E\u043B\u0436\u0435\u043D \u0431\u044B\u0442\u044C \u0441\u043F\u0438\u0441\u043A\u043E\u043C \u043A\u043B\u044E\u0447\u0435\u0439 \u044D\u0442\u0430\u043F\u043E\u0432`);
@@ -107,6 +130,7 @@ function normalizeNewMission(raw) {
     stages.push({
       title: text(draft.title, `${label}.title`, 200, true),
       acceptance: text(draft.acceptance, `${label}.acceptance`, 2e3),
+      artifacts: artifactPaths(draft.artifacts, label),
       depends_on: dependencyKeys(draft.depends_on, label, known)
     });
   }
@@ -123,6 +147,7 @@ function normalizeStageDraft(raw, known) {
   return {
     title: text(input.title, "title", 200, true),
     acceptance: text(input.acceptance, "acceptance", 2e3),
+    artifacts: artifactPaths(input.artifacts, "\u042D\u0442\u0430\u043F"),
     depends_on: dependencyKeys(input.depends_on, "\u042D\u0442\u0430\u043F", known)
   };
 }
@@ -147,6 +172,7 @@ function buildMission(input, now) {
     position: index + 1,
     title: draft.title,
     acceptance: draft.acceptance,
+    artifacts: draft.artifacts,
     depends_on: draft.depends_on,
     status: draft.depends_on.length ? "pending" : "ready",
     result: null,
@@ -397,14 +423,20 @@ function submitStage(mission, stages, stage, result, actor, now) {
     }, at)
   };
 }
-function acceptStage(mission, stages, stage, actor, now) {
-  assertOpen(mission);
-  assertNotPaused(mission);
+function assertStageReview(stage) {
   if (stage.status !== "review") {
     throw new ConflictError(`\u041F\u0440\u0438\u043D\u044F\u0442\u044C \u043C\u043E\u0436\u043D\u043E \u0442\u043E\u043B\u044C\u043A\u043E \u044D\u0442\u0430\u043F \u043D\u0430 \u043F\u0440\u043E\u0432\u0435\u0440\u043A\u0435; ${stage.key} \u0432 \u0441\u0442\u0430\u0442\u0443\u0441\u0435 ${stage.status}`, {
       status: stage.status
     });
   }
+}
+function assertAcceptable(mission, stage) {
+  assertNotPaused(mission);
+  assertStageReview(stage);
+}
+function acceptStage(mission, stages, stage, actor, now) {
+  assertOpen(mission);
+  assertAcceptable(mission, stage);
   const at = now.toISOString();
   stage.status = "done";
   stage.finished_at = at;
@@ -435,14 +467,20 @@ function acceptStage(mission, stages, stage, actor, now) {
     }, at)
   };
 }
-function rejectStage(mission, stages, stage, reason, actor, now) {
-  assertOpen(mission);
-  assertNotPaused(mission);
+function assertStageReviewable(stage) {
   if (stage.status !== "review") {
     throw new ConflictError(`\u0412\u0435\u0440\u043D\u0443\u0442\u044C \u0438\u0441\u043F\u043E\u043B\u043D\u0438\u0442\u0435\u043B\u044E \u043C\u043E\u0436\u043D\u043E \u0442\u043E\u043B\u044C\u043A\u043E \u044D\u0442\u0430\u043F \u043D\u0430 \u043F\u0440\u043E\u0432\u0435\u0440\u043A\u0435; ${stage.key} \u0432 \u0441\u0442\u0430\u0442\u0443\u0441\u0435 ${stage.status}`, {
       status: stage.status
     });
   }
+}
+function assertRejectable(mission, stage) {
+  assertNotPaused(mission);
+  assertStageReviewable(stage);
+}
+function rejectStage(mission, stages, stage, reason, actor, now) {
+  assertOpen(mission);
+  assertRejectable(mission, stage);
   const at = now.toISOString();
   stage.status = "running";
   stage.finished_at = null;
@@ -470,6 +508,7 @@ function addStage(mission, stages, draft, actor, now) {
     position,
     title: draft.title,
     acceptance: draft.acceptance,
+    artifacts: draft.artifacts,
     depends_on: draft.depends_on,
     status: "pending",
     result: null,
@@ -556,6 +595,457 @@ function completeMission(mission, stages, summary, actor, now) {
   };
 }
 
+// src/domain/missions/gate.ts
+function normalizeGateDecision(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    throw new ValidationError("\u0420\u0435\u0448\u0435\u043D\u0438\u0435 \u0432\u043E\u0440\u043E\u0442: \u043E\u0436\u0438\u0434\u0430\u043B\u0441\u044F \u043E\u0431\u044A\u0435\u043A\u0442");
+  }
+  const input = raw;
+  const decision = input.decision;
+  if (decision !== "approved" && decision !== "rework") {
+    throw new ValidationError("\u041F\u043E\u043B\u0435 \xABdecision\xBB: \u0434\u043E\u043F\u0443\u0441\u0442\u0438\u043C\u043E approved \u0438\u043B\u0438 rework");
+  }
+  const actor = text(input.actor, "actor", 100, true);
+  const reason = text(input.reason, "reason", 2e3);
+  if (decision === "rework" && !reason) {
+    throw new ValidationError("\u0414\u043B\u044F \u0434\u043E\u0440\u0430\u0431\u043E\u0442\u043A\u0438 \u043D\u0443\u0436\u043D\u0430 \u043F\u0440\u0438\u0447\u0438\u043D\u0430 \u0440\u0435\u0448\u0435\u043D\u0438\u044F");
+  }
+  return { decision, actor, reason };
+}
+
+// src/app/mission-service.ts
+import { join as join2, resolve as resolve3 } from "node:path";
+
+// src/app/immutable-artifact-store.ts
+import { createHash as createHash2 } from "node:crypto";
+import {
+  existsSync as existsSync2,
+  lstatSync as lstatSync2,
+  mkdirSync,
+  readFileSync as readFileSync2,
+  readdirSync,
+  rmSync,
+  writeFileSync
+} from "node:fs";
+import { dirname, isAbsolute as isAbsolute2, join, relative as relative2, resolve as resolve2, sep } from "node:path";
+
+// src/app/artifact-receipts.ts
+import { createHash } from "node:crypto";
+import { accessSync, constants, existsSync, lstatSync, readFileSync, realpathSync, statSync, unlinkSync } from "node:fs";
+import { isAbsolute, relative, resolve } from "node:path";
+
+// src/domain/missions/receipt-ttl.ts
+var DEFAULT_RECEIPT_TTL_MS = 7 * 24 * 60 * 60 * 1e3;
+function receiptExpiresAt(receipt, ttlMs = DEFAULT_RECEIPT_TTL_MS) {
+  const created = Date.parse(receipt.created_at);
+  if (!Number.isFinite(created)) return null;
+  if (!Number.isFinite(ttlMs) || ttlMs <= 0) return null;
+  return new Date(created + ttlMs).toISOString();
+}
+function receiptState(receipt, now, ttlMs = DEFAULT_RECEIPT_TTL_MS) {
+  const expires = receiptExpiresAt(receipt, ttlMs);
+  if (!expires) return "unknown";
+  return now.getTime() >= Date.parse(expires) ? "expired" : "fresh";
+}
+
+// src/app/artifact-receipts.ts
+var MAX_ARTIFACT_BYTES = 50 * 1024 * 1024;
+function normalizeWorkspaceRoot(raw) {
+  const value = raw.trim();
+  if (!value) throw new ValidationError("\u041F\u0443\u0442\u044C \u0440\u0430\u0431\u043E\u0447\u0435\u0439 \u043F\u0430\u043F\u043A\u0438 \u043D\u0435 \u043C\u043E\u0436\u0435\u0442 \u0431\u044B\u0442\u044C \u043F\u0443\u0441\u0442\u044B\u043C");
+  if (value.length > 1e3) throw new ValidationError("\u041F\u0443\u0442\u044C \u0440\u0430\u0431\u043E\u0447\u0435\u0439 \u043F\u0430\u043F\u043A\u0438 \u0441\u043B\u0438\u0448\u043A\u043E\u043C \u0434\u043B\u0438\u043D\u043D\u044B\u0439");
+  if (!isAbsolute(value)) throw new ValidationError("\u041F\u0443\u0442\u044C \u0440\u0430\u0431\u043E\u0447\u0435\u0439 \u043F\u0430\u043F\u043A\u0438 \u0434\u043E\u043B\u0436\u0435\u043D \u0431\u044B\u0442\u044C \u0430\u0431\u0441\u043E\u043B\u044E\u0442\u043D\u044B\u043C");
+  let stats;
+  try {
+    stats = statSync(value);
+  } catch {
+    throw new ValidationError(`\u0420\u0430\u0431\u043E\u0447\u0430\u044F \u043F\u0430\u043F\u043A\u0430 \xAB${value}\xBB \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u0430`);
+  }
+  if (!stats.isDirectory()) throw new ValidationError(`\u041F\u0443\u0442\u044C \xAB${value}\xBB \u043D\u0435 \u044F\u0432\u043B\u044F\u0435\u0442\u0441\u044F \u043F\u0430\u043F\u043A\u043E\u0439`);
+  try {
+    accessSync(value, constants.R_OK | constants.X_OK);
+  } catch {
+    throw new ValidationError(`\u0420\u0430\u0431\u043E\u0447\u0430\u044F \u043F\u0430\u043F\u043A\u0430 \xAB${value}\xBB \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u043D\u0430 \u0434\u043B\u044F \u0447\u0442\u0435\u043D\u0438\u044F`);
+  }
+  return realpathSync.native(value);
+}
+function fingerprintArtifact(root, rawPath) {
+  const path = normalizeArtifactPath(rawPath, "path");
+  const base = realpathSync(resolve(root));
+  const target = resolve(base, path);
+  const rel = relative(base, target);
+  if (!rel || rel.startsWith("..") || isAbsolute(rel)) {
+    throw new ValidationError("\u041F\u0443\u0442\u044C \u0430\u0440\u0442\u0435\u0444\u0430\u043A\u0442\u0430 \u0432\u044B\u0445\u043E\u0434\u0438\u0442 \u0437\u0430 \u043F\u0440\u0435\u0434\u0435\u043B\u044B workspace");
+  }
+  let stats;
+  try {
+    stats = lstatSync(target);
+  } catch {
+    throw new NotFoundError(`\u0410\u0440\u0442\u0435\u0444\u0430\u043A\u0442 \xAB${path}\xBB \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D`);
+  }
+  if (stats.isSymbolicLink()) {
+    throw new ValidationError(`\u0410\u0440\u0442\u0435\u0444\u0430\u043A\u0442 \xAB${path}\xBB \u043D\u0435 \u0434\u043E\u043B\u0436\u0435\u043D \u0431\u044B\u0442\u044C \u0441\u0438\u043C\u043B\u0438\u043D\u043A\u043E\u043C`);
+  }
+  if (!stats.isFile()) {
+    throw new ValidationError(`\u0410\u0440\u0442\u0435\u0444\u0430\u043A\u0442 \xAB${path}\xBB \u0434\u043E\u043B\u0436\u0435\u043D \u0431\u044B\u0442\u044C \u0444\u0430\u0439\u043B\u043E\u043C`);
+  }
+  if (stats.size > MAX_ARTIFACT_BYTES) {
+    throw new ValidationError(`\u0410\u0440\u0442\u0435\u0444\u0430\u043A\u0442 \xAB${path}\xBB \u0431\u043E\u043B\u044C\u0448\u0435 ${MAX_ARTIFACT_BYTES} \u0431\u0430\u0439\u0442`);
+  }
+  const bytes = readFileSync(target);
+  return {
+    sha256: createHash("sha256").update(bytes).digest("hex"),
+    size: bytes.byteLength
+  };
+}
+function assertReceiptMatches(root, path, receipt, options = {}) {
+  if (!receipt) {
+    throw new ConflictError(`\u041D\u0435\u0442 \u043A\u0432\u0438\u0442\u0430\u043D\u0446\u0438\u0438 \u0430\u0440\u0442\u0435\u0444\u0430\u043A\u0442\u0430 \xAB${path}\xBB: \u043F\u0440\u0438\u0451\u043C\u043A\u0430 \u043D\u0435\u0432\u043E\u0437\u043C\u043E\u0436\u043D\u0430`, {
+      artifact: path,
+      reason: "missing_receipt"
+    });
+  }
+  if (receipt.created_at) {
+    const now = options.now ?? /* @__PURE__ */ new Date();
+    if (receiptState(receipt, now, options.ttlMs) === "expired") {
+      throw new ConflictError(`\u041A\u0432\u0438\u0442\u0430\u043D\u0446\u0438\u044F \u0430\u0440\u0442\u0435\u0444\u0430\u043A\u0442\u0430 \xAB${path}\xBB \u043F\u0440\u043E\u0441\u0440\u043E\u0447\u0435\u043D\u0430: \u043D\u0443\u0436\u0435\u043D \u043D\u043E\u0432\u044B\u0439 \u0441\u043D\u0438\u043C\u043E\u043A \u0444\u0430\u0439\u043B\u0430`, {
+        artifact: path,
+        reason: "expired_receipt",
+        created_at: receipt.created_at,
+        expires_at: receiptExpiresAt(receipt, options.ttlMs),
+        checked_at: now.toISOString()
+      });
+    }
+  }
+  let current;
+  try {
+    current = fingerprintArtifact(root, path);
+  } catch (error) {
+    if (error instanceof NotFoundError) {
+      throw new ConflictError(`\u0410\u0440\u0442\u0435\u0444\u0430\u043A\u0442 \xAB${path}\xBB \u0438\u0441\u0447\u0435\u0437 \u043F\u043E\u0441\u043B\u0435 \u043A\u0432\u0438\u0442\u0430\u043D\u0446\u0438\u0438`, {
+        artifact: path,
+        reason: "missing_artifact"
+      });
+    }
+    throw error;
+  }
+  if (current.sha256 !== receipt.sha256 || current.size !== receipt.size) {
+    throw new ConflictError(`\u0410\u0440\u0442\u0435\u0444\u0430\u043A\u0442 \xAB${path}\xBB \u0438\u0437\u043C\u0435\u043D\u0438\u043B\u0441\u044F \u043F\u043E\u0441\u043B\u0435 \u043A\u0432\u0438\u0442\u0430\u043D\u0446\u0438\u0438`, {
+      artifact: path,
+      reason: "changed_after_receipt",
+      expected: { sha256: receipt.sha256, size: receipt.size },
+      actual: current
+    });
+  }
+}
+function targetInsideRoot(root, path) {
+  const normalized = normalizeArtifactPath(path, "path");
+  const base = realpathSync(resolve(root));
+  const target = resolve(base, normalized);
+  const rel = relative(base, target);
+  if (!rel || rel.startsWith("..") || isAbsolute(rel)) {
+    throw new ValidationError("\u041F\u0443\u0442\u044C \u0430\u0440\u0442\u0435\u0444\u0430\u043A\u0442\u0430 \u0432\u044B\u0445\u043E\u0434\u0438\u0442 \u0437\u0430 \u043F\u0440\u0435\u0434\u0435\u043B\u044B workspace");
+  }
+  return target;
+}
+function sweepExpiredArtifacts(root, receipts, options = {}) {
+  const now = options.now ?? /* @__PURE__ */ new Date();
+  const latest = /* @__PURE__ */ new Map();
+  for (const receipt of receipts) latest.set(receipt.path, receipt);
+  const result = {
+    removed: [],
+    already_gone: [],
+    kept: 0,
+    expired: 0,
+    failed: []
+  };
+  for (const [path, receipt] of latest) {
+    const state = receipt.created_at ? receiptState(receipt, now, options.ttlMs) : "unknown";
+    if (state !== "expired") {
+      result.kept += 1;
+      continue;
+    }
+    result.expired += 1;
+    let target;
+    try {
+      target = targetInsideRoot(root, path);
+    } catch (error) {
+      result.failed.push({ path, message: error instanceof Error ? error.message : String(error) });
+      continue;
+    }
+    if (!existsSync(target)) {
+      result.already_gone.push(path);
+      continue;
+    }
+    if (options.dryRun) {
+      result.removed.push(path);
+      continue;
+    }
+    try {
+      unlinkSync(target);
+      result.removed.push(path);
+    } catch (error) {
+      result.failed.push({ path, message: error instanceof Error ? error.message : String(error) });
+    }
+  }
+  return result;
+}
+
+// src/app/immutable-artifact-store.ts
+var SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/;
+function segment(raw, label) {
+  if (typeof raw !== "string" || !SEGMENT.test(raw)) {
+    throw new ValidationError(`${label}: \u0434\u043E\u043F\u0443\u0441\u0442\u0438\u043C\u044B \u0431\u0443\u043A\u0432\u044B, \u0446\u0438\u0444\u0440\u044B, \xAB.\xBB, \xAB_\xBB \u0438 \xAB-\xBB`, { value: raw });
+  }
+  return raw;
+}
+function attemptNumber(raw) {
+  if (!Number.isInteger(raw) || raw < 1 || raw > 1e6) {
+    throw new ValidationError("attempt: \u043E\u0436\u0438\u0434\u0430\u0435\u0442\u0441\u044F \u0446\u0435\u043B\u043E\u0435 \u043E\u0442 1 \u0434\u043E 1000000", { value: raw });
+  }
+  return raw;
+}
+function artifactObjectKey(stage, attempt, name) {
+  return `${segment(stage, "stage")}/${attemptNumber(attempt)}/${normalizeArtifactPath(name, "name")}`;
+}
+function parseArtifactObjectKey(objectKey) {
+  if (typeof objectKey !== "string" || !objectKey) {
+    throw new ValidationError("object_key: \u043E\u0436\u0438\u0434\u0430\u0435\u0442\u0441\u044F \u043D\u0435\u043F\u0443\u0441\u0442\u0430\u044F \u0441\u0442\u0440\u043E\u043A\u0430");
+  }
+  const parts = objectKey.split("/");
+  if (parts.length < 3) {
+    throw new ValidationError("object_key: \u043E\u0436\u0438\u0434\u0430\u0435\u0442\u0441\u044F \xAB\u044D\u0442\u0430\u043F/\u043F\u043E\u043F\u044B\u0442\u043A\u0430/\u0438\u043C\u044F\xBB", { object_key: objectKey });
+  }
+  const stage = parts[0];
+  const attempt = Number(parts[1]);
+  const name = normalizeArtifactPath(parts.slice(2).join("/"), "name");
+  return { stage: segment(stage, "stage"), attempt: attemptNumber(attempt), name };
+}
+function safePath(base, key) {
+  const target = resolve2(base, key);
+  const rel = relative2(base, target);
+  if (!rel || rel.startsWith("..") || isAbsolute2(rel)) {
+    throw new ValidationError("\u041F\u0443\u0442\u044C \u0430\u0440\u0442\u0435\u0444\u0430\u043A\u0442\u0430 \u0432\u044B\u0445\u043E\u0434\u0438\u0442 \u0437\u0430 \u043F\u0440\u0435\u0434\u0435\u043B\u044B \u0445\u0440\u0430\u043D\u0438\u043B\u0438\u0449\u0430");
+  }
+  return target;
+}
+function isEexist(error) {
+  return typeof error === "object" && error !== null && error.code === "EEXIST";
+}
+var ImmutableArtifactStore = class {
+  #root;
+  #now;
+  constructor(options) {
+    const root = options.root?.trim();
+    if (!root || !isAbsolute2(root)) {
+      throw new ValidationError("\u041A\u043E\u0440\u0435\u043D\u044C \u0445\u0440\u0430\u043D\u0438\u043B\u0438\u0449\u0430 \u0430\u0440\u0442\u0435\u0444\u0430\u043A\u0442\u043E\u0432 \u0434\u043E\u043B\u0436\u0435\u043D \u0431\u044B\u0442\u044C \u0430\u0431\u0441\u043E\u043B\u044E\u0442\u043D\u044B\u043C \u043F\u0443\u0442\u0451\u043C");
+    }
+    this.#root = resolve2(root);
+    this.#now = options.now ?? (() => /* @__PURE__ */ new Date());
+  }
+  get root() {
+    return this.#root;
+  }
+  /**
+   * Записать новый объект. Существующий объект или метаданные — конфликт:
+   * байты не перезаписываются даже теми же самыми. Новый attempt получает
+   * новый ключ и не трогает старый.
+   */
+  publish(input) {
+    const missionId = segment(input.mission_id, "mission_id");
+    const stage = segment(input.stage, "stage");
+    const attempt = attemptNumber(input.attempt);
+    const name = normalizeArtifactPath(input.name, "name");
+    const key = artifactObjectKey(stage, attempt, name);
+    const source = resolve2(input.source_path);
+    let stats;
+    try {
+      stats = lstatSync2(source);
+    } catch {
+      throw new NotFoundError(`\u0418\u0441\u0445\u043E\u0434\u043D\u044B\u0439 \u0430\u0440\u0442\u0435\u0444\u0430\u043A\u0442 \xAB${name}\xBB \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D`);
+    }
+    if (stats.isSymbolicLink()) {
+      throw new ValidationError(`\u0410\u0440\u0442\u0435\u0444\u0430\u043A\u0442 \xAB${name}\xBB \u043D\u0435 \u0434\u043E\u043B\u0436\u0435\u043D \u0431\u044B\u0442\u044C \u0441\u0438\u043C\u043B\u0438\u043D\u043A\u043E\u043C`);
+    }
+    if (!stats.isFile()) {
+      throw new ValidationError(`\u0410\u0440\u0442\u0435\u0444\u0430\u043A\u0442 \xAB${name}\xBB \u0434\u043E\u043B\u0436\u0435\u043D \u0431\u044B\u0442\u044C \u0444\u0430\u0439\u043B\u043E\u043C`);
+    }
+    if (stats.size > MAX_ARTIFACT_BYTES) {
+      throw new ValidationError(`\u0410\u0440\u0442\u0435\u0444\u0430\u043A\u0442 \xAB${name}\xBB \u0431\u043E\u043B\u044C\u0448\u0435 ${MAX_ARTIFACT_BYTES} \u0431\u0430\u0439\u0442`);
+    }
+    const bytes = readFileSync2(source);
+    const sha256 = createHash2("sha256").update(bytes).digest("hex");
+    if (input.expected_sha256 && input.expected_sha256 !== sha256) {
+      throw new ConflictError("\u0410\u0440\u0442\u0435\u0444\u0430\u043A\u0442 \u0438\u0437\u043C\u0435\u043D\u0438\u043B\u0441\u044F \u0432\u043E \u0432\u0440\u0435\u043C\u044F \u043F\u0443\u0431\u043B\u0438\u043A\u0430\u0446\u0438\u0438: \u0437\u0430\u043F\u0438\u0441\u0430\u043D \u043D\u0435 \u0442\u043E\u0442 \u0444\u0430\u0439\u043B", {
+        reason: "artifact_changed_during_publish",
+        name,
+        expected_sha256: input.expected_sha256,
+        actual_sha256: sha256
+      });
+    }
+    if (input.expected_size !== void 0 && input.expected_size !== bytes.byteLength) {
+      throw new ConflictError("\u0420\u0430\u0437\u043C\u0435\u0440 \u0430\u0440\u0442\u0435\u0444\u0430\u043A\u0442\u0430 \u0438\u0437\u043C\u0435\u043D\u0438\u043B\u0441\u044F \u0432\u043E \u0432\u0440\u0435\u043C\u044F \u043F\u0443\u0431\u043B\u0438\u043A\u0430\u0446\u0438\u0438", {
+        reason: "artifact_changed_during_publish",
+        name,
+        expected_size: input.expected_size,
+        actual_size: bytes.byteLength
+      });
+    }
+    const target = this.#objectPath(missionId, key);
+    const metaTarget = this.#metadataPath(missionId, key);
+    if (existsSync2(target) || existsSync2(metaTarget)) {
+      throw this.#alreadyPublished(missionId, key);
+    }
+    mkdirSync(dirname(target), { recursive: true });
+    mkdirSync(dirname(metaTarget), { recursive: true });
+    try {
+      writeFileSync(target, bytes, { flag: "wx" });
+    } catch (error) {
+      if (isEexist(error)) throw this.#alreadyPublished(missionId, key);
+      throw error;
+    }
+    const metadata = {
+      artifact_id: newId("art"),
+      mission_id: missionId,
+      stage,
+      attempt,
+      name,
+      object_key: key,
+      sha256,
+      size: bytes.byteLength,
+      source_path: name,
+      created_at: this.#now().toISOString()
+    };
+    try {
+      writeFileSync(metaTarget, `${JSON.stringify(metadata, null, 2)}
+`, { flag: "wx" });
+    } catch (error) {
+      rmSync(target, { force: true });
+      if (isEexist(error)) throw this.#alreadyPublished(missionId, key);
+      throw error;
+    }
+    return metadata;
+  }
+  /** Метаданные опубликованного объекта; ключ сверяется с содержимым sidecar. */
+  metadata(missionId, objectKey) {
+    const mission = segment(missionId, "mission_id");
+    const key = this.#normalizeKey(objectKey);
+    const path = this.#metadataPath(mission, key);
+    let raw;
+    try {
+      raw = readFileSync2(path, "utf8");
+    } catch {
+      throw new NotFoundError(`\u041C\u0435\u0442\u0430\u0434\u0430\u043D\u043D\u044B\u0435 \u0430\u0440\u0442\u0435\u0444\u0430\u043A\u0442\u0430 \xAB${key}\xBB \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u044B`);
+    }
+    let metadata;
+    try {
+      metadata = JSON.parse(raw);
+    } catch {
+      throw new ConflictError(`\u041C\u0435\u0442\u0430\u0434\u0430\u043D\u043D\u044B\u0435 \u0430\u0440\u0442\u0435\u0444\u0430\u043A\u0442\u0430 \xAB${key}\xBB \u043F\u043E\u0432\u0440\u0435\u0436\u0434\u0435\u043D\u044B`, {
+        reason: "artifact_metadata_corrupt",
+        object_key: key
+      });
+    }
+    if (metadata.object_key !== key || metadata.sha256.length !== 64) {
+      throw new ConflictError(`\u041C\u0435\u0442\u0430\u0434\u0430\u043D\u043D\u044B\u0435 \u0430\u0440\u0442\u0435\u0444\u0430\u043A\u0442\u0430 \xAB${key}\xBB \u043D\u0435 \u0441\u043E\u0432\u043F\u0430\u0434\u0430\u044E\u0442 \u0441 \u043A\u043B\u044E\u0447\u043E\u043C`, {
+        reason: "artifact_metadata_corrupt",
+        object_key: key
+      });
+    }
+    return metadata;
+  }
+  /** Все опубликованные объекты в хранилище: источник для retention/GC. */
+  list() {
+    if (!existsSync2(this.#root)) return [];
+    const items = [];
+    for (const mission of readdirSync(this.#root, { withFileTypes: true })) {
+      if (!mission.isDirectory() || !SEGMENT.test(mission.name)) continue;
+      const metadataRoot = join(this.#root, mission.name, "metadata");
+      if (!existsSync2(metadataRoot)) continue;
+      for (const file of this.#files(metadataRoot)) {
+        if (!file.endsWith(".json")) continue;
+        const key = relative2(metadataRoot, file).split(sep).join("/").slice(0, -".json".length);
+        try {
+          items.push(this.metadata(mission.name, key));
+        } catch {
+        }
+      }
+    }
+    return items.sort((left, right) => left.mission_id.localeCompare(right.mission_id) || left.object_key.localeCompare(right.object_key));
+  }
+  /**
+   * Удалить объект и его sidecar. Путь вычисляется только внутри root; объект
+   * вне хранилища или с невалидным ключом удалить нельзя.
+   */
+  remove(missionId, objectKey) {
+    const mission = segment(missionId, "mission_id");
+    const key = this.#normalizeKey(objectKey);
+    const target = this.#objectPath(mission, key);
+    const metadataTarget = this.#metadataPath(mission, key);
+    if (!existsSync2(target) && !existsSync2(metadataTarget)) {
+      throw new NotFoundError(`\u0410\u0440\u0442\u0435\u0444\u0430\u043A\u0442 \xAB${key}\xBB \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D`);
+    }
+    rmSync(target, { force: true });
+    rmSync(metadataTarget, { force: true });
+  }
+  /** Прочитать байты и проверить их по метаданным: подмена не проходит молча. */
+  read(missionId, objectKey) {
+    const mission = segment(missionId, "mission_id");
+    const key = this.#normalizeKey(objectKey);
+    const metadata = this.metadata(mission, key);
+    const path = this.#objectPath(mission, key);
+    let bytes;
+    try {
+      bytes = readFileSync2(path);
+    } catch {
+      throw new NotFoundError(`\u0410\u0440\u0442\u0435\u0444\u0430\u043A\u0442 \xAB${key}\xBB \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D`);
+    }
+    const sha256 = createHash2("sha256").update(bytes).digest("hex");
+    if (sha256 !== metadata.sha256 || bytes.byteLength !== metadata.size) {
+      throw new ConflictError(`\u0411\u0430\u0439\u0442\u044B \u0430\u0440\u0442\u0435\u0444\u0430\u043A\u0442\u0430 \xAB${key}\xBB \u043D\u0435 \u0441\u043E\u0432\u043F\u0430\u0434\u0430\u044E\u0442 \u0441 \u043C\u0435\u0442\u0430\u0434\u0430\u043D\u043D\u044B\u043C\u0438`, {
+        reason: "artifact_corrupt",
+        object_key: key,
+        expected: { sha256: metadata.sha256, size: metadata.size },
+        actual: { sha256, size: bytes.byteLength }
+      });
+    }
+    return bytes;
+  }
+  #files(root) {
+    const files = [];
+    const walk = (dir) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = join(dir, entry.name);
+        if (entry.isDirectory()) walk(path);
+        else if (entry.isFile()) files.push(path);
+      }
+    };
+    walk(root);
+    return files;
+  }
+  #normalizeKey(raw) {
+    const parsed = parseArtifactObjectKey(raw);
+    return artifactObjectKey(parsed.stage, parsed.attempt, parsed.name);
+  }
+  #objectPath(missionId, key) {
+    const base = safePath(this.#root, missionId);
+    return safePath(resolve2(base, "objects"), key);
+  }
+  #metadataPath(missionId, key) {
+    const base = safePath(this.#root, missionId);
+    return safePath(resolve2(base, "metadata"), `${key}.json`);
+  }
+  #alreadyPublished(missionId, key) {
+    return new ConflictError(`\u0410\u0440\u0442\u0435\u0444\u0430\u043A\u0442 \xAB${key}\xBB \u0443\u0436\u0435 \u043E\u043F\u0443\u0431\u043B\u0438\u043A\u043E\u0432\u0430\u043D: \u0431\u0430\u0439\u0442\u044B \u043D\u0435 \u043F\u0435\u0440\u0435\u0437\u0430\u043F\u0438\u0441\u044B\u0432\u0430\u044E\u0442\u0441\u044F`, {
+      reason: "artifact_already_published",
+      mission_id: missionId,
+      object_key: key,
+      stage: key.split("/")[0],
+      attempt: Number(key.split("/")[1])
+    });
+  }
+};
+
 // src/app/mission-service.ts
 function actorOf(raw) {
   if (!raw || typeof raw !== "object") return "human";
@@ -571,6 +1061,16 @@ function bodyText(raw, field) {
   if (typeof value !== "string") throw new ValidationError(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB \u0434\u043E\u043B\u0436\u043D\u043E \u0431\u044B\u0442\u044C \u0441\u0442\u0440\u043E\u043A\u043E\u0439`);
   return value;
 }
+function gateActor(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    throw new ValidationError("\u0420\u0435\u0448\u0435\u043D\u0438\u0435 \u0432\u043E\u0440\u043E\u0442 \u0442\u0440\u0435\u0431\u0443\u0435\u0442 \u0430\u0432\u0442\u043E\u0440\u0430");
+  }
+  const value = raw.actor;
+  if (typeof value !== "string" || !value.trim()) {
+    throw new ValidationError("\u0420\u0435\u0448\u0435\u043D\u0438\u0435 \u0432\u043E\u0440\u043E\u0442 \u0442\u0440\u0435\u0431\u0443\u0435\u0442 \u0430\u0432\u0442\u043E\u0440\u0430");
+  }
+  return value.trim().slice(0, 100);
+}
 var MissionService = class {
   #repo;
   #bus;
@@ -578,6 +1078,8 @@ var MissionService = class {
   #log;
   #execution;
   #maxAttempts;
+  #artifacts;
+  #workspaceRoot;
   constructor(repo, bus, clock, log, options = {}) {
     this.#repo = repo;
     this.#bus = bus;
@@ -586,6 +1088,25 @@ var MissionService = class {
     this.#execution = options.execution ?? null;
     const configured = options.maxAttempts ?? 3;
     this.#maxAttempts = Number.isFinite(configured) ? Math.max(1, Math.trunc(configured)) : 3;
+    this.#workspaceRoot = options.workspaceRoot ?? process.cwd();
+    this.#artifacts = new ImmutableArtifactStore({
+      root: options.artifactRoot ?? join2(this.#workspaceRoot, ".team-platform-artifacts"),
+      now: () => this.#clock.now()
+    });
+  }
+  /** Текущий корень артефактов: его показывает настройка рабочей папки. */
+  get workspaceRoot() {
+    return this.#workspaceRoot;
+  }
+  /**
+   * Смена корня не переписывает старые квитанции: они привязаны к путям, а
+   * проверка при приёмке всегда идёт от актуального корня.
+   */
+  setWorkspaceRoot(path) {
+    const root = normalizeWorkspaceRoot(path);
+    this.#workspaceRoot = root;
+    this.#log.info("\u0420\u0430\u0431\u043E\u0447\u0430\u044F \u043F\u0430\u043F\u043A\u0430 \u0438\u0437\u043C\u0435\u043D\u0435\u043D\u0430", { workspace_root: root });
+    return root;
   }
   create(raw) {
     const input = normalizeNewMission(raw);
@@ -684,7 +1205,7 @@ ${mission.goal}`.toLowerCase().includes(query)).map((mission) => missionSummary(
       cardId = card?.id ?? null;
       if (card) stage.task_id = card.id;
       if (card && agent && execution?.runs) {
-        this.#moveCard(card.id, "claimed", agent, "", agent);
+        this.#moveCard(card.id, "claimed", "mission", "", agent);
         const { run } = execution.runs.create({
           agent,
           task_id: card.id,
@@ -733,14 +1254,159 @@ ${mission.goal}`.toLowerCase().includes(query)).map((mission) => missionSummary(
     const stage = findStage(stages, ref);
     const result = bodyText(raw, "result");
     if (stage.run_id) this.#cancelRun(stage.run_id);
-    const transition = submitStage(mission, stages, stage, result, actorOf(raw), this.#clock.now());
+    const actor = actorOf(raw);
+    const transition = submitStage(mission, stages, stage, result, actor, this.#clock.now());
     this.#save(transition, stage.key);
+    this.#openGate(stage, actor);
     return this.#detail(id);
+  }
+  gates(id, ref = "") {
+    this.#load(id);
+    if (!ref.trim()) return this.#repo.gates(id);
+    const stage = findStage(this.#repo.stages(id), ref);
+    return this.#repo.gates(id, stage.id);
+  }
+  /** Записать квитанцию объявленного артефакта; путь проверяется по workspace. */
+  receipt(id, ref, raw) {
+    const { mission, stages } = this.#load(id);
+    const stage = findStage(stages, ref);
+    if (stage.status !== "review") {
+      throw new ConflictError(`\u041A\u0432\u0438\u0442\u0430\u043D\u0446\u0438\u044F \u043D\u0443\u0436\u043D\u0430 \u044D\u0442\u0430\u043F\u0443 \u043D\u0430 \u043F\u0440\u043E\u0432\u0435\u0440\u043A\u0435; ${stage.key} \u0432 \u0441\u0442\u0430\u0442\u0443\u0441\u0435 ${stage.status}`, {
+        status: stage.status
+      });
+    }
+    const path = normalizeArtifactPath(bodyText(raw, "path"), "path");
+    if (!stage.artifacts.includes(path)) {
+      throw new ValidationError(`\u0410\u0440\u0442\u0435\u0444\u0430\u043A\u0442 \xAB${path}\xBB \u043D\u0435 \u043E\u0431\u044A\u044F\u0432\u043B\u0435\u043D \u0432 \u044D\u0442\u0430\u043F\u0435 ${stage.key}`);
+    }
+    const fingerprint = fingerprintArtifact(this.#workspaceRoot, path);
+    const at = this.#clock.now().toISOString();
+    const receipt = {
+      id: newId("rcp"),
+      mission_id: mission.id,
+      stage_id: stage.id,
+      path,
+      sha256: fingerprint.sha256,
+      size: fingerprint.size,
+      created_at: at
+    };
+    const event2 = {
+      mission_id: mission.id,
+      type: "mission.stage.receipt",
+      actor: actorOf(raw),
+      payload: { stage: stage.key, path, sha256: fingerprint.sha256, size: fingerprint.size },
+      created_at: at
+    };
+    this.#repo.addReceipt(receipt, event2);
+    this.#publish(event2);
+    this.#log.info("\u041A\u0432\u0438\u0442\u0430\u043D\u0446\u0438\u044F \u0430\u0440\u0442\u0435\u0444\u0430\u043A\u0442\u0430 \u0437\u0430\u043F\u0438\u0441\u0430\u043D\u0430", {
+      mission_id: id,
+      stage: stage.key,
+      path,
+      size: fingerprint.size
+    });
+    return this.#detail(id);
+  }
+  /**
+   * Опубликовать артефакт в неизменяемом хранилище (S46/CAP-0032). Ключ
+   * собирается из этапа, текущей попытки и объявленного имени; повторная
+   * публикация того же ключа — явный конфликт, а не перезапись.
+   */
+  publishArtifact(id, ref, raw) {
+    const { mission, stages } = this.#load(id);
+    const stage = findStage(stages, ref);
+    const path = normalizeArtifactPath(bodyText(raw, "path"), "path");
+    if (!stage.artifacts.includes(path)) {
+      throw new ValidationError(`\u0410\u0440\u0442\u0435\u0444\u0430\u043A\u0442 \xAB${path}\xBB \u043D\u0435 \u043E\u0431\u044A\u044F\u0432\u043B\u0435\u043D \u0432 \u044D\u0442\u0430\u043F\u0435 ${stage.key}`);
+    }
+    if (!stage.started_at) {
+      throw new ConflictError("\u0421\u043D\u0430\u0447\u0430\u043B\u0430 \u0437\u0430\u043F\u0443\u0441\u0442\u0438\u0442\u0435 \u044D\u0442\u0430\u043F: \u0443 \u0430\u0440\u0442\u0435\u0444\u0430\u043A\u0442\u0430 \u0435\u0449\u0451 \u043D\u0435\u0442 \u043F\u043E\u043F\u044B\u0442\u043A\u0438", {
+        reason: "stage_not_started",
+        stage: stage.key
+      });
+    }
+    const attempt = Math.max(1, stage.dispatch_attempt);
+    const fingerprint = fingerprintArtifact(this.#workspaceRoot, path);
+    const artifact = this.#artifacts.publish({
+      mission_id: mission.id,
+      stage: stage.key,
+      attempt,
+      name: path,
+      source_path: resolve3(this.#workspaceRoot, path),
+      expected_sha256: fingerprint.sha256,
+      expected_size: fingerprint.size
+    });
+    this.#log.info("\u0410\u0440\u0442\u0435\u0444\u0430\u043A\u0442 \u043E\u043F\u0443\u0431\u043B\u0438\u043A\u043E\u0432\u0430\u043D \u043D\u0435\u0438\u0437\u043C\u0435\u043D\u044F\u0435\u043C\u043E", {
+      mission_id: id,
+      stage: stage.key,
+      attempt: artifact.attempt,
+      object_key: artifact.object_key,
+      sha256: artifact.sha256
+    });
+    return artifact;
+  }
+  /** Метаданные опубликованного артефакта: ключ восстанавливается из stage/attempt/name. */
+  artifactMetadata(id, objectKey) {
+    const { mission } = this.#load(id);
+    return this.#artifacts.metadata(mission.id, objectKey);
+  }
+  /** Прочитать опубликованные байты; hash сверяется с метаданными. */
+  readArtifact(id, objectKey) {
+    const { mission } = this.#load(id);
+    return this.#artifacts.read(mission.id, objectKey);
+  }
+  /**
+   * Пути, на которые ссылаются миссии: объявленные артефакты этапов и все
+   * квитанции. Вход уборки осиротевших вложений — модуль не сканирует чужие
+   * базы и не решает сам, что «упомянуто».
+   */
+  attachmentReferences() {
+    return this.#repo.attachmentReferences();
+  }
+  /** Все квитанции профиля: вход политики хранения (срок от последней). */
+  artifactReceipts() {
+    return this.#repo.allReceipts().map((receipt) => ({
+      path: receipt.path,
+      created_at: receipt.created_at
+    }));
+  }
+  /**
+   * Явная чистка просроченных артефактов миссии (CAP-0032). Удаляются только
+   * файлы, чья последняя квитанция истекла; принимать решения за пользователя
+   * здесь нельзя, поэтому метод вызывается отдельно, а не в переходе этапа.
+   */
+  sweepArtifacts(id) {
+    const { mission } = this.#load(id);
+    const summary = sweepExpiredArtifacts(this.#workspaceRoot, this.#repo.receipts(mission.id), {
+      now: this.#clock.now()
+    });
+    this.#log.info("\u041F\u0440\u043E\u0441\u0440\u043E\u0447\u0435\u043D\u043D\u044B\u0435 \u0430\u0440\u0442\u0435\u0444\u0430\u043A\u0442\u044B \u0432\u044B\u0447\u0438\u0449\u0435\u043D\u044B", {
+      mission_id: mission.id,
+      removed: summary.removed.length,
+      already_gone: summary.already_gone.length,
+      kept: summary.kept
+    });
+    return summary;
   }
   accept(id, ref, raw) {
     const { mission, stages } = this.#load(id);
     const stage = findStage(stages, ref);
-    const transition = acceptStage(mission, stages, stage, actorOf(raw), this.#clock.now());
+    assertAcceptable(mission, stage);
+    const receipts = this.#repo.receipts(id).filter((item) => item.stage_id === stage.id);
+    for (const path of stage.artifacts) {
+      const latest = receipts.filter((item) => item.path === path).at(-1);
+      assertReceiptMatches(this.#workspaceRoot, path, latest, { now: this.#clock.now() });
+    }
+    const actor = gateActor(raw);
+    const gate = this.#pendingGate(stage, actor);
+    this.#repo.decideGate(
+      gate.id,
+      "approved",
+      actor,
+      bodyText(raw, "reason").trim().slice(0, 2e3),
+      this.#clock.now().toISOString()
+    );
+    const transition = acceptStage(mission, stages, stage, actor, this.#clock.now());
     this.#save(transition, stage.key);
     this.#moveCard(stage.task_id, "done", "mission");
     return this.#detail(id);
@@ -748,9 +1414,24 @@ ${mission.goal}`.toLowerCase().includes(query)).map((mission) => missionSummary(
   reject(id, ref, raw) {
     const { mission, stages } = this.#load(id);
     const stage = findStage(stages, ref);
+    assertRejectable(mission, stage);
     const reason = bodyText(raw, "reason");
     if (!reason.trim()) throw new ValidationError("\u041D\u0443\u0436\u043D\u0430 \u043F\u0440\u0438\u0447\u0438\u043D\u0430 \u0432\u043E\u0437\u0432\u0440\u0430\u0442\u0430 \u044D\u0442\u0430\u043F\u0430 \u0438\u0441\u043F\u043E\u043B\u043D\u0438\u0442\u0435\u043B\u044E");
-    const transition = rejectStage(mission, stages, stage, reason, actorOf(raw), this.#clock.now());
+    const actor = gateActor(raw);
+    const decision = normalizeGateDecision({
+      decision: "rework",
+      actor,
+      reason
+    });
+    const gate = this.#pendingGate(stage, actor);
+    this.#repo.decideGate(
+      gate.id,
+      decision.decision,
+      decision.actor,
+      decision.reason,
+      this.#clock.now().toISOString()
+    );
+    const transition = rejectStage(mission, stages, stage, reason, actor, this.#clock.now());
     this.#save(transition, stage.key);
     return this.#detail(id);
   }
@@ -824,6 +1505,7 @@ ${mission.goal}`.toLowerCase().includes(query)).map((mission) => missionSummary(
           const transition = recordRunReport(mission, stages, stage, report, "mission", this.#clock.now());
           this.#repo.update(transition.mission, transition.stages, transition.event);
           this.#publish(transition.event);
+          this.#openGate(stage, "mission");
           this.#moveCard(stage.task_id, "done", "mission");
           this.#log.info("\u041E\u0442\u0447\u0451\u0442 \u0437\u0430\u043F\u0443\u0441\u043A\u0430 \u043F\u0440\u0438\u043C\u0435\u043D\u0451\u043D \u043A \u044D\u0442\u0430\u043F\u0443", {
             mission_id: mission.id,
@@ -870,6 +1552,7 @@ ${mission.goal}`.toLowerCase().includes(query)).map((mission) => missionSummary(
         const runId = stage.run_id;
         this.#repo.update(transition.mission, transition.stages, transition.event);
         this.#publish(transition.event);
+        this.#openGate(stage, "mission");
         if (runId) this.#cancelRun(runId);
         this.#log.info("\u041A\u0430\u0440\u0442\u043E\u0447\u043A\u0430 \u044D\u0442\u0430\u043F\u0430 \u0437\u0430\u043A\u0440\u044B\u0442\u0430: \u044D\u0442\u0430\u043F \u043D\u0430 \u043F\u0440\u043E\u0432\u0435\u0440\u043A\u0435", {
           mission_id: mission.id,
@@ -1030,7 +1713,7 @@ ${mission.goal}`.toLowerCase().includes(query)).map((mission) => missionSummary(
         reason: to === "blocked" ? reason || "\u0421\u0431\u043E\u0439 \u0437\u0430\u043F\u0443\u0441\u043A\u0430 \u0430\u0433\u0435\u043D\u0442\u0430" : null,
         assignee: to === "claimed" ? assignee : void 0,
         expected: { status: card.status, revision: card.revision, updated_at: card.updated_at }
-      });
+      }, { system: actor === "mission" || actor === "system" });
     } catch (error) {
       this.#log.warn("\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043E\u0431\u043D\u043E\u0432\u0438\u0442\u044C \u043A\u0430\u0440\u0442\u043E\u0447\u043A\u0443 \u044D\u0442\u0430\u043F\u0430", {
         task_id: taskId,
@@ -1051,6 +1734,15 @@ ${mission.goal}`.toLowerCase().includes(query)).map((mission) => missionSummary(
       });
     }
   }
+  /** Квитанции с вычисленным сроком: истёкшая не выглядит свежей в API. */
+  #agedReceipts(id) {
+    const now = this.#clock.now();
+    return this.#repo.receipts(id).map((receipt) => ({
+      ...receipt,
+      expires_at: receiptExpiresAt(receipt),
+      state: receiptState(receipt, now)
+    }));
+  }
   #load(id) {
     const mission = this.#repo.get(id);
     if (!mission) throw new NotFoundError(`\u041C\u0438\u0441\u0441\u0438\u044F ${id} \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u0430`);
@@ -1063,8 +1755,33 @@ ${mission.goal}`.toLowerCase().includes(query)).map((mission) => missionSummary(
       stages,
       progress: missionProgress(mission, stages),
       events: this.#repo.events(id, 100),
+      gates: this.#repo.gates(id),
+      receipts: this.#agedReceipts(id),
       max_attempts: this.#maxAttempts
     };
+  }
+  #openGate(stage, actor) {
+    const existing = this.#repo.gates(stage.mission_id, stage.id).find((gate) => gate.status === "pending");
+    if (existing) return existing;
+    const history = this.#repo.gates(stage.mission_id, stage.id);
+    const previous = history.at(-1) ?? null;
+    return this.#repo.openGate({
+      id: newId("gate"),
+      mission_id: stage.mission_id,
+      stage_id: stage.id,
+      round: previous ? previous.round + 1 : 1,
+      status: "pending",
+      result: stage.result ?? "",
+      opened_at: this.#clock.now().toISOString(),
+      decided_at: null,
+      decided_by: null,
+      reason: null,
+      previous_gate_id: previous?.id ?? null
+    });
+  }
+  #pendingGate(stage, actor) {
+    const existing = this.#repo.gates(stage.mission_id, stage.id).find((gate) => gate.status === "pending");
+    return existing ?? this.#openGate(stage, actor);
   }
   #save(transition, key) {
     this.#repo.update(transition.mission, transition.stages, transition.event);
@@ -1147,7 +1864,7 @@ var MissionRunner = class {
 
 // src/adapters/storage/sqlite-missions.ts
 var MISSION_COLUMNS = "id, title, goal, status, current_stage_id, revision, summary, agent, created_at, updated_at";
-var STAGE_COLUMNS = `id, mission_id, key, position, title, acceptance, depends_on, status,
+var STAGE_COLUMNS = `id, mission_id, key, position, title, acceptance, artifacts, depends_on, status,
   result, task_id, run_id, error, agent, dispatch_attempt, started_at, submitted_at, finished_at, revision`;
 function toMission(row) {
   return {
@@ -1171,6 +1888,7 @@ function toStage(row) {
     position: row.position,
     title: row.title,
     acceptance: row.acceptance,
+    artifacts: JSON.parse(row.artifacts),
     depends_on: JSON.parse(row.depends_on),
     status: row.status,
     result: row.result,
@@ -1185,6 +1903,17 @@ function toStage(row) {
     revision: row.revision
   };
 }
+function toReceipt(row) {
+  return {
+    id: row.id,
+    mission_id: row.mission_id,
+    stage_id: row.stage_id,
+    path: row.path,
+    sha256: row.sha256,
+    size: row.size,
+    created_at: row.created_at
+  };
+}
 function toEvent(row) {
   return {
     mission_id: row.mission_id,
@@ -1192,6 +1921,21 @@ function toEvent(row) {
     actor: row.actor,
     payload: JSON.parse(row.payload),
     created_at: row.created_at
+  };
+}
+function toGate(row) {
+  return {
+    id: row.id,
+    mission_id: row.mission_id,
+    stage_id: row.stage_id,
+    round: row.round,
+    status: row.status,
+    result: row.result,
+    opened_at: row.opened_at,
+    decided_at: row.decided_at,
+    decided_by: row.decided_by,
+    reason: row.reason,
+    previous_gate_id: row.previous_gate_id
   };
 }
 var SqliteMissionRepository = class {
@@ -1250,12 +1994,13 @@ var SqliteMissionRepository = class {
         mission.id
       );
       for (const stage of stages) {
-        const result = this.#db.raw.prepare(`UPDATE mission_stages SET title = ?, acceptance = ?, depends_on = ?, status = ?,
+        const result = this.#db.raw.prepare(`UPDATE mission_stages SET title = ?, acceptance = ?, artifacts = ?, depends_on = ?, status = ?,
               result = ?, task_id = ?, run_id = ?, error = ?, agent = ?, dispatch_attempt = ?,
               started_at = ?, submitted_at = ?, finished_at = ?, revision = ?
             WHERE id = ? AND mission_id = ?`).run(
           stage.title,
           stage.acceptance,
+          JSON.stringify(stage.artifacts),
           JSON.stringify(stage.depends_on),
           stage.status,
           stage.result,
@@ -1281,14 +2026,95 @@ var SqliteMissionRepository = class {
         WHERE mission_id = ? ORDER BY seq DESC LIMIT ?`).all(missionId, Math.min(Math.max(limit, 1), 200));
     return rows.reverse().map(toEvent);
   }
+  receipts(missionId) {
+    const rows = this.#db.raw.prepare(`SELECT id, mission_id, stage_id, path, sha256, size, created_at
+        FROM mission_artifacts WHERE mission_id = ? ORDER BY rowid`).all(missionId);
+    return rows.map(toReceipt);
+  }
+  allReceipts() {
+    const rows = this.#db.raw.prepare(`SELECT id, mission_id, stage_id, path, sha256, size, created_at
+        FROM mission_artifacts ORDER BY rowid`).all();
+    return rows.map(toReceipt);
+  }
+  attachmentReferences() {
+    const rows = this.#db.raw.prepare("SELECT path FROM mission_artifacts UNION SELECT artifacts FROM mission_stages").all();
+    const references = /* @__PURE__ */ new Set();
+    for (const row of rows) {
+      const value = row.path ?? "";
+      if (!value.startsWith("[")) {
+        if (value) references.add(value);
+        continue;
+      }
+      const parsed = JSON.parse(value);
+      if (!Array.isArray(parsed)) {
+        throw new Error("\u0421\u043F\u0438\u0441\u043E\u043A \u0430\u0440\u0442\u0435\u0444\u0430\u043A\u0442\u043E\u0432 \u044D\u0442\u0430\u043F\u0430 \u043F\u043E\u0432\u0440\u0435\u0436\u0434\u0451\u043D: \u043E\u0436\u0438\u0434\u0430\u043B\u0441\u044F JSON-\u043C\u0430\u0441\u0441\u0438\u0432");
+      }
+      for (const item of parsed) {
+        if (typeof item === "string" && item) references.add(item);
+      }
+    }
+    return [...references];
+  }
+  addReceipt(receipt, event2) {
+    this.#db.transaction(() => {
+      this.#db.raw.prepare(`INSERT INTO mission_artifacts
+          (id, mission_id, stage_id, path, sha256, size, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?)`).run(
+        receipt.id,
+        receipt.mission_id,
+        receipt.stage_id,
+        receipt.path,
+        receipt.sha256,
+        receipt.size,
+        receipt.created_at
+      );
+      this.#appendEvent(event2);
+    });
+  }
+  gates(missionId, stageId) {
+    const rows = stageId ? this.#db.raw.prepare(`SELECT * FROM mission_gates
+          WHERE mission_id = ? AND stage_id = ? ORDER BY round`).all(missionId, stageId) : this.#db.raw.prepare("SELECT * FROM mission_gates WHERE mission_id = ? ORDER BY round, stage_id").all(missionId);
+    return rows.map(toGate);
+  }
+  openGate(gate) {
+    this.#db.raw.prepare(`INSERT INTO mission_gates
+      (id, mission_id, stage_id, round, status, result, opened_at, decided_at,
+       decided_by, reason, previous_gate_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+      gate.id,
+      gate.mission_id,
+      gate.stage_id,
+      gate.round,
+      gate.status,
+      gate.result,
+      gate.opened_at,
+      gate.decided_at,
+      gate.decided_by,
+      gate.reason,
+      gate.previous_gate_id
+    );
+    return { ...gate };
+  }
+  decideGate(id, status, actor, reason, at) {
+    const result = this.#db.raw.prepare(`UPDATE mission_gates
+      SET status = ?, decided_at = ?, decided_by = ?, reason = ?
+      WHERE id = ? AND status = 'pending'`).run(status, at, actor, reason || null, id);
+    const row = this.#db.raw.prepare("SELECT * FROM mission_gates WHERE id = ?").get(id);
+    if (!row) throw new NotFoundError(`\u0412\u043E\u0440\u043E\u0442\u0430 ${id} \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u044B`);
+    if (Number(result.changes) !== 1) {
+      throw new ConflictError("\u0420\u0435\u0448\u0435\u043D\u0438\u0435 \u043F\u043E \u0432\u043E\u0440\u043E\u0442\u0430\u043C \u0443\u0436\u0435 \u0437\u0430\u043F\u0438\u0441\u0430\u043D\u043E", { gate_id: id, status: row.status });
+    }
+    return toGate(row);
+  }
   #insertStage(stage) {
-    this.#db.raw.prepare(`INSERT INTO mission_stages (${STAGE_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+    this.#db.raw.prepare(`INSERT INTO mission_stages (${STAGE_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
       stage.id,
       stage.mission_id,
       stage.key,
       stage.position,
       stage.title,
       stage.acceptance,
+      JSON.stringify(stage.artifacts),
       JSON.stringify(stage.depends_on),
       stage.status,
       stage.result,
@@ -1367,16 +2193,120 @@ var missionsMigrations = [
       CREATE INDEX mission_stages_run ON mission_stages (run_id);
       CREATE INDEX mission_stages_task ON mission_stages (task_id);
     `
+  },
+  {
+    // Артефакты этапа и квитанции: путь + sha256 + размер. Квитанция —
+    // снимок, а не копия содержимого; при приёмке файл проверяется заново.
+    version: "missions/0003_artifacts",
+    sql: `
+      ALTER TABLE mission_stages ADD COLUMN artifacts TEXT NOT NULL DEFAULT '[]';
+
+      CREATE TABLE mission_artifacts (
+        id TEXT PRIMARY KEY,
+        mission_id TEXT NOT NULL REFERENCES missions (id) ON DELETE CASCADE,
+        stage_id TEXT NOT NULL REFERENCES mission_stages (id) ON DELETE CASCADE,
+        path TEXT NOT NULL,
+        sha256 TEXT NOT NULL,
+        size INTEGER NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX mission_artifacts_stage ON mission_artifacts (stage_id, path, created_at);
+    `
+  },
+  {
+    // Ворота решения: один раунд проверки = одна запись. Предыдущий раунд
+    // остаётся в таблице, поэтому история доработок не перезаписывается.
+    version: "missions/0004_human_gates",
+    sql: `
+      CREATE TABLE mission_gates (
+        id TEXT PRIMARY KEY,
+        mission_id TEXT NOT NULL REFERENCES missions (id) ON DELETE CASCADE,
+        stage_id TEXT NOT NULL REFERENCES mission_stages (id) ON DELETE CASCADE,
+        round INTEGER NOT NULL,
+        status TEXT NOT NULL,
+        result TEXT NOT NULL DEFAULT '',
+        opened_at TEXT NOT NULL,
+        decided_at TEXT,
+        decided_by TEXT,
+        reason TEXT,
+        previous_gate_id TEXT REFERENCES mission_gates (id),
+        UNIQUE (mission_id, stage_id, round)
+      );
+      CREATE INDEX mission_gates_stage ON mission_gates (stage_id, round);
+      CREATE INDEX mission_gates_open ON mission_gates (mission_id, status);
+    `
   }
 ];
+
+// src/modules/idempotency-http.ts
+import { createHash as createHash3 } from "node:crypto";
+function canonical(value) {
+  if (Array.isArray(value)) return value.map(canonical);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.keys(value).sort().map((key) => [key, canonical(value[key])])
+    );
+  }
+  return value;
+}
+function idempotencyFingerprint(method, path, body) {
+  const payload = JSON.stringify(canonical(body ?? null));
+  return createHash3("sha256").update(`${method.toUpperCase()}
+${path}
+${payload}`, "utf8").digest("hex");
+}
+function idempotencyKeyOf(request) {
+  const raw = request.req.headers["idempotency-key"];
+  const header = Array.isArray(raw) ? raw[0] : raw;
+  if (typeof header === "string" && header.trim()) return header.trim();
+  const body = request.body && typeof request.body === "object" ? request.body : null;
+  return typeof body?.idempotency_key === "string" ? body.idempotency_key.trim() : "";
+}
+function requestPathname(request, fallback) {
+  try {
+    return new URL(request.req.url ?? fallback, "http://localhost").pathname;
+  } catch {
+    return fallback;
+  }
+}
+async function idempotentReply(request, service, fallbackPath, handler) {
+  const key = idempotencyKeyOf(request);
+  if (!service || !key) return handler();
+  const method = (request.req.method ?? "POST").toUpperCase();
+  const path = requestPathname(request, fallbackPath);
+  const result = await service.execute({
+    method,
+    path,
+    key,
+    fingerprint: idempotencyFingerprint(method, path, request.body),
+    handler: async () => {
+      const reply = await handler();
+      if (reply === null || reply.raw !== void 0) {
+        throw new ConflictError("\u041E\u0442\u0432\u0435\u0442 \u044D\u0442\u043E\u0433\u043E \u043C\u0430\u0440\u0448\u0440\u0443\u0442\u0430 \u043D\u0435\u043B\u044C\u0437\u044F \u0441\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C \u043A\u0430\u043A \u0438\u0434\u0435\u043C\u043F\u043E\u0442\u0435\u043D\u0442\u043D\u044B\u0439", {
+          reason: "idempotency_unsupported_response",
+          method,
+          path
+        });
+      }
+      return { status: reply.status ?? 200, body: reply.body ?? null };
+    }
+  });
+  return { status: result.status, body: result.body };
+}
 
 // src/modules/missions/missions.module.ts
 function registerMissionsRoutes(router, deps) {
   const missions = deps.missions;
-  router.add("POST", "/api/missions", (c) => ({
+  const idem = (request, handler) => idempotentReply(
+    request,
+    deps.idempotency,
+    "/api/missions",
+    handler
+  );
+  router.add("POST", "/api/missions", (c) => idem(c, () => ({
     status: 201,
     body: { ok: true, ...missions.create(c.body) }
-  }));
+  })));
   router.add("GET", "/api/missions", (c) => ({
     body: {
       ok: true,
@@ -1393,31 +2323,65 @@ function registerMissionsRoutes(router, deps) {
       events: missions.get(c.params.id ?? "").events
     }
   }));
-  router.add("POST", "/api/missions/:id/stages", (c) => ({
+  router.add("GET", "/api/missions/:id/gates", (c) => {
+    const items = missions.gates(c.params.id ?? "", c.query.get("stage") ?? "");
+    return { body: { ok: true, items, count: items.length } };
+  });
+  router.add("POST", "/api/missions/:id/stages", (c) => idem(c, () => ({
     status: 201,
     body: { ok: true, ...missions.addStage(c.params.id ?? "", c.body) }
-  }));
-  router.add("POST", "/api/missions/:id/stages/:stage/start", (c) => ({
+  })));
+  router.add("POST", "/api/missions/:id/stages/:stage/start", (c) => idem(c, () => ({
     body: { ok: true, ...missions.start(c.params.id ?? "", c.params.stage ?? "", c.body) }
-  }));
-  router.add("POST", "/api/missions/:id/stages/:stage/submit", (c) => ({
+  })));
+  router.add("POST", "/api/missions/:id/stages/:stage/submit", (c) => idem(c, () => ({
     body: { ok: true, ...missions.submit(c.params.id ?? "", c.params.stage ?? "", c.body) }
+  })));
+  router.add("POST", "/api/missions/:id/stages/:stage/receipts", (c) => idem(c, () => ({
+    status: 201,
+    body: { ok: true, ...missions.receipt(c.params.id ?? "", c.params.stage ?? "", c.body) }
+  })));
+  router.add("POST", "/api/missions/:id/stages/:stage/artifacts", (c) => idem(c, () => ({
+    status: 201,
+    body: {
+      ok: true,
+      artifact: missions.publishArtifact(c.params.id ?? "", c.params.stage ?? "", c.body)
+    }
+  })));
+  router.add("GET", "/api/missions/:id/artifacts/metadata", (c) => ({
+    body: {
+      ok: true,
+      artifact: missions.artifactMetadata(c.params.id ?? "", c.query.get("key") ?? "")
+    }
   }));
-  router.add("POST", "/api/missions/:id/stages/:stage/accept", (c) => ({
+  router.add("GET", "/api/missions/:id/artifacts", (c) => {
+    const key = c.query.get("key") ?? "";
+    const artifact = missions.artifactMetadata(c.params.id ?? "", key);
+    return {
+      raw: missions.readArtifact(c.params.id ?? "", key),
+      headers: {
+        "content-type": "application/octet-stream",
+        "cache-control": "no-store",
+        "x-artifact-sha256": artifact.sha256,
+        "x-artifact-object-key": artifact.object_key
+      }
+    };
+  });
+  router.add("POST", "/api/missions/:id/stages/:stage/accept", (c) => idem(c, () => ({
     body: { ok: true, ...missions.accept(c.params.id ?? "", c.params.stage ?? "", c.body) }
-  }));
-  router.add("POST", "/api/missions/:id/stages/:stage/reject", (c) => ({
+  })));
+  router.add("POST", "/api/missions/:id/stages/:stage/reject", (c) => idem(c, () => ({
     body: { ok: true, ...missions.reject(c.params.id ?? "", c.params.stage ?? "", c.body) }
-  }));
-  router.add("POST", "/api/missions/:id/pause", (c) => ({
+  })));
+  router.add("POST", "/api/missions/:id/pause", (c) => idem(c, () => ({
     body: { ok: true, ...missions.pause(c.params.id ?? "", c.body) }
-  }));
-  router.add("POST", "/api/missions/:id/resume", (c) => ({
+  })));
+  router.add("POST", "/api/missions/:id/resume", (c) => idem(c, () => ({
     body: { ok: true, ...missions.resume(c.params.id ?? "", c.body) }
-  }));
-  router.add("POST", "/api/missions/:id/complete", (c) => ({
+  })));
+  router.add("POST", "/api/missions/:id/complete", (c) => idem(c, () => ({
     body: { ok: true, ...missions.complete(c.params.id ?? "", c.body) }
-  }));
+  })));
 }
 
 // modules/missions/page.ts
@@ -1429,30 +2393,30 @@ var PAGE = `<!doctype html>
 <title>\u041C\u0438\u0441\u0441\u0438\u0438 \u2014 \u043C\u043E\u0434\u0443\u043B\u044C</title>
 <style>
   :root { color-scheme: light dark; }
-  body { margin: 0; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; background: #0f1216; color: #e6e9ef; }
-  header { display: flex; gap: 12px; align-items: baseline; padding: 20px 24px; border-bottom: 1px solid #232833; }
+  body { margin: 0; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); }
+  header { display: flex; gap: 12px; align-items: baseline; padding: 20px 24px; border-bottom: 1px solid var(--line); }
   header h1 { margin: 0; font-size: 19px; }
-  header a { color: #8fb4ff; font-size: 13px; }
+  header a { color: var(--accent); font-size: 13px; }
   main { display: grid; gap: 20px; grid-template-columns: minmax(280px, 340px) 1fr; padding: 24px; align-items: start; }
   @media (max-width: 860px) { main { grid-template-columns: 1fr; } }
-  section { background: #151a21; border: 1px solid #232833; border-radius: 12px; padding: 16px; }
-  h2 { margin: 0 0 12px; font-size: 15px; color: #aab4c5; font-weight: 600; }
-  label { display: grid; gap: 4px; font-size: 13px; color: #aab4c5; margin-bottom: 10px; }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  h2 { margin: 0 0 12px; font-size: 15px; color: var(--muted); font-weight: 600; }
+  label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); margin-bottom: 10px; }
   input, textarea, button { font: inherit; }
-  input, textarea { background: #0f1216; color: inherit; border: 1px solid #2b3240; border-radius: 8px; padding: 8px 10px; }
+  input, textarea { background: var(--bg); color: inherit; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
   textarea { min-height: 70px; resize: vertical; }
-  button { background: #2d5bff; color: #fff; border: 0; border-radius: 8px; padding: 8px 14px; cursor: pointer; }
+  button { background: var(--accent); color: var(--on-accent); border: 0; border-radius: 8px; padding: 8px 14px; cursor: pointer; }
   ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
-  li { border: 1px solid #232833; border-radius: 10px; padding: 12px; }
+  li { border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
   .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .title { font-weight: 600; }
-  .meta { color: #7f8a9c; font-size: 12px; }
-  .status { text-transform: uppercase; font-size: 11px; letter-spacing: .04em; padding: 2px 8px; border-radius: 999px; background: #222a36; }
-  .status-active { background: #24304a; color: #a8c5ff; }
+  .meta { color: var(--muted); font-size: 12px; }
+  .status { text-transform: uppercase; font-size: 11px; letter-spacing: .04em; padding: 2px 8px; border-radius: 999px; background: var(--panel-soft); }
+  .status-active { background: rgba(76, 201, 240, 0.14); color: var(--accent); }
   .status-done { background: #1d3a2a; color: #8be0ab; }
   .status-failed { background: #3a2426; color: #ff9a9a; }
   .error { color: #ff9a9a; font-size: 13px; min-height: 18px; }
-  .empty { color: #7f8a9c; }
+  .empty { color: var(--muted); }
 </style>
 </head>
 <body>

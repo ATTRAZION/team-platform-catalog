@@ -14,13 +14,14 @@ var AppError = class extends Error {
   }
 };
 var ValidationError = class extends AppError {
-  constructor(message, details = {}) {
-    super("validation_failed", message, 400, details);
+  constructor(message, details = {}, options = {}) {
+    super(options.code ?? "validation_failed", message, options.status ?? 400, details);
   }
 };
 var NotFoundError = class extends AppError {
-  constructor(message = "\u041D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u043E") {
-    super("not_found", message, 404);
+  /** Детали необязательны: старые вызовы без них продолжают работать. */
+  constructor(message = "\u041D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u043E", details = {}) {
+    super("not_found", message, 404, details);
   }
 };
 var UpstreamError = class extends AppError {
@@ -45,6 +46,8 @@ var LOGIN_RE = /^[A-Za-z0-9-]{1,39}$/;
 var SITE_RE = /^[a-z0-9][a-z0-9._-]{1,80}$/;
 var FIELD_RE = /^[a-z0-9][a-z0-9._-]{0,60}$/;
 var MODES = ["off", "watch", "answer"];
+var CUSTOM_PROVIDER_ID_RE = /^[a-z][a-z0-9._-]{1,40}$/;
+var CUSTOM_MODEL_LIMIT = 100;
 var EMPTY = {
   github: { token: "", owner: "", accounts: [], active_login: "" },
   discord: {
@@ -75,6 +78,7 @@ var EMPTY = {
     agent: ""
   },
   providers: {},
+  provider_configs: {},
   sites: {}
 };
 function text(value) {
@@ -133,6 +137,80 @@ function accountsOf(value) {
   }
   return [...seen.values()];
 }
+function modelsOf(value) {
+  if (!Array.isArray(value)) return [];
+  const seen = /* @__PURE__ */ new Set();
+  const models = [];
+  for (const raw of value) {
+    const model = text(raw);
+    if (!model || model.length > 120 || seen.has(model)) continue;
+    seen.add(model);
+    models.push(model);
+    if (models.length >= CUSTOM_MODEL_LIMIT) break;
+  }
+  return models;
+}
+function baseUrlOf(value) {
+  const raw = text(value);
+  if (!raw) return "";
+  try {
+    const url = new URL(raw);
+    if (!["http:", "https:"].includes(url.protocol) || !url.hostname) return "";
+    return raw.replace(/\/+$/, "");
+  } catch {
+    return "";
+  }
+}
+function customProvidersOf(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const result = {};
+  for (const [rawId, raw] of Object.entries(value)) {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue;
+    const record = raw;
+    const id = text(record.id) || text(rawId);
+    if (!CUSTOM_PROVIDER_ID_RE.test(id) || BUILTIN_PROVIDER_IDS.has(id)) continue;
+    const base_url = baseUrlOf(record.base_url);
+    const models = modelsOf(record.models);
+    if (!base_url || !models.length) continue;
+    const requested = text(record.default_model);
+    result[id] = {
+      id,
+      title: text(record.title) || id,
+      base_url,
+      models,
+      default_model: models.includes(requested) ? requested : models[0]
+    };
+  }
+  return result;
+}
+function customProviderForUpdate(value, idValue, current) {
+  const record = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  const id = text(record.id) || text(idValue) || current?.id || "";
+  if (!CUSTOM_PROVIDER_ID_RE.test(id)) {
+    throw new ValidationError("\u0418\u0434\u0435\u043D\u0442\u0438\u0444\u0438\u043A\u0430\u0442\u043E\u0440 \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440\u0430: \u0441\u0442\u0440\u043E\u0447\u043D\u0430\u044F \u043B\u0430\u0442\u0438\u043D\u0441\u043A\u0430\u044F \u0431\u0443\u043A\u0432\u0430, \u0437\u0430\u0442\u0435\u043C \u0431\u0443\u043A\u0432\u044B, \u0446\u0438\u0444\u0440\u044B, \u0442\u043E\u0447\u043A\u0430, \u0434\u0435\u0444\u0438\u0441 \u0438\u043B\u0438 \u043F\u043E\u0434\u0447\u0451\u0440\u043A\u0438\u0432\u0430\u043D\u0438\u0435");
+  }
+  if (BUILTIN_PROVIDER_IDS.has(id)) {
+    throw new ValidationError(`\u041F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440 \xAB${id}\xBB \u0443\u0436\u0435 \u0432\u0441\u0442\u0440\u043E\u0435\u043D \u0438 \u043D\u0435 \u043C\u043E\u0436\u0435\u0442 \u0431\u044B\u0442\u044C \u043A\u0430\u0441\u0442\u043E\u043C\u043D\u044B\u043C`);
+  }
+  const base_url = baseUrlOf(record.base_url) || current?.base_url || "";
+  if (!base_url) {
+    throw new ValidationError("\u041D\u0443\u0436\u0435\u043D base_url \u0432\u0438\u0434\u0430 http://127.0.0.1:8080/v1");
+  }
+  const modelsInput = record.models;
+  const models = modelsInput === void 0 || Array.isArray(modelsInput) && modelsInput.length === 0 ? current?.models ?? [] : modelsOf(modelsInput);
+  if (!models.length) throw new ValidationError("\u041D\u0443\u0436\u0435\u043D \u0445\u043E\u0442\u044F \u0431\u044B \u043E\u0434\u0438\u043D \u0438\u0434\u0435\u043D\u0442\u0438\u0444\u0438\u043A\u0430\u0442\u043E\u0440 \u043C\u043E\u0434\u0435\u043B\u0438");
+  const requested = text(record.default_model) || (current && models.includes(current.default_model) ? current.default_model : models[0]);
+  if (!models.includes(requested)) {
+    throw new ValidationError("\u041C\u043E\u0434\u0435\u043B\u044C \u043F\u043E \u0443\u043C\u043E\u043B\u0447\u0430\u043D\u0438\u044E \u0434\u043E\u043B\u0436\u043D\u0430 \u0432\u0445\u043E\u0434\u0438\u0442\u044C \u0432 \u0441\u043F\u0438\u0441\u043E\u043A models");
+  }
+  return {
+    id,
+    title: text(record.title) || current?.title || id,
+    base_url,
+    models,
+    default_model: requested
+  };
+}
 function sitesOf(value) {
   if (!value || typeof value !== "object") return {};
   const result = {};
@@ -162,6 +240,11 @@ var IntegrationStore = class {
     this.#label = typeof target === "string" ? target : "\u0441\u0435\u043A\u0440\u0435\u0442\u044B \u043C\u043E\u0434\u0443\u043B\u044F";
     this.#env = env;
     this.#log = log;
+    this.#load();
+  }
+  /** Перечитывает документ: второй экземпляр мог изменить настройки. */
+  reload() {
+    this.#stored = {};
     this.#load();
   }
   #load() {
@@ -242,6 +325,7 @@ var IntegrationStore = class {
         agent: text(stored.telegram?.agent)
       },
       providers,
+      provider_configs: customProvidersOf(stored.provider_configs),
       sites: sitesOf(stored.sites)
     };
   }
@@ -298,7 +382,11 @@ var IntegrationStore = class {
         agent: secrets.telegram.agent
       },
       sites: { count: sites.length, entries: sites },
-      providers: Object.fromEntries(PROVIDERS.map((p) => [p.id, Boolean(secrets.providers[p.id])]))
+      providers: Object.fromEntries([
+        ...PROVIDERS.map((p) => [p.id, Boolean(secrets.providers[p.id])]),
+        ...Object.values(secrets.provider_configs).map((p) => [p.id, Boolean(secrets.providers[p.id])])
+      ]),
+      provider_configs: Object.values(secrets.provider_configs).sort((left, right) => left.title.localeCompare(right.title))
     };
   }
   /** Сохраняет только присланные поля; пустая строка очищает значение. */
@@ -365,6 +453,26 @@ var IntegrationStore = class {
       }
       stored.providers = providers;
     }
+    if (patch.provider_configs) {
+      const configs = { ...customProvidersOf(stored.provider_configs) };
+      const providers = { ...stored.providers ?? {} };
+      for (const [rawId, rawConfig] of Object.entries(patch.provider_configs)) {
+        const id = text(rawId).toLowerCase();
+        if (rawConfig === null) {
+          delete configs[id];
+          delete providers[id];
+          continue;
+        }
+        const config = customProviderForUpdate(rawConfig, id, configs[id]);
+        if (config.id !== id) {
+          delete configs[id];
+          delete providers[id];
+        }
+        configs[config.id] = config;
+      }
+      stored.provider_configs = configs;
+      stored.providers = providers;
+    }
     if (patch.sites) {
       const sites = sitesOf(stored.sites);
       for (const [rawSite, rawFields] of Object.entries(patch.sites)) {
@@ -409,6 +517,7 @@ var PROVIDERS = [
   { id: "freebuff", title: "Freebuff", env: "FREEBUFF_API_KEY", link: "https://freebuff.com/account/api" }
 ];
 var PROVIDER_ENV = PROVIDERS.map((p) => [p.id, p.env]);
+var BUILTIN_PROVIDER_IDS = new Set(PROVIDERS.map((provider) => provider.id));
 function cleanStrings(value) {
   const result = {};
   for (const [key, raw] of Object.entries(value)) {
@@ -1997,7 +2106,7 @@ var DiscordAdapter = class {
       allowed_mentions: { parse: [] },
       attachments: [{ id: 0, filename: safeName }]
     }));
-    form.append("files[0]", new Blob([data], { type: mimeType(safeName) }), safeName);
+    form.append("files[0]", new Blob([new Uint8Array(data)], { type: mimeType(safeName) }), safeName);
     const token = this.#secrets().bot_token;
     if (!token) throw new UpstreamError("Discord: \u043D\u0435 \u0437\u0430\u0434\u0430\u043D \u0442\u043E\u043A\u0435\u043D \u0431\u043E\u0442\u0430");
     let response;
@@ -3482,6 +3591,15 @@ ${body}`),
     if (event.type === "task.created" && notify.tasks) {
       if (event.actor.startsWith("discord:")) return;
       text3 = `\u041D\u043E\u0432\u0430\u044F \u0437\u0430\u0434\u0430\u0447\u0430: ${String(event.data.title ?? event.entity.id)}`;
+    } else if (event.type === "task.sla_escalated" && notify.tasks) {
+      const title = String(event.data.title ?? event.entity.id);
+      const to = event.data.to ? ` \xB7 \u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0435\u043D\u043D\u044B\u0439: ${String(event.data.to)}` : "";
+      text3 = `${event.data.automatic ? "SLA \u043F\u0440\u043E\u0441\u0440\u043E\u0447\u0435\u043D" : "SLA \u044D\u0441\u043A\u0430\u043B\u0438\u0440\u043E\u0432\u0430\u043D"}: ${title}${to}`;
+    } else if (event.type === "task.handover_expired" && notify.tasks) {
+      const title = String(event.data.title ?? event.entity.id);
+      const from = String(event.data.from ?? "\u2014");
+      const to = String(event.data.to ?? "\u2014");
+      text3 = `\u041E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0435\u043D\u043D\u043E\u0441\u0442\u044C \u043F\u043E \u0437\u0430\u0434\u0430\u0447\u0435 \u0432\u0435\u0440\u043D\u0443\u043B\u0430\u0441\u044C: ${title} \xB7 ${from} \u2192 ${to}`;
     } else if (event.type === "run.failed" || event.type === "run.cancelled") {
       if (!notify.errors && !notify.runs) return;
       text3 = this.#runText(event, event.type === "run.failed" ? "\u0417\u0430\u043F\u0443\u0441\u043A \u043F\u0440\u043E\u0432\u0430\u043B\u0435\u043D" : "\u0417\u0430\u043F\u0443\u0441\u043A \u043E\u0442\u043C\u0435\u043D\u0451\u043D");
@@ -3562,6 +3680,9 @@ function plural(count, one, few, many) {
 
 // src/app/tools-service.ts
 var CACHE_MS = 2e4;
+function textField(value) {
+  return typeof value === "string" ? value.trim() : "";
+}
 var ToolsService = class {
   #store;
   #log;
@@ -3731,13 +3852,7 @@ var ToolsService = class {
       this.#browser ? this.#browser().catch(() => null) : Promise.resolve(null)
     ]);
     const settings = this.#store.masked();
-    const providerViews = PROVIDERS.map((provider) => ({
-      id: provider.id,
-      title: provider.title,
-      configured: Boolean(settings.providers[provider.id]),
-      env: provider.env,
-      link: provider.link
-    }));
+    const providerViews = this.#providerViews(settings);
     const configuredProviders = providerViews.filter((p) => p.configured).length;
     const integrations = [
       { feature: "github", status: github },
@@ -4033,10 +4148,75 @@ var ToolsService = class {
     }
     return result;
   }
+  /** Ключи провайдеров без сетевых проверок — для страницы модуля провайдеров. */
+  providerList() {
+    return this.#providerViews(this.#store.masked());
+  }
+  #providerViews(settings) {
+    return [
+      ...PROVIDERS.map((provider) => ({
+        id: provider.id,
+        title: provider.title,
+        kind: "builtin",
+        configured: Boolean(settings.providers[provider.id]),
+        env: provider.env,
+        link: provider.link,
+        base_url: "",
+        models: [],
+        default_model: ""
+      })),
+      ...settings.provider_configs.map((config) => ({
+        id: config.id,
+        title: config.title,
+        kind: "custom",
+        configured: Boolean(settings.providers[config.id]),
+        env: `${config.id.toUpperCase().replace(/[^A-Z0-9]+/g, "_")}_API_KEY`,
+        link: "",
+        base_url: config.base_url,
+        models: [...config.models],
+        default_model: config.default_model
+      }))
+    ];
+  }
   configureProvider(id, key) {
-    const provider = PROVIDERS.find((p) => p.id === id);
-    if (!provider) throw new UpstreamError(`\u041D\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043D\u044B\u0439 \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440 \xAB${id}\xBB`);
+    const settings = this.#store.masked();
+    const known = PROVIDERS.some((provider) => provider.id === id) || settings.provider_configs.some((provider) => provider.id === id);
+    if (!known) throw new UpstreamError(`\u041D\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043D\u044B\u0439 \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440 \xAB${id}\xBB`);
     this.#store.update({ providers: { [id]: key.trim() } });
+    this.#cache = null;
+    return this.#store.masked();
+  }
+  /** Создаёт или обновляет пользовательский OpenAI-совместимый провайдер. */
+  configureCustomProvider(body) {
+    const input = body && typeof body === "object" && !Array.isArray(body) ? body : {};
+    const id = textField(input.id).toLowerCase();
+    const baseUrl = textField(input.base_url) || textField(input.baseURL);
+    const models = Array.isArray(input.models) ? input.models.filter((model) => typeof model === "string") : textField(input.models).split(/[\n,]+/).map((model) => model.trim()).filter(Boolean);
+    const defaultModel = textField(input.default_model) || textField(input.defaultModel);
+    const key = input.key;
+    if (key !== void 0 && typeof key !== "string") {
+      throw new ValidationError("\u041F\u043E\u043B\u0435 key \u0434\u043E\u043B\u0436\u043D\u043E \u0431\u044B\u0442\u044C \u0441\u0442\u0440\u043E\u043A\u043E\u0439");
+    }
+    const config = {
+      id,
+      title: textField(input.title),
+      base_url: baseUrl,
+      models,
+      default_model: defaultModel
+    };
+    this.#store.update({ provider_configs: { [id]: config } });
+    if (typeof key === "string" && key.trim()) {
+      this.#store.update({ providers: { [id]: key.trim() } });
+    }
+    this.#cache = null;
+    return this.#store.masked();
+  }
+  removeCustomProvider(id) {
+    const wanted = id.trim().toLowerCase();
+    if (!this.#store.masked().provider_configs.some((provider) => provider.id === wanted)) {
+      throw new UpstreamError(`\u041A\u0430\u0441\u0442\u043E\u043C\u043D\u044B\u0439 \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440 \xAB${wanted}\xBB \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D`);
+    }
+    this.#store.update({ provider_configs: { [wanted]: null } });
     this.#cache = null;
     return this.#store.masked();
   }
@@ -4293,7 +4473,8 @@ var TOOLS_INTEGRATION_PREFIXES = [
   "/api/tools/google",
   "/api/tools/telegram",
   "/api/tools/entire",
-  "/api/tools/freebuff"
+  "/api/tools/freebuff",
+  "/api/tools/exa"
 ];
 function registerToolsRoutes(router, deps) {
   const { tools, toolbox, entire } = deps;
@@ -4569,102 +4750,428 @@ var PAGE = `<!doctype html>
 <title>\u0418\u043D\u0441\u0442\u0440\u0443\u043C\u0435\u043D\u0442\u044B \u2014 \u043C\u043E\u0434\u0443\u043B\u044C</title>
 <style>
   :root { color-scheme: light dark; }
-  body { margin: 0; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; background: #0f1216; color: #e6e9ef; }
-  header { display: flex; gap: 12px; align-items: baseline; padding: 20px 24px; border-bottom: 1px solid #232833; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); }
+  header { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; padding: 20px 24px; border-bottom: 1px solid var(--line); }
   header h1 { margin: 0; font-size: 19px; }
-  header a { color: #8fb4ff; font-size: 13px; }
-  main { display: grid; gap: 20px; padding: 24px; max-width: 960px; }
-  section { background: #151a21; border: 1px solid #232833; border-radius: 12px; padding: 16px; }
-  h2 { margin: 0 0 12px; font-size: 15px; color: #aab4c5; font-weight: 600; }
+  header a { color: var(--accent); font-size: 13px; }
+  main { display: grid; gap: 20px; padding: 24px; max-width: 1000px; }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  h2 { margin: 0 0 12px; font-size: 15px; color: var(--muted); font-weight: 600; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-  li { display: grid; gap: 2px; border: 1px solid #232833; border-radius: 10px; padding: 10px 12px; }
-  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  li.row { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  li.row .grow { flex: 1; min-width: 180px; }
+  [hidden] { display: none !important; }
+  li.service-card { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--panel-soft); }
+  .service-head { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 11px 12px; }
+  .service-head .grow { flex: 1; min-width: 180px; }
+  .service-actions { display: flex; gap: 7px; align-items: center; flex-wrap: wrap; }
+  .link-action { color: var(--accent); font-size: 13px; text-decoration: none; padding: 6px 8px; border-radius: 8px; background: var(--panel-soft); }
+  .link-action:hover { background: var(--panel-soft); }
+  .service-settings { border-top: 1px solid var(--line); padding: 12px; background: var(--panel); display: grid; gap: 10px; }
+  .settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .field { display: grid; gap: 4px; font-size: 12px; color: var(--muted); }
+  .field input, .field select { width: 100%; }
+  @media (max-width: 760px) { .settings-grid { grid-template-columns: 1fr; } }
   .title { font-weight: 600; }
-  .meta { color: #7f8a9c; font-size: 12px; }
-  .state { text-transform: uppercase; font-size: 11px; letter-spacing: .04em; padding: 2px 8px; border-radius: 999px; background: #222a36; }
+  .meta { color: var(--muted); font-size: 12px; }
+  .state { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--panel-soft); color: var(--muted); text-transform: uppercase; }
   .state-ok { background: #1d3a2a; color: #8be0ab; }
   .state-error { background: #3a2426; color: #ff9a9a; }
   .state-setup { background: #3a3320; color: #e8ce8b; }
-  .empty { color: #7f8a9c; }
-  .error { color: #ff9a9a; font-size: 13px; }
+  input, select { background: var(--bg); color: inherit; border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; font: inherit; }
+  input[type="number"] { width: 90px; }
+  button { background: var(--accent); color: var(--on-accent); border: 0; border-radius: 8px; padding: 7px 12px; cursor: pointer; font: inherit; font-size: 13px; }
+  button.ghost { background: var(--panel-soft); color: var(--text); }
+  button.danger { background: transparent; border: 1px solid rgba(255,107,107,.4); color: #ff9a9a; }
+  button:disabled { opacity: .6; cursor: default; }
+  .controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+  .controls label { display: flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
+  .empty { color: var(--muted); }
+  .result { min-height: 20px; font-size: 13px; }
+  .result-ok { color: #8be0ab; }
+  .result-error { color: #ff9a9a; }
+  .site-form { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 8px; margin-top: 10px; }
+  @media (max-width: 760px) { .site-form { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
 <header>
   <h1>\u0418\u043D\u0441\u0442\u0440\u0443\u043C\u0435\u043D\u0442\u044B</h1>
-  <a href="/">\u2190 \u043A \u043F\u043B\u0430\u0442\u0444\u043E\u0440\u043C\u0435</a>
-  <a href="/api/tools/vault">\u0445\u0440\u0430\u043D\u0438\u043B\u0438\u0449\u0435 (\u043C\u0430\u0441\u043A\u0430)</a>
+  <a href="/m/providers/">\u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440\u044B \u2192</a>
+  <a href="/">\u043A \u043F\u043B\u0430\u0442\u0444\u043E\u0440\u043C\u0435</a>
 </header>
 <main>
   <section>
-    <h2>\u0421\u0435\u0440\u0432\u0438\u0441\u044B</h2>
+    <h2>\u0421\u043E\u0441\u0442\u043E\u044F\u043D\u0438\u0435 \u0438 \u043F\u0440\u043E\u0432\u0435\u0440\u043A\u0438 <button id="refresh" class="ghost" type="button">\u041E\u0431\u043D\u043E\u0432\u0438\u0442\u044C</button></h2>
     <ul id="tools"><li class="empty">\u0417\u0430\u0433\u0440\u0443\u0437\u043A\u0430\u2026</li></ul>
-    <p class="error" id="error"></p>
+    <p id="tools-result" class="result"></p>
   </section>
-  <section>
-    <h2>\u041F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440\u044B \u043C\u043E\u0434\u0435\u043B\u0435\u0439</h2>
-    <ul id="providers"><li class="empty">\u0417\u0430\u0433\u0440\u0443\u0437\u043A\u0430\u2026</li></ul>
+
+  <section id="reserve-section">
+    <h2>\u0420\u0435\u0437\u0435\u0440\u0432 \u0437\u0430\u0434\u0430\u0447</h2>
+    <div class="controls">
+      <label><input id="reserve-enabled" type="checkbox"> \u0412\u043A\u043B\u044E\u0447\u0451\u043D</label>
+      <label>\u041B\u0438\u043C\u0438\u0442 <input id="reserve-limit" type="number" min="1" max="50"></label>
+      <button id="reserve-save" type="button">\u0421\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C</button>
+      <span id="reserve-state" class="meta"></span>
+    </div>
+    <ul id="reserve-items"><li class="empty">\u0417\u0430\u0433\u0440\u0443\u0437\u043A\u0430\u2026</li></ul>
+    <div id="reserve-candidates"></div>
+  </section>
+
+  <section id="spare-section">
+    <h2>\u0421\u0432\u043E\u0431\u043E\u0434\u043D\u043E\u0435 \u0432\u0440\u0435\u043C\u044F</h2>
+    <div class="controls">
+      <label><input id="spare-enabled" type="checkbox"> \u0412\u043A\u043B\u044E\u0447\u0435\u043D\u043E</label>
+      <label>\u0421 <input id="spare-start" type="number" min="0" max="23"></label>
+      <label>\u0414\u043E <input id="spare-end" type="number" min="0" max="23"></label>
+      <label>\u041B\u0438\u043C\u0438\u0442, \u043C\u0438\u043D <input id="spare-limit" type="number" min="0" max="1440"></label>
+      <button id="spare-save" type="button">\u0421\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C</button>
+    </div>
+    <div class="controls">
+      <button class="ghost" type="button" data-override="auto">\u0410\u0432\u0442\u043E</button>
+      <button class="ghost" type="button" data-override="open">\u041E\u0442\u043A\u0440\u044B\u0442\u044C</button>
+      <button class="ghost" type="button" data-override="closed">\u0417\u0430\u043A\u0440\u044B\u0442\u044C</button>
+      <span id="spare-state" class="meta"></span>
+    </div>
+  </section>
+
+  <section id="sites-section">
+    <h2>\u041F\u0430\u0440\u043E\u043B\u0438 \u0441\u0430\u0439\u0442\u043E\u0432</h2>
+    <ul id="sites"><li class="empty">\u0417\u0430\u0433\u0440\u0443\u0437\u043A\u0430\u2026</li></ul>
+    <div class="site-form">
+      <input id="site-name" placeholder="\u0441\u0430\u0439\u0442, \u043D\u0430\u043F\u0440\u0438\u043C\u0435\u0440 strata" autocomplete="off">
+      <input id="site-field" placeholder="\u043F\u043E\u043B\u0435, \u043D\u0430\u043F\u0440\u0438\u043C\u0435\u0440 api_key" autocomplete="off">
+      <input id="site-value" type="password" placeholder="\u0437\u043D\u0430\u0447\u0435\u043D\u0438\u0435" autocomplete="off">
+      <button id="site-save" type="button">\u0421\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C</button>
+    </div>
   </section>
 </main>
 <script>
 (function () {
-  var toolsList = document.getElementById('tools');
-  var providersList = document.getElementById('providers');
-  var error = document.getElementById('error');
+  var state = { catalog: null, reserve: null, spare: null, openSettings: null };
 
-  function el(tag, className, text) {
-    var node = document.createElement(tag);
-    if (className) node.className = className;
-    if (text !== undefined) node.textContent = text;
-    return node;
+  var SETUP = {
+    github: [
+      { name: 'owner', label: '\u0412\u043B\u0430\u0434\u0435\u043B\u0435\u0446 / \u043E\u0440\u0433\u0430\u043D\u0438\u0437\u0430\u0446\u0438\u044F', placeholder: '\u043D\u0430\u043F\u0440\u0438\u043C\u0435\u0440, ATTRAZION' },
+      { name: 'token', label: 'Personal access token', type: 'password', placeholder: '\u043F\u0443\u0441\u0442\u043E \u2014 \u043D\u0435 \u043C\u0435\u043D\u044F\u0442\u044C' }
+    ],
+    discord: [
+      { name: 'bot_token', label: '\u0422\u043E\u043A\u0435\u043D \u0431\u043E\u0442\u0430', type: 'password', placeholder: '\u043F\u0443\u0441\u0442\u043E \u2014 \u043D\u0435 \u043C\u0435\u043D\u044F\u0442\u044C' },
+      { name: 'webhook_url', label: 'URL \u0432\u0435\u0431\u0445\u0443\u043A\u0430', type: 'password', placeholder: 'https://discord.com/api/webhooks/\u2026' },
+      { name: 'channel_id', label: 'ID \u043A\u0430\u043D\u0430\u043B\u0430 \u0431\u043E\u0442\u0430', placeholder: '1234567890' },
+      { name: 'application_id', label: 'Application ID (Rich Presence)', placeholder: '1234567890' },
+      { name: 'user_token', label: '\u0422\u043E\u043A\u0435\u043D \u043B\u0438\u0447\u043D\u043E\u0433\u043E \u0430\u043A\u043A\u0430\u0443\u043D\u0442\u0430', type: 'password', placeholder: '\u043F\u0443\u0441\u0442\u043E \u2014 \u043D\u0435 \u043C\u0435\u043D\u044F\u0442\u044C' }
+    ],
+    google: [
+      { name: 'client_id', label: 'OAuth client_id', placeholder: '\u2026apps.googleusercontent.com' },
+      { name: 'client_secret', label: 'client_secret', type: 'password', placeholder: '\u043F\u0443\u0441\u0442\u043E \u2014 \u043D\u0435 \u043C\u0435\u043D\u044F\u0442\u044C' },
+      { name: 'refresh_token', label: 'refresh_token', type: 'password', placeholder: '\u043F\u0443\u0441\u0442\u043E \u2014 \u043D\u0435 \u043C\u0435\u043D\u044F\u0442\u044C' }
+    ],
+    telegram: [
+      { name: 'api_id', label: 'api_id', type: 'number', placeholder: '\u0441 my.telegram.org' },
+      { name: 'api_hash', label: 'api_hash', type: 'password', placeholder: '\u043F\u0443\u0441\u0442\u043E \u2014 \u043D\u0435 \u043C\u0435\u043D\u044F\u0442\u044C' },
+      { name: 'mode', label: '\u0420\u0435\u0436\u0438\u043C', type: 'select', options: [
+        ['off', '\u0412\u044B\u043A\u043B\u044E\u0447\u0435\u043D'], ['watch', '\u041D\u0430\u0431\u043B\u044E\u0434\u0435\u043D\u0438\u0435'], ['answer', '\u041F\u0435\u0440\u0435\u0434\u0430\u0432\u0430\u0442\u044C \u0430\u0433\u0435\u043D\u0442\u0443 \u0438 \u043E\u0442\u0432\u0435\u0447\u0430\u0442\u044C']
+      ] }
+    ],
+    entire: [
+      { name: 'repo_path', label: '\u041F\u0443\u0442\u044C \u043A \u0440\u0435\u043F\u043E\u0437\u0438\u0442\u043E\u0440\u0438\u044E', placeholder: 'D:\\work\\project' },
+      { name: 'cli_path', label: '\u041F\u0443\u0442\u044C \u043A Entire CLI', placeholder: 'entire' }
+    ]
+  };
+  var SECTION_LINKS = { sites: 'sites-section', reserve: 'reserve-section', spare: 'spare-section' };
+  var MODULE_LINKS = {
+    github: 'github', discord: 'discord', google: 'google', telegram: 'telegram',
+    entire: 'entire', freebuff: 'freebuff', browser: 'browser'
+  };
+
+  function esc(value) {
+    return String(value == null ? '' : value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
-  function stateClass(state) {
-    if (state === 'ok' || state === 'configured') return 'state state-ok';
-    if (state === 'error') return 'state state-error';
-    if (state === 'setup') return 'state state-setup';
+  function request(path, options) {
+    options = options || {};
+    return fetch(path, {
+      method: options.method || 'GET',
+      headers: { 'content-type': 'application/json' },
+      body: options.body === undefined ? undefined : JSON.stringify(options.body),
+      cache: 'no-store'
+    }).then(function (response) {
+      return response.text().then(function (text) {
+        var body = null;
+        try { body = text ? JSON.parse(text) : null; } catch (ignore) { body = null; }
+        if (!response.ok) throw new Error(body && body.error && body.error.message ? body.error.message : 'HTTP ' + response.status);
+        return body;
+      });
+    });
+  }
+
+  function result(text, ok) {
+    var node = document.getElementById('tools-result');
+    node.textContent = text;
+    node.className = 'result ' + (ok ? 'result-ok' : 'result-error');
+  }
+
+  function stateClass(value) {
+    if (value === 'ok' || value === 'configured') return 'state state-ok';
+    if (value === 'error') return 'state state-error';
+    if (value === 'setup' || value === 'not_configured') return 'state state-setup';
     return 'state';
   }
 
-  function load() {
-    return fetch('/api/tools').then(function (response) {
-      return response.json().then(function (body) {
-        if (!response.ok) throw new Error((body.error && body.error.message) || '\u041E\u0448\u0438\u0431\u043A\u0430 \u0437\u0430\u043F\u0440\u043E\u0441\u0430');
-        return body;
-      });
-    }).then(function (body) {
-      toolsList.textContent = '';
-      var items = body.items || [];
-      if (!items.length) {
-        toolsList.appendChild(el('li', 'empty', '\u041D\u0435\u0442 \u0438\u043D\u0441\u0442\u0440\u0443\u043C\u0435\u043D\u0442\u043E\u0432'));
-      }
-      items.forEach(function (item) {
-        var row = el('li');
-        var head = el('div', 'row');
-        head.appendChild(el('span', 'title', item.title));
-        head.appendChild(el('span', stateClass(item.state), item.state));
-        row.appendChild(head);
-        if (item.summary) row.appendChild(el('div', 'meta', item.summary));
-        toolsList.appendChild(row);
-      });
-
-      providersList.textContent = '';
-      var providers = body.providers || [];
-      providers.forEach(function (provider) {
-        var row = el('li');
-        var head = el('div', 'row');
-        head.appendChild(el('span', 'title', provider.title));
-        head.appendChild(el('span', provider.configured ? 'state state-ok' : 'state state-setup',
-          provider.configured ? '\u043A\u043B\u044E\u0447 \u0435\u0441\u0442\u044C' : '\u043D\u0443\u0436\u0435\u043D \u043A\u043B\u044E\u0447'));
-        row.appendChild(head);
-        row.appendChild(el('div', 'meta', provider.env));
-        providersList.appendChild(row);
-      });
-      error.textContent = '';
-    }).catch(function (failure) {
-      error.textContent = failure.message;
-    });
+  function stateLabel(value) {
+    return ({ ok: '\u0440\u0430\u0431\u043E\u0442\u0430\u0435\u0442', configured: '\u043D\u0430\u0441\u0442\u0440\u043E\u0435\u043D\u043E', setup: '\u043D\u0435 \u043D\u0430\u0441\u0442\u0440\u043E\u0435\u043D\u043E', error: '\u043E\u0448\u0438\u0431\u043A\u0430', off: '\u0432\u044B\u043A\u043B\u044E\u0447\u0435\u043D\u043E' })[value] || value;
   }
+
+  function currentValue(id, name) {
+    var settings = state.catalog && state.catalog.settings;
+    var block = settings && settings[id];
+    var value = block && block[name];
+    return typeof value === 'string' || typeof value === 'number' ? String(value) : '';
+  }
+
+  function fieldHtml(id, field) {
+    var value = field.type === 'password' ? '' : currentValue(id, field.name);
+    var placeholder = field.placeholder ? ' placeholder="' + esc(field.placeholder) + '"' : '';
+    if (field.type === 'select') {
+      return '<div class="field"><label>' + esc(field.label) + '</label><select name="' + esc(field.name) + '">'
+        + (field.options || []).map(function (option) {
+          return '<option value="' + esc(option[0]) + '"' + (value === option[0] ? ' selected' : '') + '>'
+            + esc(option[1]) + '</option>';
+        }).join('')
+        + '</select></div>';
+    }
+    return '<div class="field"><label>' + esc(field.label) + '</label><input name="' + esc(field.name)
+      + '" type="' + esc(field.type || 'text') + '"' + placeholder
+      + (value ? ' value="' + esc(value) + '"' : '') + ' autocomplete="off"></div>';
+  }
+
+  function settingsPanel(id) {
+    var fields = SETUP[id];
+    if (!fields) return '';
+    return '<form class="service-settings" data-settings="' + esc(id) + '"'
+      + (state.openSettings === id ? '' : ' hidden') + '>'
+      + '<div class="settings-grid">' + fields.map(function (field) { return fieldHtml(id, field); }).join('') + '</div>'
+      + '<div class="controls"><button type="submit">\u0421\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C</button>'
+      + '<span class="meta">\u0421\u0435\u043A\u0440\u0435\u0442\u044B \u043D\u0435 \u043F\u043E\u043A\u0430\u0437\u044B\u0432\u0430\u044E\u0442\u0441\u044F; \u043F\u0443\u0441\u0442\u043E\u0435 \u043F\u043E\u043B\u0435 \u043D\u0435 \u043C\u0435\u043D\u044F\u0435\u0442\u0441\u044F.</span></div></form>';
+  }
+
+  function renderTools(items) {
+    var node = document.getElementById('tools');
+    items = items.filter(function (item) { return item.id !== 'providers'; });
+    if (!items.length) {
+      node.innerHTML = '<li class="empty">\u0418\u043D\u0441\u0442\u0440\u0443\u043C\u0435\u043D\u0442\u044B \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u044B.</li>';
+      return;
+    }
+    node.innerHTML = items.map(function (item) {
+      var canTest = item.id === 'github' || item.id === 'discord' || item.id === 'google';
+      var setup = SETUP[item.id];
+      var actions = [];
+      if (setup) {
+        actions.push('<button class="ghost" type="button" data-configure="' + esc(item.id) + '">'
+          + (state.openSettings === item.id ? '\u0421\u043A\u0440\u044B\u0442\u044C \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438' : '\u041D\u0430\u0441\u0442\u0440\u043E\u0438\u0442\u044C') + '</button>');
+      }
+      if (canTest) actions.push('<button class="ghost" type="button" data-test="' + esc(item.id) + '">\u041F\u0440\u043E\u0432\u0435\u0440\u0438\u0442\u044C</button>');
+      if (SECTION_LINKS[item.id]) {
+        actions.push('<button class="ghost" type="button" data-scroll="' + esc(SECTION_LINKS[item.id]) + '">\u041D\u0430\u0441\u0442\u0440\u043E\u0438\u0442\u044C</button>');
+      }
+      if (MODULE_LINKS[item.id]) {
+        actions.push('<a class="link-action" href="/m/' + esc(MODULE_LINKS[item.id]) + '/">\u041E\u0442\u043A\u0440\u044B\u0442\u044C</a>');
+      }
+      return '<li class="service-card"><div class="service-head"><div class="grow"><span class="title">' + esc(item.title) + '</span> '
+        + '<span class="' + stateClass(item.state) + '">' + esc(stateLabel(item.state)) + '</span>'
+        + (item.summary ? '<div class="meta">' + esc(item.summary) + '</div>' : '')
+        + '</div><div class="service-actions">' + actions.join('') + '</div></div>'
+        + settingsPanel(item.id) + '</li>';
+    }).join('');
+  }
+
+  function renderReserve(body) {
+    var value = body || {};
+    state.reserve = value;
+    document.getElementById('reserve-enabled').checked = Boolean(value.enabled);
+    document.getElementById('reserve-limit').value = value.limit == null ? 5 : value.limit;
+    document.getElementById('reserve-state').textContent = value.settings_error
+      ? '\u043E\u0448\u0438\u0431\u043A\u0430 \u043D\u0430\u0441\u0442\u0440\u043E\u0435\u043A'
+      : '\u0437\u0430\u043D\u044F\u0442\u043E ' + (value.used || 0) + ' \u0438\u0437 ' + (value.limit || 0);
+    var items = value.items || [];
+    var node = document.getElementById('reserve-items');
+    node.innerHTML = items.length
+      ? items.map(function (item) {
+          return '<li class="row"><span class="grow"><span class="title">' + esc(item.title || item.task_id || item.id)
+            + '</span><div class="meta">' + esc(item.status || '') + '</div></span>'
+            + '<button class="danger" type="button" data-reserve-remove="' + esc(item.task_id || item.id) + '">\u0423\u0431\u0440\u0430\u0442\u044C</button></li>';
+        }).join('')
+      : '<li class="empty">\u0420\u0435\u0437\u0435\u0440\u0432 \u043F\u0443\u0441\u0442.</li>';
+    var candidates = value.candidates || [];
+    document.getElementById('reserve-candidates').innerHTML = candidates.length
+      ? '<div class="meta" style="margin-top:10px">\u0414\u043E\u0431\u0430\u0432\u0438\u0442\u044C \u0432 \u0440\u0435\u0437\u0435\u0440\u0432:</div><div class="controls">'
+        + candidates.map(function (task) {
+            return '<button class="ghost" type="button" data-reserve-add="' + esc(task.id) + '">'
+              + esc(task.title) + '</button>';
+          }).join('') + '</div>'
+      : '';
+  }
+
+  function renderSpare(value) {
+    state.spare = value || {};
+    var spare = state.spare;
+    document.getElementById('spare-enabled').checked = Boolean(spare.enabled);
+    document.getElementById('spare-start').value = spare.start_hour == null ? 19 : spare.start_hour;
+    document.getElementById('spare-end').value = spare.end_hour == null ? 8 : spare.end_hour;
+    document.getElementById('spare-limit').value = spare.daily_limit_minutes == null ? 240 : spare.daily_limit_minutes;
+    var label = spare.active ? '\u0430\u043A\u0442\u0438\u0432\u043D\u043E' : '\u043D\u0435 \u0430\u043A\u0442\u0438\u0432\u043D\u043E';
+    if (spare.override) label += ' \xB7 \u0432\u0440\u0443\u0447\u043D\u0443\u044E: ' + spare.override;
+    if (spare.reason) label += ' \xB7 ' + spare.reason;
+    document.getElementById('spare-state').textContent = label;
+  }
+
+  function renderSites(body) {
+    var sites = body || {};
+    var entries = sites.entries || [];
+    var node = document.getElementById('sites');
+    node.innerHTML = entries.length
+      ? entries.map(function (entry) {
+          return '<li class="row"><span class="grow"><span class="title">' + esc(entry.site) + '</span>'
+            + '<div class="meta">' + (entry.fields || []).map(function (field) { return '<code>' + esc(field) + '</code>'; }).join(', ')
+            + '</div></span><button class="danger" type="button" data-site-remove="' + esc(entry.site) + '">\u0423\u0434\u0430\u043B\u0438\u0442\u044C</button></li>';
+        }).join('')
+      : '<li class="empty">\u0421\u043E\u0445\u0440\u0430\u043D\u0451\u043D\u043D\u044B\u0445 \u0441\u0430\u0439\u0442\u043E\u0432 \u043D\u0435\u0442.</li>';
+  }
+
+  function load() {
+    return Promise.all([
+      request('/api/tools').then(function (body) { state.catalog = body; renderTools(body.items || []); }),
+      request('/api/tools/reserve').then(function (body) { renderReserve(body.state); }),
+      request('/api/tools/spare').then(function (body) { renderSpare(body.state); }),
+      request('/api/tools/vault').then(function (body) { renderSites(body); })
+    ]).catch(function (error) { result(error.message, false); });
+  }
+
+  document.getElementById('refresh').addEventListener('click', function () {
+    result('\u041E\u0431\u043D\u043E\u0432\u043B\u044F\u044E\u2026', true);
+    load().then(function () { result('\u0421\u043E\u0441\u0442\u043E\u044F\u043D\u0438\u0435 \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u043E.', true); });
+  });
+
+  document.getElementById('tools').addEventListener('click', function (event) {
+    var configure = event.target.closest('[data-configure]');
+    if (configure) {
+      var configureId = configure.getAttribute('data-configure');
+      state.openSettings = state.openSettings === configureId ? null : configureId;
+      renderTools((state.catalog && state.catalog.items) || []);
+      return;
+    }
+    var scroll = event.target.closest('[data-scroll]');
+    if (scroll) {
+      var section = document.getElementById(scroll.getAttribute('data-scroll'));
+      if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
+    var button = event.target.closest('[data-test]');
+    if (!button) return;
+    var id = button.getAttribute('data-test');
+    button.disabled = true;
+    request('/api/tools/' + encodeURIComponent(id) + '/test', { method: 'POST' })
+      .then(function (body) {
+        result('\u041F\u0440\u043E\u0432\u0435\u0440\u043A\u0430 ' + id + ': ' + (body.status && body.status.summary ? body.status.summary : '\u0433\u043E\u0442\u043E\u0432\u043E'), true);
+        return load();
+      })
+      .catch(function (error) { result(error.message, false); })
+      .then(function () { button.disabled = false; });
+  });
+
+  document.getElementById('tools').addEventListener('submit', function (event) {
+    var form = event.target.closest('[data-settings]');
+    if (!form) return;
+    event.preventDefault();
+    var id = form.getAttribute('data-settings');
+    var body = {};
+    Array.prototype.forEach.call(form.querySelectorAll('input, select'), function (input) {
+      if (input.value === '') return;
+      body[input.name] = input.type === 'number' ? Number(input.value) : input.value;
+    });
+    if (!Object.keys(body).length) {
+      result('\u0417\u0430\u043F\u043E\u043B\u043D\u0438\u0442\u0435 \u0445\u043E\u0442\u044F \u0431\u044B \u043E\u0434\u043D\u043E \u043F\u043E\u043B\u0435.', false);
+      return;
+    }
+    var path = id === 'entire'
+      ? '/api/tools/entire/settings'
+      : '/api/tools/' + encodeURIComponent(id) + '/configure';
+    request(path, { method: id === 'entire' ? 'PUT' : 'POST', body: body })
+      .then(function () {
+        state.openSettings = id;
+        result('\u041D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438 \xAB' + id + '\xBB \u0441\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u044B.', true);
+        return load();
+      })
+      .catch(function (error) { result(error.message, false); });
+  });
+
+  document.getElementById('reserve-save').addEventListener('click', function () {
+    request('/api/tools/reserve', { method: 'PUT', body: {
+      enabled: document.getElementById('reserve-enabled').checked,
+      limit: Number(document.getElementById('reserve-limit').value)
+    } }).then(function (body) { renderReserve(body.state); result('\u0420\u0435\u0437\u0435\u0440\u0432 \u0441\u043E\u0445\u0440\u0430\u043D\u0451\u043D.', true); })
+      .catch(function (error) { result(error.message, false); });
+  });
+
+  document.getElementById('reserve-items').addEventListener('click', function (event) {
+    var button = event.target.closest('[data-reserve-remove]');
+    if (!button) return;
+    request('/api/tools/reserve/items/' + encodeURIComponent(button.getAttribute('data-reserve-remove')), { method: 'DELETE' })
+      .then(function (body) { renderReserve(body.state); result('\u041A\u0430\u0440\u0442\u043E\u0447\u043A\u0430 \u0443\u0431\u0440\u0430\u043D\u0430 \u0438\u0437 \u0440\u0435\u0437\u0435\u0440\u0432\u0430.', true); })
+      .catch(function (error) { result(error.message, false); });
+  });
+
+  document.getElementById('reserve-candidates').addEventListener('click', function (event) {
+    var button = event.target.closest('[data-reserve-add]');
+    if (!button) return;
+    request('/api/tools/reserve/items', { method: 'POST', body: { task_id: button.getAttribute('data-reserve-add') } })
+      .then(function (body) { renderReserve(body.state); result('\u041A\u0430\u0440\u0442\u043E\u0447\u043A\u0430 \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u0430 \u0432 \u0440\u0435\u0437\u0435\u0440\u0432.', true); })
+      .catch(function (error) { result(error.message, false); });
+  });
+
+  document.getElementById('spare-save').addEventListener('click', function () {
+    request('/api/tools/spare', { method: 'PUT', body: {
+      enabled: document.getElementById('spare-enabled').checked,
+      start_hour: Number(document.getElementById('spare-start').value),
+      end_hour: Number(document.getElementById('spare-end').value),
+      daily_limit_minutes: Number(document.getElementById('spare-limit').value)
+    } }).then(function (body) { renderSpare(body.state); result('\u0421\u0432\u043E\u0431\u043E\u0434\u043D\u043E\u0435 \u0432\u0440\u0435\u043C\u044F \u0441\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u043E.', true); })
+      .catch(function (error) { result(error.message, false); });
+  });
+
+  document.querySelectorAll('[data-override]').forEach(function (button) {
+    button.addEventListener('click', function () {
+      request('/api/tools/spare/override', { method: 'POST', body: { override: button.getAttribute('data-override') } })
+        .then(function (body) { renderSpare(body.state); result('\u0420\u0435\u0436\u0438\u043C \u0441\u0432\u043E\u0431\u043E\u0434\u043D\u043E\u0433\u043E \u0432\u0440\u0435\u043C\u0435\u043D\u0438 \u043E\u0431\u043D\u043E\u0432\u043B\u0451\u043D.', true); })
+        .catch(function (error) { result(error.message, false); });
+    });
+  });
+
+  document.getElementById('site-save').addEventListener('click', function () {
+    var site = document.getElementById('site-name').value.trim();
+    var field = document.getElementById('site-field').value.trim();
+    var value = document.getElementById('site-value').value;
+    if (!site || !field || !value) { result('\u041D\u0443\u0436\u043D\u044B \u0441\u0430\u0439\u0442, \u043F\u043E\u043B\u0435 \u0438 \u0437\u043D\u0430\u0447\u0435\u043D\u0438\u0435.', false); return; }
+    request('/api/tools/sites/configure', { method: 'POST', body: { site: site, fields: { [field]: value } } })
+      .then(function (body) {
+        document.getElementById('site-value').value = '';
+        result('\u041F\u043E\u043B\u0435 \u0441\u0430\u0439\u0442\u0430 \u0441\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u043E.', true);
+        return request('/api/tools/vault').then(function (vault) { renderSites(vault); });
+      })
+      .catch(function (error) { result(error.message, false); });
+  });
+
+  document.getElementById('sites').addEventListener('click', function (event) {
+    var button = event.target.closest('[data-site-remove]');
+    if (!button) return;
+    request('/api/tools/sites/' + encodeURIComponent(button.getAttribute('data-site-remove')), { method: 'DELETE' })
+      .then(function () { return request('/api/tools/vault').then(function (body) { renderSites(body); }); })
+      .then(function () { result('\u0421\u0430\u0439\u0442 \u0443\u0434\u0430\u043B\u0451\u043D.', true); })
+      .catch(function (error) { result(error.message, false); });
+  });
 
   load();
 })();

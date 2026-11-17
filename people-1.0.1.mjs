@@ -142,13 +142,14 @@ var AppError = class extends Error {
   }
 };
 var ValidationError = class extends AppError {
-  constructor(message, details = {}) {
-    super("validation_failed", message, 400, details);
+  constructor(message, details = {}, options = {}) {
+    super(options.code ?? "validation_failed", message, options.status ?? 400, details);
   }
 };
 var NotFoundError = class extends AppError {
-  constructor(message = "\u041D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u043E") {
-    super("not_found", message, 404);
+  /** Детали необязательны: старые вызовы без них продолжают работать. */
+  constructor(message = "\u041D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u043E", details = {}) {
+    super("not_found", message, 404, details);
   }
 };
 
@@ -301,6 +302,27 @@ var peopleMigrations = [
       );
       CREATE INDEX person_entries_person ON person_entries (person_id, id DESC);
     `
+  },
+  {
+    // Hold ухода живёт отдельно от карточки человека: снятие hold не удаляет
+    // доказательство, а повторная установка не создаёт дубль.
+    version: "people/0002_offboarding_holds",
+    sql: `
+      CREATE TABLE offboarding_holds (
+        id TEXT PRIMARY KEY,
+        participant TEXT NOT NULL,
+        object_type TEXT NOT NULL,
+        object_id TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        actor TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        released_at TEXT,
+        released_by TEXT
+      );
+      CREATE INDEX offboarding_holds_participant ON offboarding_holds (participant, created_at);
+      CREATE UNIQUE INDEX offboarding_holds_active ON offboarding_holds
+        (participant, object_type, object_id) WHERE released_at IS NULL;
+    `
   }
 ];
 
@@ -319,6 +341,7 @@ function requiredId(value) {
 }
 function registerPeopleRoutes(router, deps) {
   const { people } = deps;
+  const { offboarding } = deps;
   router.add("GET", "/api/people", (c) => ({
     body: {
       ok: true,
@@ -339,6 +362,21 @@ function registerPeopleRoutes(router, deps) {
     status: 201,
     body: { ok: true, person: people.create(c.body) }
   }));
+  if (offboarding) {
+    router.add("GET", "/api/people/offboarding", (c) => ({
+      body: { ok: true, ...offboarding.inventory(c.query.get("participant") ?? "") }
+    }));
+    router.add("POST", "/api/people/offboarding/hold", (c) => ({
+      status: 201,
+      body: { ok: true, hold: offboarding.hold(c.body) }
+    }));
+    router.add("POST", "/api/people/offboarding/hold/release", (c) => ({
+      body: { ok: true, ...offboarding.release(c.body) }
+    }));
+    router.add("POST", "/api/people/offboarding", (c) => ({
+      body: { ok: true, report: offboarding.offboard(c.body) }
+    }));
+  }
   router.add("GET", "/api/people/:id", (c) => ({
     body: {
       ok: true,
@@ -366,24 +404,24 @@ var PAGE = `<!doctype html>
 <title>\u041B\u044E\u0434\u0438 \u2014 \u043C\u043E\u0434\u0443\u043B\u044C</title>
 <style>
   :root { color-scheme: light dark; }
-  body { margin: 0; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; background: #0f1216; color: #e6e9ef; }
-  header { display: flex; gap: 12px; align-items: baseline; padding: 20px 24px; border-bottom: 1px solid #232833; }
+  body { margin: 0; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); }
+  header { display: flex; gap: 12px; align-items: baseline; padding: 20px 24px; border-bottom: 1px solid var(--line); }
   header h1 { margin: 0; font-size: 19px; }
-  header a { color: #8fb4ff; font-size: 13px; }
+  header a { color: var(--accent); font-size: 13px; }
   main { display: grid; gap: 20px; grid-template-columns: minmax(260px, 340px) 1fr; padding: 24px; align-items: start; }
   @media (max-width: 820px) { main { grid-template-columns: 1fr; } }
-  section { background: #151a21; border: 1px solid #232833; border-radius: 12px; padding: 16px; }
-  h2 { margin: 0 0 12px; font-size: 15px; color: #aab4c5; font-weight: 600; }
-  label { display: grid; gap: 4px; font-size: 13px; color: #aab4c5; margin-bottom: 10px; }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  h2 { margin: 0 0 12px; font-size: 15px; color: var(--muted); font-weight: 600; }
+  label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); margin-bottom: 10px; }
   input, textarea, button { font: inherit; }
-  input, textarea { background: #0f1216; color: inherit; border: 1px solid #2b3240; border-radius: 8px; padding: 8px 10px; }
-  button { background: #2d5bff; color: #fff; border: 0; border-radius: 8px; padding: 8px 14px; cursor: pointer; }
+  input, textarea { background: var(--bg); color: inherit; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+  button { background: var(--accent); color: var(--on-accent); border: 0; border-radius: 8px; padding: 8px 14px; cursor: pointer; }
   ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
-  li { border: 1px solid #232833; border-radius: 10px; padding: 12px; }
+  li { border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
   .title { font-weight: 600; }
-  .meta { color: #7f8a9c; font-size: 12px; }
+  .meta { color: var(--muted); font-size: 12px; }
   .error { color: #ff9a9a; font-size: 13px; min-height: 18px; }
-  .empty { color: #7f8a9c; }
+  .empty { color: var(--muted); }
 </style>
 </head>
 <body>
