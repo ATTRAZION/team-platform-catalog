@@ -3,6 +3,24 @@
   "api_version": 1,
   "modules": [
     {
+      "id": "agent-registry",
+      "name": "Реестр агентов",
+      "version": "1.0.0",
+      "summary": "Кто именно исполняет запуски: список настроенных агентов, найденные на машине агенты и рантаймы, включение и удаление с явного согласия.",
+      "publisher": "Team Platform",
+      "trust": "official",
+      "category": "automation",
+      "permissions": [],
+      "requires": {
+        "core": "^0.8.0",
+        "modules": []
+      },
+      "url": "https://attrazion.github.io/team-platform-catalog/agent-registry-1.0.0.mjs",
+      "size": 10549,
+      "integrity": "sha512-SSj+RbS+b+O5rdlEaGNY95r3Wu4csolriAKTHQZsY8Ua0xgicyJ6UjELHlN+jg08JBIQ9bEbg4Q3QkcOOs2xFQ==",
+      "signature": "kzY0iBn8coCQyExW1qhmbtSjO1HySpHmnWkNThjMWdyGdkhCqT1qWchfeRsFo89OUzeNzZSrF8VOL4RJ5530Cg=="
+    },
+    {
       "id": "arxiv-search",
       "name": "Поиск препринтов arXiv",
       "version": "1.8.0",
@@ -26,7 +44,7 @@
     {
       "id": "asset-store",
       "name": "Хранилище файлов",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "summary": "Локальное хранение бинарных файлов (до 1 МиБ на файл, 64 МиБ всего, 200 файлов) с sha256, метаданными и проверкой целостности; без сети и ключей.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -38,10 +56,10 @@
         "core": "^0.8.0",
         "modules": []
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/asset-store-1.0.0.mjs",
-      "size": 11884,
-      "integrity": "sha512-ztffunnhPS9x3Jqy+h1k9+dzHgKxfRAk38s5Rgu01+2BWrPI0NEAM13DZ8wAKMzEMvAoY1XME+aXYHpveOs2Ug==",
-      "signature": "L3YBPFx3Zy2lVQnlSij775DL0lsLXuJ24tSbYq1pPiXdoLUyfN/Br56Rezck3csMpQAa3oHvu5Vnw0VOSDtgDg=="
+      "url": "https://attrazion.github.io/team-platform-catalog/asset-store-1.0.1.mjs",
+      "size": 10474,
+      "integrity": "sha512-L9oVV+UbuRxxn38ScsnBjvfRFAu6Fc/ml2IqDBr+cKJz1hiaThaLJS95fafg/3xY4MaMonlIz78MK8+2xtO+Ng==",
+      "signature": "nubbTTIzwRnj9Z/l893XFnnoHz4hpzOF/UEemEO0DWXiuynKZ9pP3pFRtjCm8Ye0eKlgAEIlgETyt2gPwEG4AQ=="
     },
     {
       "id": "author-studio",
@@ -88,7 +106,7 @@
     {
       "id": "browser",
       "name": "Браузер",
-      "version": "1.0.3",
+      "version": "1.0.4",
       "summary": "Вкладки, снимки и действия агента в Chromium. Секреты сайтов подставляет модуль интеграций, если он установлен.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -102,15 +120,15 @@
         "core": "^0.8.0",
         "modules": []
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/browser-1.0.3.mjs",
-      "size": 67062,
-      "integrity": "sha512-/1th2A+SdvbFgCz7bIX1hBzgAgtpZRB4i5P9NR4ocR2xYfIDdJcnnQxgqFajfuJvLyM6+dflDl+k9yrMNsQF9g==",
-      "signature": "rooZiA+BFSi0dPGNogX1O7w+DT07X5ZD/l622kcIc2t8rc2FSz5VlsKhSg/WFxr6qCiCyw6cu0B/QUHf86T+AQ=="
+      "url": "https://attrazion.github.io/team-platform-catalog/browser-1.0.4.mjs",
+      "size": 67360,
+      "integrity": "sha512-xvUubNer1mNJ7+aDlW98ldsyQ1AjaKu+x7xsBIs0z0fI0rP93gXF3EKi47BIJnTIUjf4hdCUBfG5P1i4/5A+5w==",
+      "signature": "e2ZtUvCqOaQwhVU0xy2ogfjvA7QtiN2V0vtrSpl5lvcenQmiM7ObMrEp+RHkg6wrlrctFbnck5eEaU3TWQRuBw=="
     },
     {
       "id": "canvas-board",
       "name": "Канвас-доска",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "summary": "Сцена из прямоугольных слоёв превращается в SVG и PNG без браузера, сети и зависимостей: режимы наложения как в layer-stack, hex-цвета как в color-palette, сетка цветов палитры отдельным маршрутом, направляющие (сетка с шагом и трети) и аспект-рамка с безопасной зоной отдельными слоями поверх сцены.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -120,10 +138,10 @@
         "core": "^0.8.0",
         "modules": []
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/canvas-board-1.2.0.mjs",
-      "size": 34805,
-      "integrity": "sha512-V0BgBQDOiW/mWGEIQP2BgPm++MG7oIbukuDbLvx7REHtVLjfkbgYaChvWqS7X1OT1LT/3yx7aEPBDY96iudBRw==",
-      "signature": "7Cb2V+97EVeqc6EsffgS2Hl3nD10qnUUyBIe60JIKkZK/xvv1fmxYCTb6DccFtYk7gB9pm+UF2P+inP/p2T/Bw=="
+      "url": "https://attrazion.github.io/team-platform-catalog/canvas-board-1.2.1.mjs",
+      "size": 34713,
+      "integrity": "sha512-CNxOOPycIRPZVcqqESs5lDMdipN8QEk4zpsuvy0WqTwBXA3nrFsiChOsAEIi1LF9T2fAGDdkCDVRvYsDde1plg==",
+      "signature": "tYkh05h8b9Pt96LkrfmkDVrNv23lUg6njp2DsVabRGAAugUNbveEofOBXF4KfsvuOiFopOJDIhrTVUtAHoUBAw=="
     },
     {
       "id": "citation-verify",
@@ -154,7 +172,7 @@
     {
       "id": "color-palette",
       "name": "Палитры цветов",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "summary": "Локальное хранение палитр (до 500), генерация цветовых гармоний (комплементарная, аналоговая, триада, тетрада, монохром), экспорт в CSS/JSON/SVG. Без сети и ключей.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -166,15 +184,15 @@
         "core": "^0.8.0",
         "modules": []
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/color-palette-1.0.0.mjs",
-      "size": 13425,
-      "integrity": "sha512-uYuCGUgstyMUERc0cRtmFh/ltHzF6bUZ8Iwxpn5tXa7KoxlqKD3L3Z1IXg5euljoOU60VsEHOd3tthyXVG4xDw==",
-      "signature": "LQs4HLxUnRhNRlrKJaj6eDg0c4KkTvr4aXO1ZA0wYeon99hukDrhpvtdf1Ds4pS7lsVYyW39GbJXkP68HbuSBw=="
+      "url": "https://attrazion.github.io/team-platform-catalog/color-palette-1.0.1.mjs",
+      "size": 12015,
+      "integrity": "sha512-csOhT+xTJsOxi6bCBeI52GWMdpvz4+5WZP9u1T+js9HTEExrSwTdvKx1Sh9ZcQI038iEVICLBQNM5i6c+yAATw==",
+      "signature": "sjgld6EWSreRbPgvooAI8UCsdkiDFPsTEbdvuXHctE+9FtwYsOE6hCs+k7XZFbIKg4ZJ3GMjNLW0WO1bR2AhCQ=="
     },
     {
       "id": "composition-version",
       "name": "Версии композиций",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "summary": "Локальное хранение именованных снимков композиций (до 1000) с тегами, заметками, родительской версией, сравнением и экспортом JSON. Без сети и ключей.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -186,10 +204,10 @@
         "core": "^0.8.0",
         "modules": []
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/composition-version-1.0.0.mjs",
-      "size": 12605,
-      "integrity": "sha512-7pohS9jRHLlNhCPxo9ahZfkliB/y0at/2HHMDONfzqdOKkobneyoDW1HZWvg8/Z6qeLIKOZgv8cTKRuEGGWJqQ==",
-      "signature": "LQzpMdYQBM10+4rCDtDfsUzKZ65hn21uQeOpYmrpGUJuJVieO+qYQV7GbGNzsuFc4EpSu03QwdO3pNKnAAOOAA=="
+      "url": "https://attrazion.github.io/team-platform-catalog/composition-version-1.0.1.mjs",
+      "size": 11195,
+      "integrity": "sha512-kaK8CP/zlBtQwiawUCSKlXLsbjenxjPggRibc6lmgMq3VJo8x0sYiJXf76JyRLqLa/NJ7x4o8dzQ0mEnY1dC8g==",
+      "signature": "Im3GWqFEya3svT2O0FGqo5BTbNudCYc/uqres9d1vJZ8faM01Xf977tiBaiO8vG7x+4qlTPR2oypMCTdZ/vDAA=="
     },
     {
       "id": "crossref-search",
@@ -214,7 +232,7 @@
     {
       "id": "discord",
       "name": "Discord",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "summary": "Бот и presence, уведомления о задачах и запусках, личные сообщения.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -234,15 +252,15 @@
           }
         ]
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/discord-1.1.0.mjs",
-      "size": 46018,
-      "integrity": "sha512-q6dFhpHsoulgLprOHK/CHrNbcHRdjcCgXiK42iA+rVnQi3+E4vFvtqVemDTYeSiKBBPiSuMiMMinRPoOrq3+Aw==",
-      "signature": "34CxPenN7EqWoEiCjWIMam9aWrH0QjiiygFRvkKcDjyj9scnF29O81gqNO7t+EvEnh019Qp0TcSfEu9cGPBlCw=="
+      "url": "https://attrazion.github.io/team-platform-catalog/discord-1.1.1.mjs",
+      "size": 42793,
+      "integrity": "sha512-NkUUJ/gG8IHYfWN2wZ4SwBG/EbDBF82o4j3wdw9wyVq4UeNl0m++c7b52SbNym0Q6HLIQiIeCxFbzNfVuTv6UA==",
+      "signature": "SeIt849Ypc+ihubMMgsQa8pq8l5PpgEEL4VJBFmgAR1pDNO73/6pMfpJkGs1tDnA9uMSrLg2QxAQl6W6xSVTCw=="
     },
     {
       "id": "entire",
       "name": "Entire",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "summary": "История сессий Entire CLI, pull-синхронизация и настройки репозитория.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -260,10 +278,10 @@
           }
         ]
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/entire-1.1.0.mjs",
-      "size": 45911,
-      "integrity": "sha512-oE0BimxXLDzHKTSQtSP6ySvcVCFcT9hs97SI4c42r0xoSFp7WLpa1Cq3v2k6L58wjVRxcuUTiwrnslZfhLIcdg==",
-      "signature": "vHCPtJy4DYQmtBHuUu/q72buZTUJPPG1jsLjv7dq9l8/at3BrDizd7CApQs7w68bValhNj8iBhm9U3o416/pCw=="
+      "url": "https://attrazion.github.io/team-platform-catalog/entire-1.1.1.mjs",
+      "size": 42684,
+      "integrity": "sha512-mQxO6/LPL2L/D9aKQQCe03zh3J02iCxA5Nv7vAQIFfYiQd6uSAu7mira5p6l4oXOBE3Q5D9Il4h/rGDuhryzvw==",
+      "signature": "mOEjWgasZj1ysORsLxyE5rE75lfcuD8U73NNNaiuRhRDzUA3YOO2lWRp9nks2nA81ei+1fh1xXuVQx8voFmJBA=="
     },
     {
       "id": "europe-pmc-search",
@@ -288,7 +306,7 @@
     {
       "id": "exa",
       "name": "Exa",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "summary": "Веб-поиск Exa: релевантные страницы и highlights для агентов.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -300,15 +318,15 @@
         "core": "^0.8.0",
         "modules": []
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/exa-1.0.0.mjs",
-      "size": 706147,
-      "integrity": "sha512-c169iRX4DDv3s+WBZPNlA8stuEtCm7go+dd4fWDcW4GtIuluGWr03/sU/CXk0YGhTtVO1jMZ5ytFx7R105O+bw==",
-      "signature": "H/oML+MKib+98NMq+2/2YTNrD22qgfkzv5CraeE+dSrj4LP/nYVPy/lth7if8f96wn7LJAgWic99ce8zDLF5Aw=="
+      "url": "https://attrazion.github.io/team-platform-catalog/exa-1.0.1.mjs",
+      "size": 702934,
+      "integrity": "sha512-qnfPSaVp4GUisfIFft8971L8RsLishI2CsHTbTrMxt3AibWQk3e1vLBc9RrJ57bOWJBuIve5XLdveGcaTxCYPg==",
+      "signature": "8ke+TN7ysxmkEaVpE6WT47eXcRswFmTeErQWrAw8zzpdv3XGsfmIx1V4ARN76djbBK0PXbSx1Gb2jAquUo+LCQ=="
     },
     {
       "id": "export-bundle",
       "name": "Экспорт-бандлы",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "summary": "Локальное хранение именованных бандлов (до 500) из произвольных элементов (слои, референсы, палитры, версии) с контрольной суммой SHA-256 и манифестом. Без сети и ключей.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -320,15 +338,15 @@
         "core": "^0.8.0",
         "modules": []
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/export-bundle-1.0.0.mjs",
-      "size": 10713,
-      "integrity": "sha512-hWGmaSfANEFVm83B9AUoGYlAyW4mv8kKGmjDgYdW9MTC5k8yCHiY+VFRaMISgH+p/UAZNQATgnoJ/9VNt4hhSg==",
-      "signature": "w9SfQJ3CJGgewzPrPDnZI4evuZ8JMN9mTE0OJrfPW9S0ExssTQx/J/oN5HiTaMZ6pFKPcb0F/R789k18NsAoDw=="
+      "url": "https://attrazion.github.io/team-platform-catalog/export-bundle-1.0.1.mjs",
+      "size": 9303,
+      "integrity": "sha512-kUcnHaaB2kFQFG7vNODwj0eDj92ZGPNtYSuxOFY87oEoSfW+FFWU7bIQ4bwdOJCQC8ovucs+ADNvcuIZNf/gDQ==",
+      "signature": "MmnUsBiOdzFpoDlsHEriLdEtuI5KIW7zJl1uYzw7f9wTi/d4pRKzxab6x5ZPpkhFBgYTRhX9amRP3egcQTmZAg=="
     },
     {
       "id": "freebuff",
       "name": "Freebuff",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "summary": "Developer API, каталог моделей и запросы к чату Freebuff.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -346,15 +364,15 @@
           }
         ]
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/freebuff-1.1.0.mjs",
-      "size": 45810,
-      "integrity": "sha512-mwUxCKfCulMBQ/RwPiuV2I15Kua+qWF0BwmVjefYjc7QCBl/6pM30iC5B/mNQWnEDEhcWxO+FkTAEwfa1DRv/g==",
-      "signature": "xJ2Ya3c43Fdi1bUfwr60XlS1bLEPO0lIGYjzdss40w1zbCGZJrxgH9M9YZvR4HD2k6hTsiLVhwESEaxjN9IwDg=="
+      "url": "https://attrazion.github.io/team-platform-catalog/freebuff-1.1.1.mjs",
+      "size": 42583,
+      "integrity": "sha512-CkwVYp3IgdW3A2XMYGZqefmv3oDjo3ZDPLOn780wAOs7OaEl+u89+SeWchr1M1TqQa493UML5idL8jUwgNtFZA==",
+      "signature": "YdO+f3odwBTvDtvST1l5gWixBMOV2ZoffispOL5DKgTiP6uLq6usU7rOGCNzEUuhLVJnUhAZtUy+QI6ZSp9DDw=="
     },
     {
       "id": "github",
       "name": "GitHub",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "summary": "Пул-реквесты, задачи, поиск по коду, снимки репозиториев и сторож обновлений.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -374,15 +392,15 @@
           }
         ]
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/github-1.1.0.mjs",
-      "size": 112170,
-      "integrity": "sha512-2P/Ezx/ceN8dcU3Ed6oesKg8/qj5obWz0S8EEyVPthkc2Y9eu5dbDMnT9xb2k31osOrzr53lJRSRj21dpjG1aw==",
-      "signature": "pghWZsDTgRZwZkUqn72BKYqWEvoJHA8QG90ngsDuFNdZEVeWghGYsRJRrlkq8tOsGPJhA/xWuHeh5APyW1B3CA=="
+      "url": "https://attrazion.github.io/team-platform-catalog/github-1.1.1.mjs",
+      "size": 108944,
+      "integrity": "sha512-4q8+YAjwmEj47Ff6DlZ3OV3exjDOgjN9yXWiz5fUKOcNznKZj2AbmEFB68dzYXaqQ+nQttOhhZsVh9yXrH6BsA==",
+      "signature": "xSBuGpoQmODVyk6cG/Jiso0LyWNlF1au39k1OcI0O3HANYU5i6EYIVaaxc7goAKqt1Z2l185y7Ia7jC8XPkAAw=="
     },
     {
       "id": "google",
       "name": "Google",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "summary": "Календарь, Gmail и Drive через OAuth-токены Google.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -400,10 +418,10 @@
           }
         ]
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/google-1.1.0.mjs",
-      "size": 45787,
-      "integrity": "sha512-1GIau+FopiUxqF1OcLXBqyfGBRQgPhM1EYa7C7y6gEEQdSgymwjgEcOHAdPk/NodLvncqcLqw9zD8JJVSFV3yQ==",
-      "signature": "VaOWC/zjGEZpox1BHzrllmmwbfNGN3LDXB5CYgXJwk9KkXpkRcBWp+gWhsd0q/sFKFgVswimfbMPoZveGlu4Dw=="
+      "url": "https://attrazion.github.io/team-platform-catalog/google-1.1.1.mjs",
+      "size": 42560,
+      "integrity": "sha512-oTImG8iLQV3H2Rw7zw+0cLq8lDo/56Y9bK9epRbxqg9+A0/yeejxaXTNMum0Z1W6y3i2FBcY5vAWanpXUDAYWA==",
+      "signature": "/SXu69OBeL08FWAijxxS8IpNijuf6GQ+t7/nxgTKZJZJz6dpGoa/zjZyuBqhJzpxWEr4uHVIlEKnv5FVzUisDw=="
     },
     {
       "id": "hn-search",
@@ -428,7 +446,7 @@
     {
       "id": "image-convert",
       "name": "Конвертер изображений",
-      "version": "1.0.0",
+      "version": "1.0.2",
       "summary": "Конвертация изображений и уменьшение стороны локальным ffmpeg (PNG, JPEG, WebP, TIFF, BMP) с лимитами и очисткой временных файлов. Без сети и ключей.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -438,17 +456,24 @@
       ],
       "requires": {
         "core": "^0.8.0",
-        "modules": []
+        "modules": [],
+        "tools": [
+          {
+            "id": "ffmpeg",
+            "name": "FFmpeg",
+            "hint": "Модуль вызывает локальный ffmpeg для декодирования и кодирования."
+          }
+        ]
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/image-convert-1.0.0.mjs",
-      "size": 16503,
-      "integrity": "sha512-BcWFdNQtM0zx33l7fWSUc3IFP+xtWpBSuogACm93O0Ph0PxzqSY5JqQOfxBx7Hsnp5KojyAVOq6EcUxfyDr/kA==",
-      "signature": "D/JoEgZ00+NwN/DJK7pRaXhvlb8dfrX7ZqLWHEnDuMR/jzQPKCQRIOO72AyDj7x+84rsfMbvwDvtQ9YwtSGjDw=="
+      "url": "https://attrazion.github.io/team-platform-catalog/image-convert-1.0.2.mjs",
+      "size": 16268,
+      "integrity": "sha512-UJcI7k/zjkUkNoMh2p8W7ykHRmCIPXxTtOt8iO0N+xVJUzFbyJNYhbBR+Hz86d0ZDWv3HI32oaPWvhj6JMRUjg==",
+      "signature": "8J43oDsS7Y31/2bf0HXeP1jw0G1MJEd+loFn2JnSq9A03aTREAWJNF8d5kR9/tHoaEtMPJ4mc3Y+6ODP1boWAg=="
     },
     {
       "id": "image-info",
       "name": "Информация об изображении",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "summary": "Определение формата и размеров изображения (PNG/JPEG/GIF/WebP) по base64-данным без внешних декодеров. Без сети и ключей.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -458,15 +483,15 @@
         "core": "^0.8.0",
         "modules": []
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/image-info-1.0.0.mjs",
-      "size": 5734,
-      "integrity": "sha512-ZKvbF/Wx+1GZ9cqhB/BkL+u/aKngvUdeWfzN1otohZ5P08GhsZo7PIpofhbOv4WdlCi3JbqOsu/Xohv+n0uPFg==",
-      "signature": "FryegcgoLjWHy/1Putn7CKQGoGJCHAXViq4ipagoeB3qduKGdGC3klk08ExlyVcHDQabRu7Go8gb212avWnTCQ=="
+      "url": "https://attrazion.github.io/team-platform-catalog/image-info-1.0.1.mjs",
+      "size": 5642,
+      "integrity": "sha512-t+xnf+5S5iT2+Sj4i2zWQTh/z+zTEwKDdKAgQqd1bofYjbQo9TU0+A813W7pP/TghhE1KkugY6bmHJ1lUjj6WQ==",
+      "signature": "2CJWpUfqWF4Ssqhf+IG2FohqHG+DLLEODsJeMvPi9IFHBXlGnA9+SGLxApc8/dqckwgoOn/MMp8d4DjAqnPcCg=="
     },
     {
       "id": "image-palette",
       "name": "Палитра из изображения",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "summary": "Считает основные цвета референса локальным ffmpeg и медианным сечением; отдаёт hex-список, совместимый с color-palette. Без сети и ключей.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -478,15 +503,15 @@
         "core": "^0.8.0",
         "modules": []
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/image-palette-1.0.0.mjs",
-      "size": 19620,
-      "integrity": "sha512-h0kvnPcj9sq1VP2W/nJcISDpYTKwBOg+HxOklrVmdr+X+/xStACpmAs4lq8903r2sb6chYF0GBsf1oks6glvPw==",
-      "signature": "Dgr+h20/O51B2w9TZDJvW5wCSe1IKyfCogEP9NkFVoq9K66VnJlxi1lPmuRPaQ3CdckhfIA/FSp2Z4cSpAbqCg=="
+      "url": "https://attrazion.github.io/team-platform-catalog/image-palette-1.0.1.mjs",
+      "size": 19385,
+      "integrity": "sha512-aFPozAiwHu6P7m1BqbspRO1R5N1ahSKrBiJpr9k49LkZKFnY9BrHIeo5iFiog7YTOv3muEe2pEeDzqT3KeNVbw==",
+      "signature": "61i1790Bowxvd05U5aElu+zj5KPFnSVkr5s6auvQHrQgnR7/TVJ8J98ozneAX/KB/YEBKq5Rlgehq0RrLEIgBA=="
     },
     {
       "id": "image-stats",
       "name": "Анализ референса",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "summary": "Яркость, контраст, насыщенность, гистограмма и зажатые тона референса из локальных пикселей ffmpeg. Без сети и ключей.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -498,10 +523,10 @@
         "core": "^0.8.0",
         "modules": []
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/image-stats-1.0.0.mjs",
-      "size": 18585,
-      "integrity": "sha512-NsMSCIWe6u+ifAjOanDwxdtk6LB5N842NrDlgxE5yZj3yJbYyDXby8JBZWzTZMx4lVdAIGWmeBS3VIew3I9vQg==",
-      "signature": "rWXmmlaNeZwyc0WQ1Pa6EszxVfsuEJYePnQhe+/fdLRB1cYk+0jvS2X6r8i5U8Um1bTMnSJQjMaqiQZCyIOpCg=="
+      "url": "https://attrazion.github.io/team-platform-catalog/image-stats-1.0.1.mjs",
+      "size": 18350,
+      "integrity": "sha512-LWUNjc/pWXiHpM0T6JXis0GR+pX8EjzWfQ8MfAS1lmA/V5/OzGsNz8v5SZzwAymhH3kkBSTlpgZHVWqRGXXHvw==",
+      "signature": "UAXPF1HY17XXpyPEnaTFJldKKWTCNRBSpK7oJuJs5zVWAloRh4WKzn7fk0m0R1zhsQJSTYRbhb5bFXxCXadUBw=="
     },
     {
       "id": "journal",
@@ -557,7 +582,7 @@
     {
       "id": "layer-stack",
       "name": "Стеки слоёв",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "summary": "Локальное хранение стеков слоёв (до 500 стеков, 64 слоя) с режимами наложения, непрозрачностью, видимостью и блокировкой; экспорт в JSON. Без сети и ключей.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -569,10 +594,10 @@
         "core": "^0.8.0",
         "modules": []
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/layer-stack-1.0.0.mjs",
-      "size": 12886,
-      "integrity": "sha512-BGKt/VS2C8NKIGeCqE2GissJzAVtTF/GgXac3qcg47QgC6lZI3SLNmW0bGpeVSsdWolZFvVPSw8A1tXO1qThMQ==",
-      "signature": "nYNBios/ddijjK/LJ0NW0PALiR0nmw0VbEUtzDOGNoeLvJOBUBZHwGwd9hYITQIez/jPgxzGntqnNLc/DA3mBQ=="
+      "url": "https://attrazion.github.io/team-platform-catalog/layer-stack-1.0.1.mjs",
+      "size": 11476,
+      "integrity": "sha512-FgtQu8Euxavu2wSKpbTsjn75/d2A9qOSPbbWOmtivDB5ul1Oog5KehXwjS/o3HpAduE8RLt9mrwI1nsWOcR1wQ==",
+      "signature": "u9mZz+I/3E1IAb/RL3GXYFSMSyxhl+ofRQNMgvPPqDPKTjwIpe2tIUezzK9gZQwc3fAv4NA2cSxanWEC3SQiAg=="
     },
     {
       "id": "llama-local",
@@ -599,7 +624,7 @@
     {
       "id": "material-inspector",
       "name": "Инспектор материалов",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "summary": "Локальный инспектор PBR-материалов (до 1000): base color, metallic, roughness, emissive, opacity, IOR, alpha mode, привязка текстур к ассетам; валидация и экспорт JSON. Без сети и ключей.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -611,15 +636,15 @@
         "core": "^0.8.0",
         "modules": []
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/material-inspector-1.0.0.mjs",
-      "size": 12786,
-      "integrity": "sha512-EtN3YC188Dbd23ihfrgoo2ubO7EeMpLN81CTnlS5kxCh89h0/IDAaRONbkl9waP7AvprLHvYvKC/L9SxXULTMw==",
-      "signature": "8WdX0R/iTIpPXlo6E4HqbvCPGpaAcbPjuthzIwicmtVu6OtVfGiFglSNgXsOh5w//urJixyalgXe1tviel0iCA=="
+      "url": "https://attrazion.github.io/team-platform-catalog/material-inspector-1.0.1.mjs",
+      "size": 11376,
+      "integrity": "sha512-zwkWSB2YcF5s1LMBRZGkirtKCsNcFKKFQ/DtmOjSbD89sdi1zkhvTbglG6rQksq1CDwEIftucCMY5zpU/TLp0A==",
+      "signature": "HnKbKIur5WIEgx556oIFrEqTXjUow6ktiv7QKXaByh0oPHMzC+JZwCCrnCb8WMDl32g1QlAdQ2tfJaedBtxABQ=="
     },
     {
       "id": "missions",
       "name": "Миссии",
-      "version": "1.0.4",
+      "version": "1.0.5",
       "summary": "Этапы, приёмка и автоматическое продвижение миссии. Нужны доска задач и очередь запусков.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -641,10 +666,10 @@
           }
         ]
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/missions-1.0.4.mjs",
-      "size": 114439,
-      "integrity": "sha512-+9Z4s6tnctz1RgguFQILQoj7gje63IYDL0mZ3sQdNdo4OgQ4YAAcEgF6T4GYzBAB/lU053SUfQ/qtmEjbBrgLQ==",
-      "signature": "GP3pqHQ2bSwo7AIWBbZ2ae7kMBcLNx43PUyUjTUeFzPPfEh7hlDBJkWBtil52WJhJYnuFwry3YZIWeR3F+EyBg=="
+      "url": "https://attrazion.github.io/team-platform-catalog/missions-1.0.5.mjs",
+      "size": 114588,
+      "integrity": "sha512-x02gU2fHsz+DK4qLxT7PurUnI4v0VOoXkb1QAeoBfoWaLZ6NJzs6fdHEDNptLv8FmtL465SM4kmr1xfmKlmrzg==",
+      "signature": "Qlt+abOjO9GS6pXDvDG1TL9VCAs9LfSHcKaZ39i6uWvgHxlrMdPkWTPzCyXofxCbk745QB3zEpMxHp+jHbjuBA=="
     },
     {
       "id": "modern-web-local",
@@ -716,7 +741,7 @@
     {
       "id": "ollama-local",
       "name": "Локальные модели Ollama",
-      "version": "1.12.0",
+      "version": "1.12.1",
       "summary": "Локальный запрос к установленной модели Ollama без ключа и без облачных моделей.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -729,10 +754,10 @@
         "core": "^0.8.0",
         "modules": []
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/ollama-local-1.12.0.mjs",
-      "size": 66072,
-      "integrity": "sha512-u/nE0wkF6OGEnW7gk/odcvaHMWKQeQ0WytgOSeS3NEgLtZ7IzyfMD8jyMIl3GwWxwZO+zrya42W/kHrbVHQi5A==",
-      "signature": "ajwjGACl3QJWBaF+4/Sz2fWvwVfezoJx+G10oQyweQKN3OTkfQQbnIUpnLZ83BiulrSwwi90X26KBII2RJY8BQ=="
+      "url": "https://attrazion.github.io/team-platform-catalog/ollama-local-1.12.1.mjs",
+      "size": 62842,
+      "integrity": "sha512-k0r0awyebrIP9FDkiSnVvpc8pM9vIxMe+GnBGKDKVcxHwOAfxVPDnO4fjrgtAyvcWvFKx/umw11go+GEpmMPEQ==",
+      "signature": "2oWZGmrBtvi+RERCp61gXPhcb0vxVgFFumj4iiHWV0ljoTsHMX854KqUyX56k3c+822h8hfsqg8OCkRa5Wy+Bg=="
     },
     {
       "id": "open-library-search",
@@ -778,7 +803,7 @@
     {
       "id": "palette-export",
       "name": "Палитра в форматах редакторов",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "summary": "Превращает hex-список в .gpl (GIMP, Krita, Inkscape), .kpl (Krita), .act (Photoshop), .css и .json — без установки редакторов, сети и ключей.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -788,10 +813,10 @@
         "core": "^0.8.0",
         "modules": []
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/palette-export-1.0.0.mjs",
-      "size": 13433,
-      "integrity": "sha512-EAv4n+/LpK7gGeNctkUq/pD7BW/x+ctiLbnbEm61SKJfXQ683eS7Yz5TCgGtaj+SWP/8q70kdiGluLwcDMhk4Q==",
-      "signature": "8P1OO7S4xUzeXPP36UMFcJq13agIL70kdcJFEQgt5I/wv8RcRXuTYPqL1VvXFa4XCffH61PUZUlPAAQHrHYEBg=="
+      "url": "https://attrazion.github.io/team-platform-catalog/palette-export-1.0.1.mjs",
+      "size": 13341,
+      "integrity": "sha512-pgSQzLWZbsqeUh5nOkS+PGq6PYwX+UKXEWuMGryrKrBQDTPQldB3GVYFTY3sjdc4CSV4SDX5xxe0+qTFKWEEmA==",
+      "signature": "hkkIwDVIt1400U/fro2A8WMgtnXpmfNiPLoiPxjCLCiqIQftjuwTKE57yVLXKsemwbUJmXSSQkEx4hEZsixFAg=="
     },
     {
       "id": "pdf-ocr",
@@ -841,7 +866,7 @@
     {
       "id": "peer-review",
       "name": "Рецензии",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "summary": "Локальные рецензии на черновики и цитаты: запрос замечаний, рецензия с вердиктом и комментариями, ответ автора, закрытие с причиной и удаление; без сети, ключей и сторонних сервисов.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -858,10 +883,10 @@
           }
         ]
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/peer-review-1.0.0.mjs",
-      "size": 42277,
-      "integrity": "sha512-x793ElHCM8QZU9brJS55X07mlSubCTaBIKhk34pKLpIiQX8+IQHp4SQ2EdxzwihUYx4gM7iT+/ylgMQeaDEnyg==",
-      "signature": "qIzSOna17prK+eAKrsYGr4XIMw0Wb3aCwKTl3Oc9rYFmFA3IaIn9CS/Sr4JKTB3UaDFZZLuKrsYykE/ggg0MAw=="
+      "url": "https://attrazion.github.io/team-platform-catalog/peer-review-1.0.1.mjs",
+      "size": 40698,
+      "integrity": "sha512-H2ArTmY0I5iQf5cTLNK0tjvU+aXYl7vjt7R+h8wgfA8fUdxgALz/cYo4XOTpkbbiv48BDoN9Q2xalQsmUShDxg==",
+      "signature": "Tb9EFn9BgB4ZuQ1X/eAiorKCiA3KBsKZ9qCpN9JIoT3jNohoznVhYeZyiNQphBsvftAxHMSIoXwlYxxQgAfACg=="
     },
     {
       "id": "people",
@@ -907,7 +932,7 @@
     {
       "id": "preview-kind",
       "name": "Тип превью",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "summary": "Определение типа превью ассета (image/text/code/audio/video/pdf/binary) по имени, MIME и байтам; размеры изображений PNG/JPEG/GIF. Без сети и ключей.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -917,15 +942,15 @@
         "core": "^0.8.0",
         "modules": []
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/preview-kind-1.0.0.mjs",
-      "size": 8355,
-      "integrity": "sha512-8B6/I5EZBBk2Z20QdR/lIdsGZkjIcxLpXIFRGAPRK1UhwvYBjmZwfHcvOm9hfhv05vOj+ALZcchXllBr4i5HxA==",
-      "signature": "8el1xAt2qaVqNTrfVdaxQb/8W1S1kQlMiAjfFJlS7Pzo9uqiHr1Xnixf1yD8fcB9csD6QSvAVv+pudRUtwtyAw=="
+      "url": "https://attrazion.github.io/team-platform-catalog/preview-kind-1.0.1.mjs",
+      "size": 7450,
+      "integrity": "sha512-xbkBuadrtBKfxj+Uw6PZqvvS1Hz7JUQeetywzaBZ2KfWbIPPq/r5piVaGMY2shyuZe+FhYnBlx6sehIo/+kZog==",
+      "signature": "KIJLfret1Tgi2eabdrutB3ytpcG62TS11pf0lL95pUln+m5S2INq+gZNUQxgFSXyYLh33ExnpLM4hznndgWOCQ=="
     },
     {
       "id": "profile-fork",
       "name": "Форк профиля",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "summary": "Копия профиля во временном каталоге для безопасных экспериментов на реальных данных, безопасный/читательский режим чтения копии на соединении только на чтение и удаление копии; оригинал не меняется.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -937,15 +962,15 @@
         "core": "^0.8.0",
         "modules": []
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/profile-fork-1.2.0.mjs",
-      "size": 36740,
-      "integrity": "sha512-E9C+g0CJZqM9zAMk+eF5m5eh2LfKs0C0ew6/dkvaNw5e9qLIT9dqLmXmumVezYDbYncvJJDnzTMPcQ5/p22ggQ==",
-      "signature": "o2EOLe/QI6+yquxWds9Q0Mnrq/mkVu0AJplHqoVKSFa8pVCra/3uyhfcvDkugpJBc/hkmvQjIT5AQbhyukA8DQ=="
+      "url": "https://attrazion.github.io/team-platform-catalog/profile-fork-1.2.1.mjs",
+      "size": 36633,
+      "integrity": "sha512-SwhYYhmI8jRxB6oy0IPHv4uMja+YqrKr5RjEY3VBLL6d46I2uKscDWe3ceE6zxlpNstPwaWxS+Y1YG3c1knX6g==",
+      "signature": "6QQOAP00JxeZ36fq/KXTwrnTstGHVuwbMf12b8jksyGI13WDicwEtzmhcIDkW43u3oXd6y9YQM/4qbl8Wl8LDg=="
     },
     {
       "id": "providers",
       "name": "Провайдеры",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "summary": "Встроенные и кастомные OpenAI-совместимые провайдеры, base URL, модели, проверка автозапуска и доступные агенты.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -965,15 +990,15 @@
           }
         ]
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/providers-1.1.0.mjs",
-      "size": 28237,
-      "integrity": "sha512-+muh1uSZOStF1YFGArbOtmuMcA8vxjz455yHyIykYOMIt6AIc2WE9vYAV+ZZSPAPxLhKus/fTpJiKVqUFLfCVw==",
-      "signature": "SrnRucZ0HtPviKyztLA01Z9y4P8JrPFg4NTKLn/24VtDzq47OVs9Um09YHLtcPpR15/fNSCThN/Fm4n5Y/yaBQ=="
+      "url": "https://attrazion.github.io/team-platform-catalog/providers-1.1.1.mjs",
+      "size": 24931,
+      "integrity": "sha512-egLpDKIOnxDuY9SVU/HnVQMuR5gg0HA29KcRZbMmANyabSicmtvPP8bzrkb0c3vYhxHp4was7CWK83dEeEm0Sw==",
+      "signature": "dubLXphcA2V4pKEIGr8cOHZvtRQfQNZby8LYPdaz4F+HZupWR8E3ZZJHJg8TrWLNquIpOQkNd7eBHfIOQG6BAA=="
     },
     {
       "id": "reference-library",
       "name": "Библиотека референсов",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "summary": "Локальная библиотека референсов (до 2000) с тегами, категориями, поиском, привязкой к ассетам и палитрам. Без сети и ключей.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -985,10 +1010,10 @@
         "core": "^0.8.0",
         "modules": []
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/reference-library-1.0.0.mjs",
-      "size": 15190,
-      "integrity": "sha512-V3AM+wAuc4CYL0EFTLCqgozSayAwspoIZzAZbvf8e3zNFFASEa10O3sPBAWW7Lo7JojSzXe/NYw0FOhGrusvgA==",
-      "signature": "AkIQFaEfvZIpig0Rw2+mh5plYKYOoXugbrWjC+3a314OK8xQqveGMVHTDdr2cTGZoetTruXXd1hy7kxvAGCWCg=="
+      "url": "https://attrazion.github.io/team-platform-catalog/reference-library-1.0.1.mjs",
+      "size": 13780,
+      "integrity": "sha512-Fr5aQYwv5GCV7vKgh6FWePwFZT5oY7IQCyZ7eyGiyjgAx05dJ3/hwo/ftMKvauMNBO6EjtkRGR9RkNrF4IToYw==",
+      "signature": "r/uh+yKwUI+GD4IX+WPWuRcrhKwGsLCUv+SMWbHp9/K6ECcfaePQFVZVCkZydxpdrNRufiZTP037gyxIIy6JBA=="
     },
     {
       "id": "run-overview",
@@ -1016,7 +1041,7 @@
     {
       "id": "runs",
       "name": "Запуски и исполнитель",
-      "version": "1.1.4",
+      "version": "1.1.5",
       "summary": "Очередь запусков, аренда, отмена и локальный исполнитель агентов. Зависит от доски задач.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -1035,15 +1060,15 @@
           }
         ]
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/runs-1.1.4.mjs",
-      "size": 135638,
-      "integrity": "sha512-4kBcwatA3RpqsSlfZudZc4Ru6B5/PWVrhzuUARMUNIBEzSsycWzTOvDSxLa9BSXWr1BeWLMtmWQC0jjcsKmKig==",
-      "signature": "qgBhVLh4F3AJ+2GtomyzzbHDRJKjbX02cfTRV+OLrt6Hc3z01azzvLVbozdrvtiGKZw1PkTsRIG5ykqi67J7BA=="
+      "url": "https://attrazion.github.io/team-platform-catalog/runs-1.1.5.mjs",
+      "size": 136748,
+      "integrity": "sha512-D5cN4wqPluCIv7oBSyqiKq040UDu1a6LDtZNbYVF1RT/mw8uKjxJyAtsRfcehY6rBLhqpLa9P3VPPpOMhArKEw==",
+      "signature": "B24HgPBD1UitDkl8A7n5QMLdwdB2xciOq+1gHSpkW6yXyaeCvCi7R6wjc29zJgrV90TgDVMRWdPmVEUDbZniBg=="
     },
     {
       "id": "scene-registry",
       "name": "Реестр сцен",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "summary": "Локальный реестр метаданных 3D-сцен (до 500): движок (three/blender/other), объекты, ссылки на материалы material-inspector, привязка к three-d-studio и composition-version, заметки, экспорт/импорт JSON. Без сети и ключей.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -1060,10 +1085,10 @@
           }
         ]
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/scene-registry-1.0.0.mjs",
-      "size": 15777,
-      "integrity": "sha512-oyNbmOF2vqHBk62wq5EcBetY2P7cYoHHKwpuT/jLs1c3rSqrBLqiKgH4L5O73n5wdinKaRdiHFxyeqq30xqtzw==",
-      "signature": "3brlx+1YOxFtWIox+Zy1Iz0DdtXH6301AYGviuUYkvtJUVThBkL09Ij+CYamHOwGI3zS1HJALCaQfiWKyT5fBg=="
+      "url": "https://attrazion.github.io/team-platform-catalog/scene-registry-1.0.1.mjs",
+      "size": 14367,
+      "integrity": "sha512-zbuBL3PN9V2tWJP6q0LBLM02QVyRj4pn9odGI+DWaT48RRKFmW4B5KGE9nsHnXSQSPIOZucDpJt3dTAmjPvncg==",
+      "signature": "AEW45An28svTlJvojZ0e2BK4VcO7JuMwkgfwdDFA3DzptlSaZ/RzOsRzBi9uu53OD6+qLbmqr1cyAJNLUwl8Bg=="
     },
     {
       "id": "semantic-rank",
@@ -1118,7 +1143,7 @@
     {
       "id": "source-archive",
       "name": "Офлайн-архив источников",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "summary": "Локальный снимок источника (текст или HTML) с хешем, временем и происхождением, привязка к цитате, черновику или заметке, чтение, перечисление, проверка целостности и удаление; без сети и без ключей.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -1130,15 +1155,15 @@
         "core": "^0.8.0",
         "modules": []
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/source-archive-1.0.0.mjs",
-      "size": 36635,
-      "integrity": "sha512-RaXS3oftu9uXCyfxQKxLpqgWZA0jlvEK4SVbwZHn1xIBYTyzAPT2zSx0q47bjzEiOWJTfB3PZ40yHGGBxK9aqA==",
-      "signature": "TNy+7DJ6w+90cHrTC3BaDFSGq9/UKkPivmRfCmQqt/B/0lrzMZB/J+sFCyVCix+Ae09F6nQTAKHQYX9Up7zIAw=="
+      "url": "https://attrazion.github.io/team-platform-catalog/source-archive-1.0.1.mjs",
+      "size": 34197,
+      "integrity": "sha512-8esp708/oroB3LTYUglE9orhVBDZjHX5R/gqZzlPkbEJyGJVjcDw7neFPFCK3Beto/bjuKRPeF1/hHwhBoBneg==",
+      "signature": "ARQLov+2gaxf7vApw8jJ2PJo0/WSeH5Rzq3jtyJBYmYYwCeOHJ/LF0pxveohlrDtFt4vPhCglOK12GAhWEF3BQ=="
     },
     {
       "id": "storyboard",
       "name": "Раскадровка из видео",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "summary": "Собирает сетку кадров клипа с заданным шагом через локальный ffmpeg: PNG/JPEG, размеры и число кадров. Без сети и ключей.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -1150,15 +1175,15 @@
         "core": "^0.8.0",
         "modules": []
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/storyboard-1.0.0.mjs",
-      "size": 19737,
-      "integrity": "sha512-aeypeajo8BjfHgq/wNYjvstTkbBGg+SHmbUKPgD4vJ/wRDPMZXI/nVCOpXeiQPowNgJNCGan1sX2GjS20vl38Q==",
-      "signature": "0Ma15uOU85o+0Li6CpMeQFnO5oDiX1Bl+voL63GkmR5S3OlRF8E5fpSOUBHBDho9crmUgIiaCIobmPQ87SLCCw=="
+      "url": "https://attrazion.github.io/team-platform-catalog/storyboard-1.0.1.mjs",
+      "size": 19502,
+      "integrity": "sha512-vEnzy3iDREJqYcRldo5lCMoNPS1z6Nj+RE+Ug0++14tIMq6o/pUDalUy2NwI5kpZct+BDb0iq2ibns255cds8g==",
+      "signature": "k3WhrkQHLhVckXVA7mIXfTPsOqxYxlTI+mLrnLHSYPhjxM7/Nmq1PxOsDhuBQ/dvhLCQP6Gcx2brQeChLoaPCQ=="
     },
     {
       "id": "tasks",
       "name": "Доска задач",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "summary": "Карточки, статусы и журнал изменений. Прежние адреса /api/tasks сохраняются.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -1171,15 +1196,15 @@
         "core": "^0.8.0",
         "modules": []
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/tasks-1.1.0.mjs",
-      "size": 78959,
-      "integrity": "sha512-3G2JANVYpM9yN6/7893MhXFTAgimzAr9x1lqn4QeI7tlYC5QSLduuQze/GgTqE7eudxR1tOwI6fBNsFDg5hLAg==",
-      "signature": "Y/XXQzCeMFKC9vMRhnufb8m+BcJxnpoR3OZltySUnMd0YS1piW2lpAKVlR3Aab3axQ+Hj88mCBiAGbWMcJReDg=="
+      "url": "https://attrazion.github.io/team-platform-catalog/tasks-1.1.1.mjs",
+      "size": 78599,
+      "integrity": "sha512-8LcckHOl072nusxn8NgktQzmjz5PPuiDnmd0pl+l0pc9WWRU1hcc9q+qKZGTFeVWNhtseb+lZlrPjNo6yFHXGA==",
+      "signature": "H6NGZteSZSbJpNpxU4fQ0DQuj/0Qis0q3orzQ4FSW1dokb6Y+rZS0ErGoP+lYTViLZGg8w9EvrtX+UyM47uGBg=="
     },
     {
       "id": "telegram",
       "name": "Telegram",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "summary": "Вход по номеру, переписка с агентом и ответы в чаты через teleproto.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -1203,15 +1228,15 @@
           }
         ]
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/telegram-1.1.0.mjs",
-      "size": 2953085,
-      "integrity": "sha512-XByZbyKUOc7Yc3VvlRgtftO8Fu0ft69dqAGbElGFLgAVrwViFOQxf4tBHaJlA+YWfbbkyEr6OY8n6JLWCcg0vw==",
-      "signature": "dGPO9BBfjxns7qmaO8Jl2v/p8Ov4tothPl9DzmJJW+lxTGDvDF9enoDXEmlWQLhcI8hhJ9GmBvpqHc0sO63nBQ=="
+      "url": "https://attrazion.github.io/team-platform-catalog/telegram-1.1.1.mjs",
+      "size": 2949922,
+      "integrity": "sha512-ifq/FVjqU8MPEauV92z6FGQDxrSUrh8NSs5N9YtAn5MikoKuPyAOrtkE6tJpCFc8XU23p7pvMx7CgNviTMWDeQ==",
+      "signature": "JwgCRVKDQ0h42YACxEnlzh5WWp21St4UiuOmtFODO7BMdtjr+qaohfCR3wgZQdFRN83uxc7i+5sBaDQwIKrmDQ=="
     },
     {
       "id": "three-d-studio",
       "name": "3D-студия",
-      "version": "1.0.2",
+      "version": "1.0.4",
       "summary": "Сборка играбельной 3D-сцены по задаче: Blender создаёт уровень, платформа переоткрывает сцену и отдаёт игру.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -1226,17 +1251,43 @@
             "id": "tasks",
             "range": "^1.0.0"
           }
+        ],
+        "tools": [
+          {
+            "id": "blender",
+            "name": "Blender",
+            "min_version": "3.6",
+            "hint": "Нужен для сборки сцены: сцена описывается Blender-скриптом, рендер локальный."
+          }
         ]
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/three-d-studio-1.0.2.mjs",
-      "size": 79495,
-      "integrity": "sha512-x0Pfwhyxp8aNp1JJHbpkm/YY0pyM+RmdOkLXKihjevLTU3SM/dz13rftAsksBAnM+kp3R6iBA7ISPIZPqRpNNQ==",
-      "signature": "WTMFiM8W1xEfIJK9J9dHxdeheYgYR/aMG/hQnZojmt7H3ovwqQ2e0gYOW5GY39cwQIlUcKbKTpDsL4WyU1VjCQ=="
+      "url": "https://attrazion.github.io/team-platform-catalog/three-d-studio-1.0.4.mjs",
+      "size": 79885,
+      "integrity": "sha512-H1eDpY8sXS2NkQPw/IdYy6Asu9sN/k2La+qyp/7zO4L9gYAc2pNJL0qh9YvRIMRU7ifNrMcv7rLHM+e0xITUlw==",
+      "signature": "3e9e/aIgOfpjVe924mTB+mJqHl6tVKGX2dDDBg5tY+do+jyrg6I5BRr7cqqxeVRLI8CCwEQzEYRTg20pmnn1Cw=="
+    },
+    {
+      "id": "tool-installer",
+      "name": "Загрузки инструментов",
+      "version": "1.0.1",
+      "summary": "Что нужно установленным модулям из внешнего мира: обнаружение, установка через winget или прямая загрузка с официальной страницы вендора, согласия на объекты больше 1 ГиБ.",
+      "publisher": "Team Platform",
+      "trust": "official",
+      "category": "automation",
+      "permissions": [],
+      "requires": {
+        "core": "^0.8.0",
+        "modules": []
+      },
+      "url": "https://attrazion.github.io/team-platform-catalog/tool-installer-1.0.1.mjs",
+      "size": 14787,
+      "integrity": "sha512-hVRfotUP08u3qUJuTvXQQivLMOY+xhC0AjZurv7urM1esWkjn30MCI161DwEf/0iAbtECI/dh9WFqYBtdJJ39w==",
+      "signature": "XPFSt9WzR7cnF18JMnEBNSv1aVDRHwKFPbME78FMhEBZhxEeM4ehGmEdvyzoaFQ63Vpxz7mMppoXt8lWRwh0Cg=="
     },
     {
       "id": "tools",
       "name": "Инструменты",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "summary": "Интеграции, резерв задач, свободное время, пароли сайтов и провайдеры с кастомными base URL и моделями.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -1261,10 +1312,10 @@
           }
         ]
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/tools-1.2.0.mjs",
-      "size": 257630,
-      "integrity": "sha512-HUj0IxcOnyStxeqQ6YTh7Vx3usJvesp5Cy4JUHRWhlnH8SL8dEJemdMwUiknGvU3gBn5UOzFQHwWeGKp0euTZQ==",
-      "signature": "WkxHBBFxMuKlFh94FKaI8Ns9d6xp76d/zOz4koR8eJLiRt9aKMLlOagFWxoduozoPAJqR3RgAJAj5iuUTvixAQ=="
+      "url": "https://attrazion.github.io/team-platform-catalog/tools-1.2.1.mjs",
+      "size": 255104,
+      "integrity": "sha512-VhzBEfwj0A08JKYfvMnMz8HItq8N48AlE0NCN+nZO/aA98DOtsiQGF8WCkVqLxTB6LLbVbNm4UkAkVqq+YrsCA==",
+      "signature": "ih6bu1NI9zrDVGKi1Fk/wYV+aVr7xJfe6yuv9lLFbgyNZTdK4P8B76XwfOkJsUvrHGIu2tWr5sxObE2OyI6wBw=="
     },
     {
       "id": "transcript-tasks",
@@ -1299,7 +1350,7 @@
     {
       "id": "video-frame",
       "name": "Кадр из видео",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "summary": "Снимает кадр-референс на заданной секунде локальным ffmpeg и отдаёт PNG/JPEG с размерами. Без сети, ключей и платных сервисов.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -1311,15 +1362,15 @@
         "core": "^0.8.0",
         "modules": []
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/video-frame-1.0.0.mjs",
-      "size": 16524,
-      "integrity": "sha512-Qj3Gf4jQdoFjVy/0o6yMEUQ//wi0HRuVxywZMF4/P4Tg7K5BwOfnU/6S/I9c9ME9XWvtQ2s5EvKugcsuRG+faQ==",
-      "signature": "RmC33d2gOPRZlXJlKQRPnO9ym2cRTFQ9RIBGV+Crg8LQERZorwBdR3QLj2MvTl+rEedDqatRrEv4pHsyc0aKDw=="
+      "url": "https://attrazion.github.io/team-platform-catalog/video-frame-1.0.1.mjs",
+      "size": 16289,
+      "integrity": "sha512-xs8yd1g14Ax5pVNoYZ3I1dw5gKwXfiVHOQ0UPoBXcPi/MgUQlDVjFy63Xp2Ti/eITNu/91uIQ6MWEBJvc7yHVQ==",
+      "signature": "ei8SRLdk08J1MZA8us4f8/9yxSG1jbAvB4gUVyMA1WFSockMIvCj1Irt5CVrBZGAqd/IGh73Zcao9U+G/xqQBA=="
     },
     {
       "id": "whisper-local",
       "name": "Локальная расшифровка аудио и видео",
-      "version": "1.9.0",
+      "version": "1.9.1",
       "summary": "Офлайн-расшифровка аудио и звуковой дорожки MP4 через Whisper или Qwen3-ASR.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -1332,10 +1383,10 @@
         "core": "^0.8.0",
         "modules": []
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/whisper-local-1.9.0.mjs",
-      "size": 38590,
-      "integrity": "sha512-YX3gJ8LIlb+kohJNY4fbuOSyaByEQ+zzF6oqXy8VnGReav2kVMHTWLBukJqEL5hWyABmJkFPr0j9PNZoUTo4TA==",
-      "signature": "5Da37aWFFJBksmxefAPbmhqIZ+w8aH5hsKyduqxs2r7s0uY7CfRa+/ZdwDgA1yvMmNZPXHHS8MRkPpeLtvBRBw=="
+      "url": "https://attrazion.github.io/team-platform-catalog/whisper-local-1.9.1.mjs",
+      "size": 35360,
+      "integrity": "sha512-fdm7PCru2w1uK0H77A6wYPvoYY3PcMuT9V5gFN5yyaP1cVESdDkP/vjS3bfAVWtcBhHlZEaFzJKyx9FWKJV/ag==",
+      "signature": "q9XFTdZ0MeF24Te+JSDrUVP+c0YBGb8UUynHK0wnSTLYpz5fj1Wi6f8UFDRTMcVEaLiBZol6dPdIpUmyls64Aw=="
     },
     {
       "id": "wikipedia-search",
