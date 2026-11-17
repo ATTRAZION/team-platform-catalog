@@ -372,7 +372,7 @@
     {
       "id": "github",
       "name": "GitHub",
-      "version": "1.1.1",
+      "version": "1.1.2",
       "summary": "Пул-реквесты, задачи, поиск по коду, снимки репозиториев и сторож обновлений.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -388,14 +388,14 @@
         "modules": [
           {
             "id": "tools",
-            "range": "^1.0.0"
+            "range": "^1.2.2"
           }
         ]
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/github-1.1.1.mjs",
-      "size": 108944,
-      "integrity": "sha512-4q8+YAjwmEj47Ff6DlZ3OV3exjDOgjN9yXWiz5fUKOcNznKZj2AbmEFB68dzYXaqQ+nQttOhhZsVh9yXrH6BsA==",
-      "signature": "xSBuGpoQmODVyk6cG/Jiso0LyWNlF1au39k1OcI0O3HANYU5i6EYIVaaxc7goAKqt1Z2l185y7Ia7jC8XPkAAw=="
+      "url": "https://attrazion.github.io/team-platform-catalog/github-1.1.2.mjs",
+      "size": 67890,
+      "integrity": "sha512-NKCFsPWtPTnnMM3AayqvMeBp1tOfz0CHx2VvmGTP8btbHH2dLD+mMXYvMaL0+B8V933a8pjyZchHsKiStJvJQA==",
+      "signature": "Mie0fvPCxVJagWUizh34BlYwGa/AU+VMzWDF2nFC4ZbuNqMkweiZNslTsfE7zw0QkXFFJsj1WUT6R8E58ggnDg=="
     },
     {
       "id": "google",
@@ -1204,7 +1204,7 @@
     {
       "id": "telegram",
       "name": "Telegram",
-      "version": "1.1.1",
+      "version": "1.1.2",
       "summary": "Вход по номеру, переписка с агентом и ответы в чаты через teleproto.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -1220,7 +1220,7 @@
         "modules": [
           {
             "id": "tools",
-            "range": "^1.0.0"
+            "range": "^1.2.2"
           },
           {
             "id": "tasks",
@@ -1228,10 +1228,10 @@
           }
         ]
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/telegram-1.1.1.mjs",
-      "size": 2949922,
-      "integrity": "sha512-ifq/FVjqU8MPEauV92z6FGQDxrSUrh8NSs5N9YtAn5MikoKuPyAOrtkE6tJpCFc8XU23p7pvMx7CgNviTMWDeQ==",
-      "signature": "JwgCRVKDQ0h42YACxEnlzh5WWp21St4UiuOmtFODO7BMdtjr+qaohfCR3wgZQdFRN83uxc7i+5sBaDQwIKrmDQ=="
+      "url": "https://attrazion.github.io/team-platform-catalog/telegram-1.1.2.mjs",
+      "size": 2908427,
+      "integrity": "sha512-4/s4w8U4VBdvwgh0eHezYBPVN0Uwref+uN/IwprX3vcS8R9wgml2upQhz4qGD24TNWXwDIR4pKiQF77Gw63uBw==",
+      "signature": "jY2h40uPe3A3doqzM7r4ZQeuPYPyOzpGsK+53G6HQ7a+4lysiwnBMwi3jLY9nG6JGxC5np6C8Bh2yZxIBygiAA=="
     },
     {
       "id": "three-d-studio",
