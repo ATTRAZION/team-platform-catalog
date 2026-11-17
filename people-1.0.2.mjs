@@ -1,6 +1,6 @@
 import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);
 
-// src/adapters/storage/sqlite-people.ts
+// modules/people/store.ts
 function toPerson(row) {
   return {
     id: row.id,
@@ -118,67 +118,37 @@ var SqlitePeopleStore = class {
   }
 };
 
-// src/kernel/clock.ts
-var systemClock = {
-  now: () => /* @__PURE__ */ new Date()
-};
-function nextTimestamp(previous, now) {
-  const base = now.getTime();
-  const prev = previous ? Date.parse(previous) : Number.NaN;
-  return new Date(Number.isFinite(prev) ? Math.max(base, prev + 1) : base).toISOString();
-}
+// team-host-api:src/kernel/clock.ts
+var host = globalThis["__teamPlatformHostApi"] ?? {};
+var fixedClock = host["fixedClock"];
+var nextTimestamp = host["nextTimestamp"];
+var systemClock = host["systemClock"];
 
-// src/kernel/errors.ts
-var AppError = class extends Error {
-  code;
-  status;
-  details;
-  constructor(code, message, status, details = {}) {
-    super(message);
-    this.name = new.target.name;
-    this.code = code;
-    this.status = status;
-    this.details = details;
-  }
-};
-var ValidationError = class extends AppError {
-  constructor(message, details = {}, options = {}) {
-    super(options.code ?? "validation_failed", message, options.status ?? 400, details);
-  }
-};
-var NotFoundError = class extends AppError {
-  /** Детали необязательны: старые вызовы без них продолжают работать. */
-  constructor(message = "\u041D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u043E", details = {}) {
-    super("not_found", message, 404, details);
-  }
-};
+// team-host-api:src/kernel/errors.ts
+var host2 = globalThis["__teamPlatformHostApi"] ?? {};
+var AppError = host2["AppError"];
+var ConflictError = host2["ConflictError"];
+var ForbiddenError = host2["ForbiddenError"];
+var NotFoundError = host2["NotFoundError"];
+var UpstreamError = host2["UpstreamError"];
+var ValidationError = host2["ValidationError"];
+var isAppError = host2["isAppError"];
 
-// src/kernel/ids.ts
-import { randomUUID } from "node:crypto";
-function newId(prefix) {
-  return `${prefix}_${randomUUID().replace(/-/g, "").slice(0, 16)}`;
-}
+// team-host-api:src/kernel/ids.ts
+var host3 = globalThis["__teamPlatformHostApi"] ?? {};
+var newId = host3["newId"];
 
-// src/kernel/validate.ts
-function record(raw, what) {
-  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
-    throw new ValidationError(`${what}: \u043E\u0436\u0438\u0434\u0430\u043B\u0441\u044F \u043E\u0431\u044A\u0435\u043A\u0442`);
-  }
-  return raw;
-}
-function text(raw, field, max, required = false) {
-  if (raw === void 0 || raw === null) {
-    if (required) throw new ValidationError(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB \u043E\u0431\u044F\u0437\u0430\u0442\u0435\u043B\u044C\u043D\u043E`);
-    return "";
-  }
-  if (typeof raw !== "string") throw new ValidationError(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB \u0434\u043E\u043B\u0436\u043D\u043E \u0431\u044B\u0442\u044C \u0441\u0442\u0440\u043E\u043A\u043E\u0439`);
-  const value = raw.trim();
-  if (required && !value) throw new ValidationError(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB \u043E\u0431\u044F\u0437\u0430\u0442\u0435\u043B\u044C\u043D\u043E`);
-  if (value.length > max) throw new ValidationError(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB \u0434\u043B\u0438\u043D\u043D\u0435\u0435 ${max} \u0441\u0438\u043C\u0432\u043E\u043B\u043E\u0432`);
-  return value;
-}
+// team-host-api:src/kernel/validate.ts
+var host4 = globalThis["__teamPlatformHostApi"] ?? {};
+var integer = host4["integer"];
+var oneOf = host4["oneOf"];
+var optionalInteger = host4["optionalInteger"];
+var optionalName = host4["optionalName"];
+var record = host4["record"];
+var requiredOneOf = host4["requiredOneOf"];
+var text = host4["text"];
 
-// src/app/people-service.ts
+// modules/people/service.ts
 var MAX_ENTRIES = 2e3;
 function stringList(raw, field, max, itemMax) {
   if (raw === void 0 || raw === null) return [];
@@ -271,62 +241,7 @@ var PeopleService = class {
   }
 };
 
-// src/modules/people/schema.ts
-var peopleMigrations = [
-  {
-    version: "people/0001_people",
-    sql: `
-      CREATE TABLE people (
-        id TEXT PRIMARY KEY,
-        display TEXT NOT NULL,
-        handles TEXT NOT NULL DEFAULT '[]',
-        notes TEXT NOT NULL DEFAULT '',
-        tags TEXT NOT NULL DEFAULT '[]',
-        -- lower() \u0432 SQLite \u043F\u043E\u043D\u0438\u043C\u0430\u0435\u0442 \u0442\u043E\u043B\u044C\u043A\u043E ASCII, \u043F\u043E\u044D\u0442\u043E\u043C\u0443 \u043A\u0438\u0440\u0438\u043B\u043B\u0438\u0446\u0443 \u043F\u0440\u0438\u0432\u043E\u0434\u0438\u0442
-        -- \u043A \u043D\u0438\u0436\u043D\u0435\u043C\u0443 \u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0443 \u043A\u043E\u0434 \u0437\u0430\u043F\u0438\u0441\u0438.
-        search_text TEXT NOT NULL DEFAULT '',
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        last_seen_at TEXT
-      );
-      CREATE INDEX people_updated ON people (updated_at DESC);
-
-      CREATE TABLE person_entries (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        person_id TEXT NOT NULL REFERENCES people (id) ON DELETE CASCADE,
-        text TEXT NOT NULL,
-        source TEXT NOT NULL DEFAULT 'panel',
-        kind TEXT NOT NULL DEFAULT 'note',
-        search_text TEXT NOT NULL DEFAULT '',
-        created_at TEXT NOT NULL
-      );
-      CREATE INDEX person_entries_person ON person_entries (person_id, id DESC);
-    `
-  },
-  {
-    // Hold ухода живёт отдельно от карточки человека: снятие hold не удаляет
-    // доказательство, а повторная установка не создаёт дубль.
-    version: "people/0002_offboarding_holds",
-    sql: `
-      CREATE TABLE offboarding_holds (
-        id TEXT PRIMARY KEY,
-        participant TEXT NOT NULL,
-        object_type TEXT NOT NULL,
-        object_id TEXT NOT NULL,
-        reason TEXT NOT NULL,
-        actor TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        released_at TEXT,
-        released_by TEXT
-      );
-      CREATE INDEX offboarding_holds_participant ON offboarding_holds (participant, created_at);
-      CREATE UNIQUE INDEX offboarding_holds_active ON offboarding_holds
-        (participant, object_type, object_id) WHERE released_at IS NULL;
-    `
-  }
-];
-
-// src/modules/people/people.module.ts
+// modules/people/routes.ts
 function numberParam(raw, fallback, min, max) {
   if (raw === null || raw === "") return fallback;
   const value = Number(raw);
@@ -394,6 +309,61 @@ function registerPeopleRoutes(router, deps) {
     body: { ok: true, entry: people.addEntry(requiredId(c.params.id), c.body) }
   }));
 }
+
+// modules/people/schema.ts
+var peopleMigrations = [
+  {
+    version: "people/0001_people",
+    sql: `
+      CREATE TABLE people (
+        id TEXT PRIMARY KEY,
+        display TEXT NOT NULL,
+        handles TEXT NOT NULL DEFAULT '[]',
+        notes TEXT NOT NULL DEFAULT '',
+        tags TEXT NOT NULL DEFAULT '[]',
+        -- lower() \u0432 SQLite \u043F\u043E\u043D\u0438\u043C\u0430\u0435\u0442 \u0442\u043E\u043B\u044C\u043A\u043E ASCII, \u043F\u043E\u044D\u0442\u043E\u043C\u0443 \u043A\u0438\u0440\u0438\u043B\u043B\u0438\u0446\u0443 \u043F\u0440\u0438\u0432\u043E\u0434\u0438\u0442
+        -- \u043A \u043D\u0438\u0436\u043D\u0435\u043C\u0443 \u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0443 \u043A\u043E\u0434 \u0437\u0430\u043F\u0438\u0441\u0438.
+        search_text TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        last_seen_at TEXT
+      );
+      CREATE INDEX people_updated ON people (updated_at DESC);
+
+      CREATE TABLE person_entries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        person_id TEXT NOT NULL REFERENCES people (id) ON DELETE CASCADE,
+        text TEXT NOT NULL,
+        source TEXT NOT NULL DEFAULT 'panel',
+        kind TEXT NOT NULL DEFAULT 'note',
+        search_text TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX person_entries_person ON person_entries (person_id, id DESC);
+    `
+  },
+  {
+    // Hold ухода живёт отдельно от карточки человека: снятие hold не удаляет
+    // доказательство, а повторная установка не создаёт дубль.
+    version: "people/0002_offboarding_holds",
+    sql: `
+      CREATE TABLE offboarding_holds (
+        id TEXT PRIMARY KEY,
+        participant TEXT NOT NULL,
+        object_type TEXT NOT NULL,
+        object_id TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        actor TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        released_at TEXT,
+        released_by TEXT
+      );
+      CREATE INDEX offboarding_holds_participant ON offboarding_holds (participant, created_at);
+      CREATE UNIQUE INDEX offboarding_holds_active ON offboarding_holds
+        (participant, object_type, object_id) WHERE released_at IS NULL;
+    `
+  }
+];
 
 // modules/people/page.ts
 var PAGE = `<!doctype html>

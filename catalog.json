@@ -891,7 +891,7 @@
     {
       "id": "people",
       "name": "Память людей",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "summary": "Карточки людей, ручки, теги и заметки. Ни от чего не зависит.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -903,10 +903,10 @@
         "core": "^0.8.0",
         "modules": []
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/people-1.0.1.mjs",
-      "size": 22850,
-      "integrity": "sha512-VfFDGawIkiepWd5FhS/aexNuwXYcsizFwlCd4NzLXdNMu8ySgoObAdnziX7JltDA9asPbwIqjTKE3xj6WV3jQg==",
-      "signature": "8/+6jx9Wt9bIWdYD7DY4cJ7Uy20Kf1Bxv2OYuc06fRCMzvgl5XIgdPe+ns8F11y/eXWLh2I2ENEDLzgJsCWOCQ=="
+      "url": "https://attrazion.github.io/team-platform-catalog/people-1.0.2.mjs",
+      "size": 21457,
+      "integrity": "sha512-CD+jnyGT06exjFiezaVAXpdVWLZLvibc6C+Qn+Qqkv2LJIzGjx5CiT7MbZCwjeXCb9ufKb1Yb3l6VGQtwXBN4w==",
+      "signature": "8DP6CfnYaNEvyDIoREbfqKlZ417tyYOVi1CuQ1hHPxk+TYtZoFIXzcWH31ehah/mlZVx+1UNdXYEeJjrnFRDCQ=="
     },
     {
       "id": "piper-local",
