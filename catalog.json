@@ -232,7 +232,7 @@
     {
       "id": "discord",
       "name": "Discord",
-      "version": "1.1.1",
+      "version": "1.1.2",
       "summary": "Бот и presence, уведомления о задачах и запусках, личные сообщения.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -248,19 +248,19 @@
         "modules": [
           {
             "id": "tools",
-            "range": "^1.0.0"
+            "range": "^1.2.2"
           }
         ]
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/discord-1.1.1.mjs",
-      "size": 42793,
-      "integrity": "sha512-NkUUJ/gG8IHYfWN2wZ4SwBG/EbDBF82o4j3wdw9wyVq4UeNl0m++c7b52SbNym0Q6HLIQiIeCxFbzNfVuTv6UA==",
-      "signature": "SeIt849Ypc+ihubMMgsQa8pq8l5PpgEEL4VJBFmgAR1pDNO73/6pMfpJkGs1tDnA9uMSrLg2QxAQl6W6xSVTCw=="
+      "url": "https://attrazion.github.io/team-platform-catalog/discord-1.1.2.mjs",
+      "size": 1298,
+      "integrity": "sha512-58sh+K7xviVrPqfM+Bgop5B+5uYB23Y9YUzeRsnVWk7JWefCRJnsYyWrCs3fJ2E/ognEI+moDb5CuvWeeOkp9A==",
+      "signature": "Ft0XRpaWY4ErFgMOf2M8KV9/I7N1zJ9S8jBwzHnmCc+CMvti5Iy24KQLu/o2oN7qNCu3Fztvp5tDBOCQsTpnAg=="
     },
     {
       "id": "entire",
       "name": "Entire",
-      "version": "1.1.1",
+      "version": "1.1.2",
       "summary": "История сессий Entire CLI, pull-синхронизация и настройки репозитория.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -274,14 +274,14 @@
         "modules": [
           {
             "id": "tools",
-            "range": "^1.0.0"
+            "range": "^1.2.2"
           }
         ]
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/entire-1.1.1.mjs",
-      "size": 42684,
-      "integrity": "sha512-mQxO6/LPL2L/D9aKQQCe03zh3J02iCxA5Nv7vAQIFfYiQd6uSAu7mira5p6l4oXOBE3Q5D9Il4h/rGDuhryzvw==",
-      "signature": "mOEjWgasZj1ysORsLxyE5rE75lfcuD8U73NNNaiuRhRDzUA3YOO2lWRp9nks2nA81ei+1fh1xXuVQx8voFmJBA=="
+      "url": "https://attrazion.github.io/team-platform-catalog/entire-1.1.2.mjs",
+      "size": 1189,
+      "integrity": "sha512-4vdFX6stMPlwg6pxIpeLZzYzYOUZ1lk9pQX6s8YRAoM1RXcGe/irtkd4X2CiEvCFcZC/NZ3MESawXD13hvssgw==",
+      "signature": "ub/y/Xd0RywD96NMC+UkdipqiZGV/6qgRTBSZxtAxPoHioqm+49SpL6AUPN0HVQvq5w6RVLvm5W/0DGINuEgAQ=="
     },
     {
       "id": "europe-pmc-search",
@@ -346,7 +346,7 @@
     {
       "id": "freebuff",
       "name": "Freebuff",
-      "version": "1.1.1",
+      "version": "1.1.2",
       "summary": "Developer API, каталог моделей и запросы к чату Freebuff.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -360,14 +360,14 @@
         "modules": [
           {
             "id": "tools",
-            "range": "^1.0.0"
+            "range": "^1.2.2"
           }
         ]
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/freebuff-1.1.1.mjs",
-      "size": 42583,
-      "integrity": "sha512-CkwVYp3IgdW3A2XMYGZqefmv3oDjo3ZDPLOn780wAOs7OaEl+u89+SeWchr1M1TqQa493UML5idL8jUwgNtFZA==",
-      "signature": "YdO+f3odwBTvDtvST1l5gWixBMOV2ZoffispOL5DKgTiP6uLq6usU7rOGCNzEUuhLVJnUhAZtUy+QI6ZSp9DDw=="
+      "url": "https://attrazion.github.io/team-platform-catalog/freebuff-1.1.2.mjs",
+      "size": 1088,
+      "integrity": "sha512-zGDjohQIPfAEhsGW1Ml8Xm6vlIL2nhocxiGeAnugOzBPuQ2sCRrrObT3NNLTz6aw7nppiGiCCgXPVTO8SsNFQQ==",
+      "signature": "0cjS8q7efDXoHD8jiZSmMCrJ8/BxO/GSmCvfSXDidlQ9KwzdpsUY7wtjZsNNQ4UFK63XvTGvkbnFIZJAFXG7BA=="
     },
     {
       "id": "github",
@@ -400,7 +400,7 @@
     {
       "id": "google",
       "name": "Google",
-      "version": "1.1.1",
+      "version": "1.1.2",
       "summary": "Календарь, Gmail и Drive через OAuth-токены Google.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -414,14 +414,14 @@
         "modules": [
           {
             "id": "tools",
-            "range": "^1.0.0"
+            "range": "^1.2.2"
           }
         ]
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/google-1.1.1.mjs",
-      "size": 42560,
-      "integrity": "sha512-oTImG8iLQV3H2Rw7zw+0cLq8lDo/56Y9bK9epRbxqg9+A0/yeejxaXTNMum0Z1W6y3i2FBcY5vAWanpXUDAYWA==",
-      "signature": "/SXu69OBeL08FWAijxxS8IpNijuf6GQ+t7/nxgTKZJZJz6dpGoa/zjZyuBqhJzpxWEr4uHVIlEKnv5FVzUisDw=="
+      "url": "https://attrazion.github.io/team-platform-catalog/google-1.1.2.mjs",
+      "size": 1065,
+      "integrity": "sha512-rBsxAMqFlzZ7WizN5ZR+zCbicxJFHM+F/+GRiZelxpxFsrqhzDiun3ISg56EjP53LaMxqHI0DKsxp4B21ZW3jg==",
+      "signature": "WqaD1NqhzG45XeCRA9DVxcXXuVsdQHAYba7IHsWEAcrBNsspH9KQPBCk3yg4i6K/PnK83D0YTAdr5Tm0KIfnCA=="
     },
     {
       "id": "hn-search",
@@ -531,7 +531,7 @@
     {
       "id": "journal",
       "name": "Журнал",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "summary": "Единая лента событий задач и запусков. Читает их таблицы, поэтому зависит от обоих модулей.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -552,10 +552,10 @@
           }
         ]
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/journal-1.0.1.mjs",
-      "size": 6493,
-      "integrity": "sha512-z30SSZHG/EasHDGIfonIinCzByRuBDQ2cNu0NDmjBoG2qs8rXrr3mNzGVA/ItvtKpaKLQK7/wHIXrCyQXq/j5w==",
-      "signature": "rKg6Ux0/xbS8bmwQM20peUgQhEYZj8s2ChmDfSiXGAKXPjlWxE2jEsA2T0lYA0y0dXc7Z2bFtE8t3EUa3su2Aw=="
+      "url": "https://attrazion.github.io/team-platform-catalog/journal-1.0.2.mjs",
+      "size": 6391,
+      "integrity": "sha512-r984dBSuhHT8NgNQMjbCGhrj9f15PgHnkbIzuBsRy4+Lhd4pBWD1+42b2KApa0AagtrpqOUumV14djv5WyhCig==",
+      "signature": "0n59wZrK+5SqGMqcB9luytWSecv6EmInPKAe+YqdJcdXOIkzyWeMjfFh4sfXloveqaEDbl+US/TJoNdDSeMnCA=="
     },
     {
       "id": "julia-local",
@@ -1287,7 +1287,7 @@
     {
       "id": "tools",
       "name": "Инструменты",
-      "version": "1.2.1",
+      "version": "1.2.2",
       "summary": "Интеграции, резерв задач, свободное время, пароли сайтов и провайдеры с кастомными base URL и моделями.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -1312,10 +1312,10 @@
           }
         ]
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/tools-1.2.1.mjs",
-      "size": 255104,
-      "integrity": "sha512-VhzBEfwj0A08JKYfvMnMz8HItq8N48AlE0NCN+nZO/aA98DOtsiQGF8WCkVqLxTB6LLbVbNm4UkAkVqq+YrsCA==",
-      "signature": "ih6bu1NI9zrDVGKi1Fk/wYV+aVr7xJfe6yuv9lLFbgyNZTdK4P8B76XwfOkJsUvrHGIu2tWr5sxObE2OyI6wBw=="
+      "url": "https://attrazion.github.io/team-platform-catalog/tools-1.2.2.mjs",
+      "size": 283410,
+      "integrity": "sha512-hvxWvNd0X9R/yzFn4Q/v/OHxgwZM+ABiorjC1jX+RdljcmfK3VxnIFBJDQFhvbFSG53EVvuQlmTAyxb2yzCB4w==",
+      "signature": "HpT/wyjHblr6jARw+QZYVCtGmXv0QJkIzagX6aKxal4jWjphX7Y2xQk97jPN3LzTZ/k9d5WPhuxcF+z+C70yAw=="
     },
     {
       "id": "transcript-tasks",
@@ -1370,7 +1370,7 @@
     {
       "id": "whisper-local",
       "name": "Локальная расшифровка аудио и видео",
-      "version": "1.9.1",
+      "version": "1.9.0",
       "summary": "Офлайн-расшифровка аудио и звуковой дорожки MP4 через Whisper или Qwen3-ASR.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -1383,7 +1383,7 @@
         "core": "^0.8.0",
         "modules": []
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/whisper-local-1.9.1.mjs",
+      "url": "https://attrazion.github.io/team-platform-catalog/whisper-local-1.9.0.mjs",
       "size": 35360,
       "integrity": "sha512-fdm7PCru2w1uK0H77A6wYPvoYY3PcMuT9V5gFN5yyaP1cVESdDkP/vjS3bfAVWtcBhHlZEaFzJKyx9FWKJV/ag==",
       "signature": "q9XFTdZ0MeF24Te+JSDrUVP+c0YBGb8UUynHK0wnSTLYpz5fj1Wi6f8UFDRTMcVEaLiBZol6dPdIpUmyls64Aw=="

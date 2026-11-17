@@ -1,6 +1,44 @@
 import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);
 
-// src/app/journal-service.ts
+// team-host-api:src/kernel/errors.ts
+var host = globalThis["__teamPlatformHostApi"] ?? {};
+var AppError = host["AppError"];
+var ConflictError = host["ConflictError"];
+var ForbiddenError = host["ForbiddenError"];
+var NotFoundError = host["NotFoundError"];
+var UpstreamError = host["UpstreamError"];
+var ValidationError = host["ValidationError"];
+var isAppError = host["isAppError"];
+
+// modules/journal/routes.ts
+function numberParam(raw, fallback, min, max) {
+  if (raw === null || raw === "") return fallback;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < min || value > max) {
+    throw new ValidationError(`\u041E\u0436\u0438\u0434\u0430\u043B\u043E\u0441\u044C \u0446\u0435\u043B\u043E\u0435 \u043E\u0442 ${min} \u0434\u043E ${max}`);
+  }
+  return value;
+}
+function registerJournalRoutes(router, journal) {
+  router.add("GET", "/api/journal", (c) => {
+    const rawEntity = c.query.get("entity");
+    if (rawEntity && rawEntity !== "task" && rawEntity !== "run") {
+      throw new ValidationError("\u041F\u0430\u0440\u0430\u043C\u0435\u0442\u0440 entity: \u0434\u043E\u043F\u0443\u0441\u0442\u0438\u043C\u043E task \u0438\u043B\u0438 run");
+    }
+    return {
+      body: {
+        ok: true,
+        ...journal.list({
+          entity: rawEntity ? rawEntity : void 0,
+          limit: numberParam(c.query.get("limit"), 50, 1, 200),
+          offset: numberParam(c.query.get("offset"), 0, 0, 1e6)
+        })
+      }
+    };
+  });
+}
+
+// modules/journal/service.ts
 var JournalService = class {
   #db;
   constructor(db) {
@@ -38,53 +76,6 @@ var JournalService = class {
     };
   }
 };
-
-// src/kernel/errors.ts
-var AppError = class extends Error {
-  code;
-  status;
-  details;
-  constructor(code, message, status, details = {}) {
-    super(message);
-    this.name = new.target.name;
-    this.code = code;
-    this.status = status;
-    this.details = details;
-  }
-};
-var ValidationError = class extends AppError {
-  constructor(message, details = {}, options = {}) {
-    super(options.code ?? "validation_failed", message, options.status ?? 400, details);
-  }
-};
-
-// src/modules/people/people.module.ts
-function numberParam(raw, fallback, min, max) {
-  if (raw === null || raw === "") return fallback;
-  const value = Number(raw);
-  if (!Number.isInteger(value) || value < min || value > max) {
-    throw new ValidationError(`\u041E\u0436\u0438\u0434\u0430\u043B\u043E\u0441\u044C \u0446\u0435\u043B\u043E\u0435 \u043E\u0442 ${min} \u0434\u043E ${max}`);
-  }
-  return value;
-}
-function registerJournalRoutes(router, journal) {
-  router.add("GET", "/api/journal", (c) => {
-    const rawEntity = c.query.get("entity");
-    if (rawEntity && rawEntity !== "task" && rawEntity !== "run") {
-      throw new ValidationError("\u041F\u0430\u0440\u0430\u043C\u0435\u0442\u0440 entity: \u0434\u043E\u043F\u0443\u0441\u0442\u0438\u043C\u043E task \u0438\u043B\u0438 run");
-    }
-    return {
-      body: {
-        ok: true,
-        ...journal.list({
-          entity: rawEntity ? rawEntity : void 0,
-          limit: numberParam(c.query.get("limit"), 50, 1, 200),
-          offset: numberParam(c.query.get("offset"), 0, 0, 1e6)
-        })
-      }
-    };
-  });
-}
 
 // modules/journal/page.ts
 var PAGE = `<!doctype html>
