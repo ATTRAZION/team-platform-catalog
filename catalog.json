@@ -106,7 +106,7 @@
     {
       "id": "browser",
       "name": "Браузер",
-      "version": "1.0.4",
+      "version": "1.0.5",
       "summary": "Вкладки, снимки и действия агента в Chromium. Секреты сайтов подставляет модуль интеграций, если он установлен.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -120,10 +120,10 @@
         "core": "^0.8.0",
         "modules": []
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/browser-1.0.4.mjs",
-      "size": 67360,
-      "integrity": "sha512-xvUubNer1mNJ7+aDlW98ldsyQ1AjaKu+x7xsBIs0z0fI0rP93gXF3EKi47BIJnTIUjf4hdCUBfG5P1i4/5A+5w==",
-      "signature": "e2ZtUvCqOaQwhVU0xy2ogfjvA7QtiN2V0vtrSpl5lvcenQmiM7ObMrEp+RHkg6wrlrctFbnck5eEaU3TWQRuBw=="
+      "url": "https://attrazion.github.io/team-platform-catalog/browser-1.0.5.mjs",
+      "size": 66652,
+      "integrity": "sha512-OL3xqTigEYOlhbyC5RvA/Xkobuk3Mnku/aGJmbiPW6OGJUVOYY9dHu3HG8GVBlZo2DgpjgPle7wE+ApfUP/VAA==",
+      "signature": "jrSU4UbmJxp8BDAVmX39km8OtIijklksgemNRjVJtm8+KTMW7XFqd8pkA3woaqZZDhRdDINfMqBjADz4liLcCw=="
     },
     {
       "id": "canvas-board",

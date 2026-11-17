@@ -10,42 +10,85 @@ var UpstreamError = host["UpstreamError"];
 var ValidationError = host["ValidationError"];
 var isAppError = host["isAppError"];
 
-// src/app/browser-service.ts
+// modules/browser/store.ts
+var LEASE_COLUMNS = "name, target_id, url, title, leased_at, used_at";
+var AUDIT_KEEP = 500;
+function leaseOf(row) {
+  return {
+    name: row.name,
+    target_id: row.target_id,
+    url: row.url,
+    title: row.title,
+    leased_at: row.leased_at,
+    used_at: row.used_at
+  };
+}
+var SqliteBrowserStore = class {
+  #db;
+  constructor(db) {
+    this.#db = db;
+  }
+  readLease(name) {
+    const row = this.#db.raw.prepare(`SELECT ${LEASE_COLUMNS} FROM browser_tabs WHERE name = ?`).get(name);
+    return row ? leaseOf(row) : null;
+  }
+  listLeases() {
+    const rows = this.#db.raw.prepare(`SELECT ${LEASE_COLUMNS} FROM browser_tabs ORDER BY name`).all();
+    return rows.map(leaseOf);
+  }
+  saveLease(lease) {
+    this.#db.raw.prepare(`INSERT INTO browser_tabs (name, target_id, url, title, leased_at, used_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT (name) DO UPDATE SET
+          target_id = excluded.target_id,
+          url = excluded.url,
+          title = excluded.title,
+          used_at = excluded.used_at`).run(lease.name, lease.target_id, lease.url, lease.title, lease.leased_at, lease.used_at);
+  }
+  prune(knownIds) {
+    const known = new Set(knownIds);
+    let removed = 0;
+    for (const lease of this.listLeases()) {
+      if (known.has(lease.target_id)) continue;
+      this.#db.raw.prepare("DELETE FROM browser_tabs WHERE name = ?").run(lease.name);
+      removed += 1;
+    }
+    return removed;
+  }
+  clearLeases() {
+    this.#db.raw.prepare("DELETE FROM browser_tabs").run();
+  }
+  audit(entry) {
+    this.#db.raw.prepare(`INSERT INTO browser_audit (at, agent, action, ok, note) VALUES (?, ?, ?, ?, ?)`).run(entry.at, entry.agent, entry.action, entry.ok ? 1 : 0, entry.note);
+    this.#db.raw.prepare(`DELETE FROM browser_audit WHERE id <= (
+        SELECT MAX(id) FROM browser_audit
+      ) - ?`).run(AUDIT_KEEP);
+  }
+  listAudit(limit) {
+    const rows = this.#db.raw.prepare(`SELECT id, at, agent, action, ok, note FROM browser_audit ORDER BY id DESC LIMIT ?`).all(Math.min(Math.max(limit, 1), 200));
+    return rows.map((row) => ({
+      id: row.id,
+      at: row.at,
+      agent: row.agent,
+      action: row.action,
+      ok: row.ok === 1,
+      note: row.note
+    }));
+  }
+};
+
+// modules/browser/service.ts
 import { createServer } from "node:net";
 import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join as join2 } from "node:path";
 
-// src/kernel/errors.ts
-var AppError2 = class extends Error {
-  code;
-  status;
-  details;
-  constructor(code, message, status, details = {}) {
-    super(message);
-    this.name = new.target.name;
-    this.code = code;
-    this.status = status;
-    this.details = details;
-  }
-};
-var ValidationError2 = class extends AppError2 {
-  constructor(message, details = {}, options = {}) {
-    super(options.code ?? "validation_failed", message, options.status ?? 400, details);
-  }
-};
-var ConflictError2 = class extends AppError2 {
-  constructor(message, details = {}) {
-    super("conflict", message, 409, details);
-  }
-};
-
-// src/adapters/browser/cdp.ts
+// modules/browser/cdp.ts
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 function socketCtor() {
   const ctor = globalThis.WebSocket;
-  if (!ctor) throw new AppError2("browser_unavailable", "\u0412 \u044D\u0442\u043E\u0439 \u0432\u0435\u0440\u0441\u0438\u0438 Node \u043D\u0435\u0442 WebSocket: \u043D\u0443\u0436\u0435\u043D Node 22+", 503);
+  if (!ctor) throw new AppError("browser_unavailable", "\u0412 \u044D\u0442\u043E\u0439 \u0432\u0435\u0440\u0441\u0438\u0438 Node \u043D\u0435\u0442 WebSocket: \u043D\u0443\u0436\u0435\u043D Node 22+", 503);
   return ctor;
 }
 function messageText(event) {
@@ -76,7 +119,7 @@ var CdpSession = class _CdpSession {
       try {
         socket = new Ctor(url);
       } catch (error) {
-        reject(new AppError2("browser_unavailable", `CDP \u043D\u0435 \u043E\u0442\u043A\u0440\u044B\u043B\u0441\u044F: ${String(error)}`, 503));
+        reject(new AppError("browser_unavailable", `CDP \u043D\u0435 \u043E\u0442\u043A\u0440\u044B\u043B\u0441\u044F: ${String(error)}`, 503));
         return;
       }
       const timer = setTimeout(() => {
@@ -84,7 +127,7 @@ var CdpSession = class _CdpSession {
           socket.close();
         } catch {
         }
-        reject(new AppError2("browser_unavailable", "CDP \u043D\u0435 \u043E\u0442\u043A\u0440\u044B\u043B\u0441\u044F \u0437\u0430 \u043E\u0442\u0432\u0435\u0434\u0451\u043D\u043D\u043E\u0435 \u0432\u0440\u0435\u043C\u044F", 503));
+        reject(new AppError("browser_unavailable", "CDP \u043D\u0435 \u043E\u0442\u043A\u0440\u044B\u043B\u0441\u044F \u0437\u0430 \u043E\u0442\u0432\u0435\u0434\u0451\u043D\u043D\u043E\u0435 \u0432\u0440\u0435\u043C\u044F", 503));
       }, timeoutMs);
       const onOpen = () => {
         clearTimeout(timer);
@@ -93,7 +136,7 @@ var CdpSession = class _CdpSession {
       };
       const onError = () => {
         clearTimeout(timer);
-        if (!session) reject(new AppError2("browser_unavailable", "CDP-\u0441\u043E\u0435\u0434\u0438\u043D\u0435\u043D\u0438\u0435 \u043E\u0442\u043A\u043B\u043E\u043D\u0435\u043D\u043E", 503));
+        if (!session) reject(new AppError("browser_unavailable", "CDP-\u0441\u043E\u0435\u0434\u0438\u043D\u0435\u043D\u0438\u0435 \u043E\u0442\u043A\u043B\u043E\u043D\u0435\u043D\u043E", 503));
       };
       socket.addEventListener("open", onOpen);
       socket.addEventListener("error", onError);
@@ -127,7 +170,7 @@ var CdpSession = class _CdpSession {
     this.#pending.delete(message.id);
     clearTimeout(pending.timer);
     if (message.error) {
-      pending.reject(new AppError2("browser_error", message.error.message || "CDP \u0432\u0435\u0440\u043D\u0443\u043B \u043E\u0448\u0438\u0431\u043A\u0443", 502));
+      pending.reject(new AppError("browser_error", message.error.message || "CDP \u0432\u0435\u0440\u043D\u0443\u043B \u043E\u0448\u0438\u0431\u043A\u0443", 502));
       return;
     }
     pending.resolve(message.result);
@@ -142,12 +185,12 @@ var CdpSession = class _CdpSession {
     this.#pending.clear();
   }
   send(method, params = {}, timeoutMs = 2e4) {
-    if (this.#closed) return Promise.reject(new AppError2("browser_unavailable", "CDP-\u0441\u043E\u0435\u0434\u0438\u043D\u0435\u043D\u0438\u0435 \u0443\u0436\u0435 \u0437\u0430\u043A\u0440\u044B\u0442\u043E", 503));
+    if (this.#closed) return Promise.reject(new AppError("browser_unavailable", "CDP-\u0441\u043E\u0435\u0434\u0438\u043D\u0435\u043D\u0438\u0435 \u0443\u0436\u0435 \u0437\u0430\u043A\u0440\u044B\u0442\u043E", 503));
     const id = this.#nextId += 1;
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.#pending.delete(id);
-        reject(new AppError2("browser_timeout", `CDP ${method} \u043D\u0435 \u043E\u0442\u0432\u0435\u0442\u0438\u043B \u0437\u0430 ${timeoutMs} \u043C\u0441`, 504));
+        reject(new AppError("browser_timeout", `CDP ${method} \u043D\u0435 \u043E\u0442\u0432\u0435\u0442\u0438\u043B \u0437\u0430 ${timeoutMs} \u043C\u0441`, 504));
       }, timeoutMs);
       this.#pending.set(id, {
         resolve: (value) => resolve(value),
@@ -159,7 +202,7 @@ var CdpSession = class _CdpSession {
       } catch (error) {
         clearTimeout(timer);
         this.#pending.delete(id);
-        reject(new AppError2("browser_unavailable", `CDP ${method} \u043D\u0435 \u043E\u0442\u043F\u0440\u0430\u0432\u043B\u0435\u043D: ${String(error)}`, 503));
+        reject(new AppError("browser_unavailable", `CDP ${method} \u043D\u0435 \u043E\u0442\u043F\u0440\u0430\u0432\u043B\u0435\u043D: ${String(error)}`, 503));
       }
     });
   }
@@ -173,12 +216,12 @@ var CdpSession = class _CdpSession {
     }, timeoutMs);
     if (result.exceptionDetails) {
       const detail = result.exceptionDetails.exception?.description ?? result.exceptionDetails.text ?? "\u041E\u0448\u0438\u0431\u043A\u0430 \u0432\u044B\u043F\u043E\u043B\u043D\u0435\u043D\u0438\u044F \u043D\u0430 \u0441\u0442\u0440\u0430\u043D\u0438\u0446\u0435";
-      throw new AppError2("browser_error", detail, 502);
+      throw new AppError("browser_error", detail, 502);
     }
     return result.result?.value;
   }
   close() {
-    this.#onClose(new AppError2("browser_disconnected", "CDP-\u0441\u0435\u0441\u0441\u0438\u044F \u0437\u0430\u043A\u0440\u044B\u0442\u0430", 503));
+    this.#onClose(new AppError("browser_disconnected", "CDP-\u0441\u0435\u0441\u0441\u0438\u044F \u0437\u0430\u043A\u0440\u044B\u0442\u0430", 503));
     try {
       this.#socket.close();
     } catch {
@@ -190,9 +233,9 @@ async function getJson(url, timeoutMs = 3e3) {
   try {
     response = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
   } catch (error) {
-    throw new AppError2("browser_unavailable", `CDP \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u0435\u043D: ${String(error)}`, 503);
+    throw new AppError("browser_unavailable", `CDP \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u0435\u043D: ${String(error)}`, 503);
   }
-  if (!response.ok) throw new AppError2("browser_unavailable", `CDP \u043E\u0442\u0432\u0435\u0442\u0438\u043B HTTP ${response.status}`, 503);
+  if (!response.ok) throw new AppError("browser_unavailable", `CDP \u043E\u0442\u0432\u0435\u0442\u0438\u043B HTTP ${response.status}`, 503);
   return await response.json();
 }
 function version(port, timeoutMs = 3e3) {
@@ -277,7 +320,7 @@ function profileOf(dataDir) {
   return join(dataDir, "browser-profile");
 }
 
-// src/domain/browser/command.ts
+// modules/browser/command.ts
 var DEFAULT_TIMEOUT_MS = 15e3;
 var MAX_TIMEOUT_MS = 6e4;
 var DEFAULT_RETRY = 1;
@@ -291,31 +334,31 @@ var MAX_SCREENSHOT = 6 * 1024 * 1024;
 var AGENT_RE = /^[A-Za-z0-9._:@-]{1,64}$/;
 function agentName(value) {
   if (value === void 0 || value === null || value === "") return "default";
-  if (typeof value !== "string") throw new ValidationError2("\u041F\u043E\u043B\u0435 agent \u0434\u043E\u043B\u0436\u043D\u043E \u0431\u044B\u0442\u044C \u0441\u0442\u0440\u043E\u043A\u043E\u0439");
+  if (typeof value !== "string") throw new ValidationError("\u041F\u043E\u043B\u0435 agent \u0434\u043E\u043B\u0436\u043D\u043E \u0431\u044B\u0442\u044C \u0441\u0442\u0440\u043E\u043A\u043E\u0439");
   const agent = value.trim();
   if (!AGENT_RE.test(agent)) {
-    throw new ValidationError2("agent: \u0434\u043E\u043F\u0443\u0441\u0442\u0438\u043C\u044B \u0431\u0443\u043A\u0432\u044B, \u0446\u0438\u0444\u0440\u044B \u0438 \u0441\u0438\u043C\u0432\u043E\u043B\u044B . _ : @ - (\u0434\u043E 64)");
+    throw new ValidationError("agent: \u0434\u043E\u043F\u0443\u0441\u0442\u0438\u043C\u044B \u0431\u0443\u043A\u0432\u044B, \u0446\u0438\u0444\u0440\u044B \u0438 \u0441\u0438\u043C\u0432\u043E\u043B\u044B . _ : @ - (\u0434\u043E 64)");
   }
   return agent;
 }
 function selector(value, field = "selector") {
-  if (typeof value !== "string") throw new ValidationError2(`\u041F\u043E\u043B\u0435 ${field} \u0434\u043E\u043B\u0436\u043D\u043E \u0431\u044B\u0442\u044C \u0441\u0442\u0440\u043E\u043A\u043E\u0439`);
+  if (typeof value !== "string") throw new ValidationError(`\u041F\u043E\u043B\u0435 ${field} \u0434\u043E\u043B\u0436\u043D\u043E \u0431\u044B\u0442\u044C \u0441\u0442\u0440\u043E\u043A\u043E\u0439`);
   const text = value.trim();
-  if (!text) throw new ValidationError2(`\u041F\u043E\u043B\u0435 ${field} \u043F\u0443\u0441\u0442\u043E\u0435`);
-  if (text.length > MAX_SELECTOR) throw new ValidationError2(`\u041F\u043E\u043B\u0435 ${field} \u0434\u043B\u0438\u043D\u043D\u0435\u0435 ${MAX_SELECTOR} \u0441\u0438\u043C\u0432\u043E\u043B\u043E\u0432`);
-  if (text.includes("\0")) throw new ValidationError2(`\u041F\u043E\u043B\u0435 ${field} \u0441\u043E\u0434\u0435\u0440\u0436\u0438\u0442 \u043D\u0435\u0434\u043E\u043F\u0443\u0441\u0442\u0438\u043C\u044B\u0439 \u0441\u0438\u043C\u0432\u043E\u043B`);
+  if (!text) throw new ValidationError(`\u041F\u043E\u043B\u0435 ${field} \u043F\u0443\u0441\u0442\u043E\u0435`);
+  if (text.length > MAX_SELECTOR) throw new ValidationError(`\u041F\u043E\u043B\u0435 ${field} \u0434\u043B\u0438\u043D\u043D\u0435\u0435 ${MAX_SELECTOR} \u0441\u0438\u043C\u0432\u043E\u043B\u043E\u0432`);
+  if (text.includes("\0")) throw new ValidationError(`\u041F\u043E\u043B\u0435 ${field} \u0441\u043E\u0434\u0435\u0440\u0436\u0438\u0442 \u043D\u0435\u0434\u043E\u043F\u0443\u0441\u0442\u0438\u043C\u044B\u0439 \u0441\u0438\u043C\u0432\u043E\u043B`);
   return text;
 }
 function browserUrl(value) {
-  if (typeof value !== "string") throw new ValidationError2("\u041F\u043E\u043B\u0435 url \u0434\u043E\u043B\u0436\u043D\u043E \u0431\u044B\u0442\u044C \u0441\u0442\u0440\u043E\u043A\u043E\u0439");
+  if (typeof value !== "string") throw new ValidationError("\u041F\u043E\u043B\u0435 url \u0434\u043E\u043B\u0436\u043D\u043E \u0431\u044B\u0442\u044C \u0441\u0442\u0440\u043E\u043A\u043E\u0439");
   const url = value.trim();
-  if (!/^https?:\/\//i.test(url)) throw new ValidationError2("\u041D\u0443\u0436\u0435\u043D \u043F\u043E\u043B\u043D\u044B\u0439 http(s) URL");
-  if (url.length > MAX_URL) throw new ValidationError2(`URL \u0434\u043B\u0438\u043D\u043D\u0435\u0435 ${MAX_URL} \u0441\u0438\u043C\u0432\u043E\u043B\u043E\u0432`);
+  if (!/^https?:\/\//i.test(url)) throw new ValidationError("\u041D\u0443\u0436\u0435\u043D \u043F\u043E\u043B\u043D\u044B\u0439 http(s) URL");
+  if (url.length > MAX_URL) throw new ValidationError(`URL \u0434\u043B\u0438\u043D\u043D\u0435\u0435 ${MAX_URL} \u0441\u0438\u043C\u0432\u043E\u043B\u043E\u0432`);
   try {
     const parsed = new URL(url);
     if (!parsed.hostname) throw new Error("\u043F\u0443\u0441\u0442\u043E\u0439 \u0445\u043E\u0441\u0442");
   } catch {
-    throw new ValidationError2("URL \u043D\u0435 \u0440\u0430\u0437\u0431\u0438\u0440\u0430\u0435\u0442\u0441\u044F");
+    throw new ValidationError("URL \u043D\u0435 \u0440\u0430\u0437\u0431\u0438\u0440\u0430\u0435\u0442\u0441\u044F");
   }
   return url;
 }
@@ -327,36 +370,36 @@ function expectation(value) {
     if (raw === "nav") return { kind: "nav" };
     const separator = raw.indexOf("=");
     if (separator < 1) {
-      throw new ValidationError2("\u041E\u0436\u0438\u0434\u0430\u043D\u0438\u0435 \u0437\u0430\u0434\u0430\u0451\u0442\u0441\u044F \u043A\u0430\u043A nav, url=\u2026, text=\u2026, gone=\u2026 \u0438\u043B\u0438 visible=\u2026");
+      throw new ValidationError("\u041E\u0436\u0438\u0434\u0430\u043D\u0438\u0435 \u0437\u0430\u0434\u0430\u0451\u0442\u0441\u044F \u043A\u0430\u043A nav, url=\u2026, text=\u2026, gone=\u2026 \u0438\u043B\u0438 visible=\u2026");
     }
     const kind2 = raw.slice(0, separator).trim().toLowerCase();
     const rest = raw.slice(separator + 1).trim();
-    if (!rest) throw new ValidationError2(`\u041E\u0436\u0438\u0434\u0430\u043D\u0438\u0435 ${kind2} \u043F\u0443\u0441\u0442\u043E\u0435`);
+    if (!rest) throw new ValidationError(`\u041E\u0436\u0438\u0434\u0430\u043D\u0438\u0435 ${kind2} \u043F\u0443\u0441\u0442\u043E\u0435`);
     if (kind2 === "url") return { kind: "url", value: rest };
     if (kind2 === "text") return { kind: "text", value: rest };
     if (kind2 === "gone") return { kind: "gone", selector: selector(rest) };
     if (kind2 === "visible") return { kind: "visible", selector: selector(rest) };
-    throw new ValidationError2("\u0414\u043E\u043F\u0443\u0441\u0442\u0438\u043C\u044B\u0435 \u043E\u0436\u0438\u0434\u0430\u043D\u0438\u044F: nav, url, text, gone, visible");
+    throw new ValidationError("\u0414\u043E\u043F\u0443\u0441\u0442\u0438\u043C\u044B\u0435 \u043E\u0436\u0438\u0434\u0430\u043D\u0438\u044F: nav, url, text, gone, visible");
   }
-  if (typeof value !== "object") throw new ValidationError2("\u041E\u0436\u0438\u0434\u0430\u043D\u0438\u0435 \u0434\u043E\u043B\u0436\u043D\u043E \u0431\u044B\u0442\u044C \u0441\u0442\u0440\u043E\u043A\u043E\u0439 \u0438\u043B\u0438 \u043E\u0431\u044A\u0435\u043A\u0442\u043E\u043C");
+  if (typeof value !== "object") throw new ValidationError("\u041E\u0436\u0438\u0434\u0430\u043D\u0438\u0435 \u0434\u043E\u043B\u0436\u043D\u043E \u0431\u044B\u0442\u044C \u0441\u0442\u0440\u043E\u043A\u043E\u0439 \u0438\u043B\u0438 \u043E\u0431\u044A\u0435\u043A\u0442\u043E\u043C");
   const record = value;
   const kind = String(record.kind ?? "").toLowerCase();
   if (kind === "nav") return { kind: "nav" };
   if (kind === "url" || kind === "text") {
     const target = typeof record.value === "string" ? record.value.trim() : "";
-    if (!target) throw new ValidationError2(`\u041E\u0436\u0438\u0434\u0430\u043D\u0438\u0435 ${kind} \u043F\u0443\u0441\u0442\u043E\u0435`);
+    if (!target) throw new ValidationError(`\u041E\u0436\u0438\u0434\u0430\u043D\u0438\u0435 ${kind} \u043F\u0443\u0441\u0442\u043E\u0435`);
     return kind === "url" ? { kind: "url", value: target } : { kind: "text", value: target };
   }
   if (kind === "gone" || kind === "visible") {
     return { kind, selector: selector(record.selector) };
   }
-  throw new ValidationError2("\u0414\u043E\u043F\u0443\u0441\u0442\u0438\u043C\u044B\u0435 \u043E\u0436\u0438\u0434\u0430\u043D\u0438\u044F: nav, url, text, gone, visible");
+  throw new ValidationError("\u0414\u043E\u043F\u0443\u0441\u0442\u0438\u043C\u044B\u0435 \u043E\u0436\u0438\u0434\u0430\u043D\u0438\u044F: nav, url, text, gone, visible");
 }
 function integer(value, fallback, min, max, field) {
   if (value === void 0 || value === null || value === "") return fallback;
   const number = typeof value === "number" ? value : Number(value);
   if (!Number.isInteger(number) || number < min || number > max) {
-    throw new ValidationError2(`${field}: \u043E\u0436\u0438\u0434\u0430\u043B\u043E\u0441\u044C \u0446\u0435\u043B\u043E\u0435 \u043E\u0442 ${min} \u0434\u043E ${max}`);
+    throw new ValidationError(`${field}: \u043E\u0436\u0438\u0434\u0430\u043B\u043E\u0441\u044C \u0446\u0435\u043B\u043E\u0435 \u043E\u0442 ${min} \u0434\u043E ${max}`);
   }
   return number;
 }
@@ -386,7 +429,7 @@ function describeExpectation(value) {
   }
 }
 
-// src/app/browser-service.ts
+// modules/browser/service.ts
 var SESSION_FILE = "browser-session.json";
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -561,7 +604,7 @@ var BrowserService = class {
     const existing = this.#loadRuntime();
     if (existing && await alive(existing.port)) return existing;
     if (!this.#executablePath) {
-      throw new AppError2(
+      throw new AppError(
         "browser_unavailable",
         "\u041D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D Edge \u0438\u043B\u0438 Chrome. \u0423\u043A\u0430\u0436\u0438\u0442\u0435 \u043F\u0443\u0442\u044C \u0432 TEAM_BROWSER_EXECUTABLE.",
         503
@@ -590,7 +633,7 @@ var BrowserService = class {
     }
     kill(fallbackPid);
     this.#saveRuntime(null);
-    throw new AppError2(
+    throw new AppError(
       "browser_unavailable",
       `\u0411\u0440\u0430\u0443\u0437\u0435\u0440 \u043D\u0435 \u043E\u0442\u043A\u0440\u044B\u043B CDP \u043D\u0430 \u043F\u043E\u0440\u0442\u0443 ${port}`,
       503
@@ -647,7 +690,7 @@ var BrowserService = class {
       const created = await browser.send("Target.createTarget", { url: "about:blank" });
       const list = await this.#listPages(port);
       const target = list.find((entry) => entry.id === created.targetId);
-      if (!target) throw new AppError2("browser_unavailable", "\u0411\u0440\u0430\u0443\u0437\u0435\u0440 \u0441\u043E\u0437\u0434\u0430\u043B \u0432\u043A\u043B\u0430\u0434\u043A\u0443, \u043D\u043E \u043D\u0435 \u043F\u043E\u043A\u0430\u0437\u0430\u043B \u0435\u0451 \u0432 \u0441\u043F\u0438\u0441\u043A\u0435", 503);
+      if (!target) throw new AppError("browser_unavailable", "\u0411\u0440\u0430\u0443\u0437\u0435\u0440 \u0441\u043E\u0437\u0434\u0430\u043B \u0432\u043A\u043B\u0430\u0434\u043A\u0443, \u043D\u043E \u043D\u0435 \u043F\u043E\u043A\u0430\u0437\u0430\u043B \u0435\u0451 \u0432 \u0441\u043F\u0438\u0441\u043A\u0435", 503);
       return target;
     } finally {
       browser.close();
@@ -716,14 +759,14 @@ var BrowserService = class {
   async #navigate(cdp, url, timeoutMs) {
     await cdp.send("Page.enable");
     const nav = await cdp.send("Page.navigate", { url });
-    if (nav.errorText) throw new AppError2("browser_error", `\u041F\u0435\u0440\u0435\u0445\u043E\u0434 \u043D\u0435 \u0443\u0434\u0430\u043B\u0441\u044F: ${nav.errorText}`, 502);
+    if (nav.errorText) throw new AppError("browser_error", `\u041F\u0435\u0440\u0435\u0445\u043E\u0434 \u043D\u0435 \u0443\u0434\u0430\u043B\u0441\u044F: ${nav.errorText}`, 502);
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
       const ready = await cdp.evaluate("document.readyState").catch(() => "loading");
       if (ready === "complete") return;
       await sleep(200);
     }
-    throw new AppError2("browser_timeout", `\u0421\u0442\u0440\u0430\u043D\u0438\u0446\u0430 \u043D\u0435 \u0437\u0430\u0433\u0440\u0443\u0437\u0438\u043B\u0430\u0441\u044C \u0437\u0430 ${timeoutMs} \u043C\u0441`, 504);
+    throw new AppError("browser_timeout", `\u0421\u0442\u0440\u0430\u043D\u0438\u0446\u0430 \u043D\u0435 \u0437\u0430\u0433\u0440\u0443\u0437\u0438\u043B\u0430\u0441\u044C \u0437\u0430 ${timeoutMs} \u043C\u0441`, 504);
   }
   async #waitExpectation(cdp, expect, beforeUrl, timeoutMs) {
     const deadline = Date.now() + timeoutMs;
@@ -765,7 +808,7 @@ var BrowserService = class {
       if (options.expect) {
         const met = await this.#waitExpectation(cdp, options.expect, before, options.timeoutMs);
         if (!met) {
-          throw new ConflictError2(`\u041E\u0436\u0438\u0434\u0430\u043D\u0438\u0435 \u043D\u0435 \u0432\u044B\u043F\u043E\u043B\u043D\u0435\u043D\u043E: ${describeExpectation(options.expect)}`);
+          throw new ConflictError(`\u041E\u0436\u0438\u0434\u0430\u043D\u0438\u0435 \u043D\u0435 \u0432\u044B\u043F\u043E\u043B\u043D\u0435\u043D\u043E: ${describeExpectation(options.expect)}`);
         }
       }
       return true;
@@ -784,7 +827,7 @@ var BrowserService = class {
   async text(agent, selectorInput) {
     const { result, tab } = await this.#withPage(agent, "text", async (cdp) => {
       const value = await cdp.evaluate(textScript(selectorInput));
-      if (value === null) throw new ConflictError2(`\u042D\u043B\u0435\u043C\u0435\u043D\u0442 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D: ${selectorInput}`);
+      if (value === null) throw new ConflictError(`\u042D\u043B\u0435\u043C\u0435\u043D\u0442 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D: ${selectorInput}`);
       return this.#secrets ? this.#secrets.redact(value) : value;
     });
     return { text: result.slice(0, MAX_TEXT), tab_id: tab.id, url: tab.url };
@@ -796,8 +839,8 @@ var BrowserService = class {
       );
       const outcome = await this.#attempts(options, async () => {
         const box = await cdp.evaluate(rectScript(selector2));
-        if (!box) throw new ConflictError2(`\u042D\u043B\u0435\u043C\u0435\u043D\u0442 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D: ${selector2}`);
-        if (!box.inViewport) throw new ConflictError2(`\u042D\u043B\u0435\u043C\u0435\u043D\u0442 \u0432\u043D\u0435 \u043E\u043A\u043D\u0430 \u0431\u0440\u0430\u0443\u0437\u0435\u0440\u0430: ${selector2}`);
+        if (!box) throw new ConflictError(`\u042D\u043B\u0435\u043C\u0435\u043D\u0442 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D: ${selector2}`);
+        if (!box.inViewport) throw new ConflictError(`\u042D\u043B\u0435\u043C\u0435\u043D\u0442 \u0432\u043D\u0435 \u043E\u043A\u043D\u0430 \u0431\u0440\u0430\u0443\u0437\u0435\u0440\u0430: ${selector2}`);
         if (box.width > 0 && box.height > 0) {
           await cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: box.x, y: box.y, button: "none" });
           await cdp.send("Input.dispatchMouseEvent", { type: "mousePressed", x: box.x, y: box.y, button: "left", clickCount: 1 });
@@ -858,7 +901,7 @@ var BrowserService = class {
           node.dispatchEvent(new Event('change', { bubbles: true }));
           return String(node.value);
         })()`);
-        if (applied === null) throw new ConflictError2(`\u042D\u043B\u0435\u043C\u0435\u043D\u0442 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D: ${selector2}`);
+        if (applied === null) throw new ConflictError(`\u042D\u043B\u0435\u043C\u0435\u043D\u0442 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D: ${selector2}`);
         const reached = applied === value;
         if (!reached) return { ok: false, effect: null, reason: "\u0437\u043D\u0430\u0447\u0435\u043D\u0438\u0435 \u043D\u0435 \u0434\u043E\u0448\u043B\u043E \u0434\u043E \u043F\u043E\u043B\u044F" };
         if (options.expect) {
@@ -892,8 +935,8 @@ var BrowserService = class {
       const outcome = await this.#attempts(options, async () => {
         if (into) {
           const focus = await cdp.evaluate(focusScript(into));
-          if (!focus) throw new ConflictError2(`\u042D\u043B\u0435\u043C\u0435\u043D\u0442 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D: ${into}`);
-          if (!focus.focused) throw new ConflictError2(`\u042D\u043B\u0435\u043C\u0435\u043D\u0442 \u043D\u0435 \u043F\u0440\u0438\u043D\u0438\u043C\u0430\u0435\u0442 \u0444\u043E\u043A\u0443\u0441: ${into}`);
+          if (!focus) throw new ConflictError(`\u042D\u043B\u0435\u043C\u0435\u043D\u0442 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D: ${into}`);
+          if (!focus.focused) throw new ConflictError(`\u042D\u043B\u0435\u043C\u0435\u043D\u0442 \u043D\u0435 \u043F\u0440\u0438\u043D\u0438\u043C\u0430\u0435\u0442 \u0444\u043E\u043A\u0443\u0441: ${into}`);
         }
         await cdp.send("Input.insertText", { text });
         const after = into ? await cdp.evaluate(`(() => {
@@ -930,14 +973,14 @@ var BrowserService = class {
   }
   async press(agent, key, count, into, options) {
     const spec = KEY_CODES[key];
-    if (!spec) throw new ValidationError2(`\u041F\u043E\u0434\u0434\u0435\u0440\u0436\u0438\u0432\u0430\u044E\u0442\u0441\u044F \u043A\u043B\u0430\u0432\u0438\u0448\u0438: ${Object.keys(KEY_CODES).join(", ")}`);
+    if (!spec) throw new ValidationError(`\u041F\u043E\u0434\u0434\u0435\u0440\u0436\u0438\u0432\u0430\u044E\u0442\u0441\u044F \u043A\u043B\u0430\u0432\u0438\u0448\u0438: ${Object.keys(KEY_CODES).join(", ")}`);
     const { result, tab } = await this.#withPage(agent, "press", async (cdp) => {
       const before = await cdp.evaluate("location.href");
       const outcome = await this.#attempts(options, async () => {
         if (into) {
           const focus = await cdp.evaluate(focusScript(into));
-          if (!focus) throw new ConflictError2(`\u042D\u043B\u0435\u043C\u0435\u043D\u0442 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D: ${into}`);
-          if (!focus.focused) throw new ConflictError2(`\u042D\u043B\u0435\u043C\u0435\u043D\u0442 \u043D\u0435 \u043F\u0440\u0438\u043D\u0438\u043C\u0430\u0435\u0442 \u0444\u043E\u043A\u0443\u0441: ${into}`);
+          if (!focus) throw new ConflictError(`\u042D\u043B\u0435\u043C\u0435\u043D\u0442 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D: ${into}`);
+          if (!focus.focused) throw new ConflictError(`\u042D\u043B\u0435\u043C\u0435\u043D\u0442 \u043D\u0435 \u043F\u0440\u0438\u043D\u0438\u043C\u0430\u0435\u0442 \u0444\u043E\u043A\u0443\u0441: ${into}`);
         }
         for (let index = 0; index < count; index += 1) {
           const text = key === "Enter" ? { text: "\r", unmodifiedText: "\r" } : {};
@@ -1053,7 +1096,7 @@ var BrowserService = class {
   async screenshot(agent) {
     const { result, tab } = await this.#withPage(agent, "screenshot", async (cdp) => {
       const shot = await cdp.send("Page.captureScreenshot", { format: "png" });
-      if (!shot.data) throw new AppError2("browser_error", "\u0411\u0440\u0430\u0443\u0437\u0435\u0440 \u043D\u0435 \u0432\u0435\u0440\u043D\u0443\u043B \u0441\u043D\u0438\u043C\u043E\u043A", 502);
+      if (!shot.data) throw new AppError("browser_error", "\u0411\u0440\u0430\u0443\u0437\u0435\u0440 \u043D\u0435 \u0432\u0435\u0440\u043D\u0443\u043B \u0441\u043D\u0438\u043C\u043E\u043A", 502);
       return shot.data;
     });
     return {
@@ -1161,120 +1204,27 @@ var BrowserService = class {
   }
 };
 
-// src/adapters/storage/sqlite-browser.ts
-var LEASE_COLUMNS = "name, target_id, url, title, leased_at, used_at";
-var AUDIT_KEEP = 500;
-function leaseOf(row) {
-  return {
-    name: row.name,
-    target_id: row.target_id,
-    url: row.url,
-    title: row.title,
-    leased_at: row.leased_at,
-    used_at: row.used_at
-  };
-}
-var SqliteBrowserStore = class {
-  #db;
-  constructor(db) {
-    this.#db = db;
-  }
-  readLease(name) {
-    const row = this.#db.raw.prepare(`SELECT ${LEASE_COLUMNS} FROM browser_tabs WHERE name = ?`).get(name);
-    return row ? leaseOf(row) : null;
-  }
-  listLeases() {
-    const rows = this.#db.raw.prepare(`SELECT ${LEASE_COLUMNS} FROM browser_tabs ORDER BY name`).all();
-    return rows.map(leaseOf);
-  }
-  saveLease(lease) {
-    this.#db.raw.prepare(`INSERT INTO browser_tabs (name, target_id, url, title, leased_at, used_at)
-        VALUES (?, ?, ?, ?, ?, ?)
-        ON CONFLICT (name) DO UPDATE SET
-          target_id = excluded.target_id,
-          url = excluded.url,
-          title = excluded.title,
-          used_at = excluded.used_at`).run(lease.name, lease.target_id, lease.url, lease.title, lease.leased_at, lease.used_at);
-  }
-  prune(knownIds) {
-    const known = new Set(knownIds);
-    let removed = 0;
-    for (const lease of this.listLeases()) {
-      if (known.has(lease.target_id)) continue;
-      this.#db.raw.prepare("DELETE FROM browser_tabs WHERE name = ?").run(lease.name);
-      removed += 1;
-    }
-    return removed;
-  }
-  clearLeases() {
-    this.#db.raw.prepare("DELETE FROM browser_tabs").run();
-  }
-  audit(entry) {
-    this.#db.raw.prepare(`INSERT INTO browser_audit (at, agent, action, ok, note) VALUES (?, ?, ?, ?, ?)`).run(entry.at, entry.agent, entry.action, entry.ok ? 1 : 0, entry.note);
-    this.#db.raw.prepare(`DELETE FROM browser_audit WHERE id <= (
-        SELECT MAX(id) FROM browser_audit
-      ) - ?`).run(AUDIT_KEEP);
-  }
-  listAudit(limit) {
-    const rows = this.#db.raw.prepare(`SELECT id, at, agent, action, ok, note FROM browser_audit ORDER BY id DESC LIMIT ?`).all(Math.min(Math.max(limit, 1), 200));
-    return rows.map((row) => ({
-      id: row.id,
-      at: row.at,
-      agent: row.agent,
-      action: row.action,
-      ok: row.ok === 1,
-      note: row.note
-    }));
-  }
-};
-
-// src/modules/browser/schema.ts
-var browserMigrations = [
-  {
-    version: "browser/0001_tabs_audit",
-    sql: `
-      CREATE TABLE browser_tabs (
-        name TEXT PRIMARY KEY,
-        target_id TEXT NOT NULL,
-        url TEXT NOT NULL DEFAULT '',
-        title TEXT NOT NULL DEFAULT '',
-        leased_at TEXT NOT NULL,
-        used_at TEXT NOT NULL
-      );
-      CREATE TABLE browser_audit (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        at TEXT NOT NULL,
-        agent TEXT NOT NULL,
-        action TEXT NOT NULL,
-        ok INTEGER NOT NULL,
-        note TEXT NOT NULL DEFAULT ''
-      );
-      CREATE INDEX browser_audit_at ON browser_audit (id DESC);
-    `
-  }
-];
-
-// src/modules/browser/browser.module.ts
+// modules/browser/routes.ts
 function stringField(body, name, required = true) {
   const value = body && typeof body === "object" ? body[name] : void 0;
   if (value === void 0 || value === null) {
-    if (required) throw new ValidationError2(`\u041D\u0443\u0436\u043D\u043E \u043F\u043E\u043B\u0435 ${name}`);
+    if (required) throw new ValidationError(`\u041D\u0443\u0436\u043D\u043E \u043F\u043E\u043B\u0435 ${name}`);
     return "";
   }
-  if (typeof value !== "string") throw new ValidationError2(`\u041F\u043E\u043B\u0435 ${name} \u0434\u043E\u043B\u0436\u043D\u043E \u0431\u044B\u0442\u044C \u0441\u0442\u0440\u043E\u043A\u043E\u0439`);
+  if (typeof value !== "string") throw new ValidationError(`\u041F\u043E\u043B\u0435 ${name} \u0434\u043E\u043B\u0436\u043D\u043E \u0431\u044B\u0442\u044C \u0441\u0442\u0440\u043E\u043A\u043E\u0439`);
   return value;
 }
 function integer2(value, fallback, min, max, field) {
   if (value === void 0 || value === null || value === "") return fallback;
   const number = typeof value === "number" ? value : Number(value);
   if (!Number.isInteger(number) || number < min || number > max) {
-    throw new ValidationError2(`${field}: \u043E\u0436\u0438\u0434\u0430\u043B\u043E\u0441\u044C \u0446\u0435\u043B\u043E\u0435 \u043E\u0442 ${min} \u0434\u043E ${max}`);
+    throw new ValidationError(`${field}: \u043E\u0436\u0438\u0434\u0430\u043B\u043E\u0441\u044C \u0446\u0435\u043B\u043E\u0435 \u043E\u0442 ${min} \u0434\u043E ${max}`);
   }
   return number;
 }
 function bodyOf(body) {
   if (body === void 0 || body === null) return {};
-  if (typeof body !== "object" || Array.isArray(body)) throw new ValidationError2("\u0422\u0435\u043B\u043E \u0437\u0430\u043F\u0440\u043E\u0441\u0430 \u0434\u043E\u043B\u0436\u043D\u043E \u0431\u044B\u0442\u044C \u043E\u0431\u044A\u0435\u043A\u0442\u043E\u043C");
+  if (typeof body !== "object" || Array.isArray(body)) throw new ValidationError("\u0422\u0435\u043B\u043E \u0437\u0430\u043F\u0440\u043E\u0441\u0430 \u0434\u043E\u043B\u0436\u043D\u043E \u0431\u044B\u0442\u044C \u043E\u0431\u044A\u0435\u043A\u0442\u043E\u043C");
   return body;
 }
 function registerBrowserRoutes(router, deps) {
@@ -1327,7 +1277,7 @@ function registerBrowserRoutes(router, deps) {
     let value;
     if (secretRef) {
       value = secret(secretRef);
-      if (!value) throw new ValidationError2(`\u0421\u0435\u043A\u0440\u0435\u0442 ${secretRef} \u043D\u0435 \u0441\u043E\u0445\u0440\u0430\u043D\u0451\u043D`);
+      if (!value) throw new ValidationError(`\u0421\u0435\u043A\u0440\u0435\u0442 ${secretRef} \u043D\u0435 \u0441\u043E\u0445\u0440\u0430\u043D\u0451\u043D`);
     } else {
       value = stringField(body, "value");
     }
@@ -1341,8 +1291,8 @@ function registerBrowserRoutes(router, deps) {
   router.add("POST", "/api/browser/insert", async (c) => {
     const body = bodyOf(c.body);
     const text = stringField(body, "text");
-    if (!text) throw new ValidationError2("\u041F\u043E\u043B\u0435 text \u043F\u0443\u0441\u0442\u043E\u0435");
-    if (text.length > 2e3) throw new ValidationError2("\u041F\u043E\u043B\u0435 text \u0434\u043B\u0438\u043D\u043D\u0435\u0435 2000 \u0441\u0438\u043C\u0432\u043E\u043B\u043E\u0432");
+    if (!text) throw new ValidationError("\u041F\u043E\u043B\u0435 text \u043F\u0443\u0441\u0442\u043E\u0435");
+    if (text.length > 2e3) throw new ValidationError("\u041F\u043E\u043B\u0435 text \u0434\u043B\u0438\u043D\u043D\u0435\u0435 2000 \u0441\u0438\u043C\u0432\u043E\u043B\u043E\u0432");
     const into = body.into === void 0 || body.into === null || body.into === "" ? null : selector(body.into, "into");
     return {
       body: {
@@ -1396,6 +1346,32 @@ function registerBrowserRoutes(router, deps) {
     body: { ok: true, ...await browser.stop() }
   }));
 }
+
+// modules/browser/schema.ts
+var browserMigrations = [
+  {
+    version: "browser/0001_tabs_audit",
+    sql: `
+      CREATE TABLE browser_tabs (
+        name TEXT PRIMARY KEY,
+        target_id TEXT NOT NULL,
+        url TEXT NOT NULL DEFAULT '',
+        title TEXT NOT NULL DEFAULT '',
+        leased_at TEXT NOT NULL,
+        used_at TEXT NOT NULL
+      );
+      CREATE TABLE browser_audit (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        at TEXT NOT NULL,
+        agent TEXT NOT NULL,
+        action TEXT NOT NULL,
+        ok INTEGER NOT NULL,
+        note TEXT NOT NULL DEFAULT ''
+      );
+      CREATE INDEX browser_audit_at ON browser_audit (id DESC);
+    `
+  }
+];
 
 // modules/browser/page.ts
 var PAGE = `<!doctype html>
