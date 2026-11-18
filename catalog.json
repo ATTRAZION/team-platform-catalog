@@ -1240,7 +1240,7 @@
     {
       "id": "three-d-studio",
       "name": "3D-студия",
-      "version": "1.0.4",
+      "version": "1.0.5",
       "summary": "Сборка играбельной 3D-сцены по задаче: Blender создаёт уровень, платформа переоткрывает сцену и отдаёт игру.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -1265,10 +1265,10 @@
           }
         ]
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/three-d-studio-1.0.4.mjs",
-      "size": 79885,
-      "integrity": "sha512-H1eDpY8sXS2NkQPw/IdYy6Asu9sN/k2La+qyp/7zO4L9gYAc2pNJL0qh9YvRIMRU7ifNrMcv7rLHM+e0xITUlw==",
-      "signature": "3e9e/aIgOfpjVe924mTB+mJqHl6tVKGX2dDDBg5tY+do+jyrg6I5BRr7cqqxeVRLI8CCwEQzEYRTg20pmnn1Cw=="
+      "url": "https://attrazion.github.io/team-platform-catalog/three-d-studio-1.0.5.mjs",
+      "size": 41171,
+      "integrity": "sha512-cn9CqTJNd0aDJTq9h0Qk2lHUnbjHRRMsnHxQL13cz/2f88RDj61mrn/jocOZWH5Ob8G0bVPEu7AUM1ErJocvDA==",
+      "signature": "ENQLmW4RZlLpiNnajuDkGIXL9Th0jAObegT+/KJW5R2aXh2gZz8Ck+pSkqDe0w1tfAUb7DjGNV5W19Bg4fTfBQ=="
     },
     {
       "id": "tool-installer",
@@ -1291,7 +1291,7 @@
     {
       "id": "tools",
       "name": "Инструменты",
-      "version": "1.2.2",
+      "version": "1.2.3",
       "summary": "Интеграции, резерв задач, свободное время, пароли сайтов и провайдеры с кастомными base URL и моделями.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -1316,10 +1316,10 @@
           }
         ]
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/tools-1.2.2.mjs",
-      "size": 283410,
-      "integrity": "sha512-hvxWvNd0X9R/yzFn4Q/v/OHxgwZM+ABiorjC1jX+RdljcmfK3VxnIFBJDQFhvbFSG53EVvuQlmTAyxb2yzCB4w==",
-      "signature": "HpT/wyjHblr6jARw+QZYVCtGmXv0QJkIzagX6aKxal4jWjphX7Y2xQk97jPN3LzTZ/k9d5WPhuxcF+z+C70yAw=="
+      "url": "https://attrazion.github.io/team-platform-catalog/tools-1.2.3.mjs",
+      "size": 282088,
+      "integrity": "sha512-jXbIvMj6MvSw8CACt6ZG836CAVJdUwv2DtKxTIBITgNKPW/DvGIXWkz9T/HfD66aS6y/xewrsOPR59vZ1CsEFg==",
+      "signature": "ilF54q2xbiEV5xrayqSwLwqIGLsb/MiCBYTnhZOHJ10iejGwNpN8meYMcHhDxT1WLQBZ2B0H68ai3IG3/n/sBw=="
     },
     {
       "id": "transcript-tasks",

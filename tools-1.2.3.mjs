@@ -18,43 +18,6 @@ var systemClock = host2["systemClock"];
 
 // src/adapters/integrations/store.ts
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-
-// src/kernel/errors.ts
-var AppError2 = class extends Error {
-  code;
-  status;
-  details;
-  constructor(code, message, status, details = {}) {
-    super(message);
-    this.name = new.target.name;
-    this.code = code;
-    this.status = status;
-    this.details = details;
-  }
-};
-var ValidationError2 = class extends AppError2 {
-  constructor(message, details = {}, options = {}) {
-    super(options.code ?? "validation_failed", message, options.status ?? 400, details);
-  }
-};
-var NotFoundError2 = class extends AppError2 {
-  /** Детали необязательны: старые вызовы без них продолжают работать. */
-  constructor(message = "\u041D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u043E", details = {}) {
-    super("not_found", message, 404, details);
-  }
-};
-var UpstreamError2 = class extends AppError2 {
-  constructor(message, details = {}) {
-    super("upstream_error", message, 502, details);
-  }
-};
-var ConflictError2 = class extends AppError2 {
-  constructor(message, details = {}) {
-    super("conflict", message, 409, details);
-  }
-};
-
-// src/adapters/integrations/store.ts
 var LOGIN_RE = /^[A-Za-z0-9-]{1,39}$/;
 var SITE_RE = /^[a-z0-9][a-z0-9._-]{1,80}$/;
 var FIELD_RE = /^[a-z0-9][a-z0-9._-]{0,60}$/;
@@ -200,21 +163,21 @@ function customProviderForUpdate(value, idValue, current) {
   const record = value && typeof value === "object" && !Array.isArray(value) ? value : {};
   const id = text(record.id) || text(idValue) || current?.id || "";
   if (!CUSTOM_PROVIDER_ID_RE.test(id)) {
-    throw new ValidationError2("\u0418\u0434\u0435\u043D\u0442\u0438\u0444\u0438\u043A\u0430\u0442\u043E\u0440 \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440\u0430: \u0441\u0442\u0440\u043E\u0447\u043D\u0430\u044F \u043B\u0430\u0442\u0438\u043D\u0441\u043A\u0430\u044F \u0431\u0443\u043A\u0432\u0430, \u0437\u0430\u0442\u0435\u043C \u0431\u0443\u043A\u0432\u044B, \u0446\u0438\u0444\u0440\u044B, \u0442\u043E\u0447\u043A\u0430, \u0434\u0435\u0444\u0438\u0441 \u0438\u043B\u0438 \u043F\u043E\u0434\u0447\u0451\u0440\u043A\u0438\u0432\u0430\u043D\u0438\u0435");
+    throw new ValidationError("\u0418\u0434\u0435\u043D\u0442\u0438\u0444\u0438\u043A\u0430\u0442\u043E\u0440 \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440\u0430: \u0441\u0442\u0440\u043E\u0447\u043D\u0430\u044F \u043B\u0430\u0442\u0438\u043D\u0441\u043A\u0430\u044F \u0431\u0443\u043A\u0432\u0430, \u0437\u0430\u0442\u0435\u043C \u0431\u0443\u043A\u0432\u044B, \u0446\u0438\u0444\u0440\u044B, \u0442\u043E\u0447\u043A\u0430, \u0434\u0435\u0444\u0438\u0441 \u0438\u043B\u0438 \u043F\u043E\u0434\u0447\u0451\u0440\u043A\u0438\u0432\u0430\u043D\u0438\u0435");
   }
   if (BUILTIN_PROVIDER_IDS.has(id)) {
-    throw new ValidationError2(`\u041F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440 \xAB${id}\xBB \u0443\u0436\u0435 \u0432\u0441\u0442\u0440\u043E\u0435\u043D \u0438 \u043D\u0435 \u043C\u043E\u0436\u0435\u0442 \u0431\u044B\u0442\u044C \u043A\u0430\u0441\u0442\u043E\u043C\u043D\u044B\u043C`);
+    throw new ValidationError(`\u041F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440 \xAB${id}\xBB \u0443\u0436\u0435 \u0432\u0441\u0442\u0440\u043E\u0435\u043D \u0438 \u043D\u0435 \u043C\u043E\u0436\u0435\u0442 \u0431\u044B\u0442\u044C \u043A\u0430\u0441\u0442\u043E\u043C\u043D\u044B\u043C`);
   }
   const base_url = baseUrlOf(record.base_url) || current?.base_url || "";
   if (!base_url) {
-    throw new ValidationError2("\u041D\u0443\u0436\u0435\u043D base_url \u0432\u0438\u0434\u0430 http://127.0.0.1:8080/v1");
+    throw new ValidationError("\u041D\u0443\u0436\u0435\u043D base_url \u0432\u0438\u0434\u0430 http://127.0.0.1:8080/v1");
   }
   const modelsInput = record.models;
   const models = modelsInput === void 0 || Array.isArray(modelsInput) && modelsInput.length === 0 ? current?.models ?? [] : modelsOf(modelsInput);
-  if (!models.length) throw new ValidationError2("\u041D\u0443\u0436\u0435\u043D \u0445\u043E\u0442\u044F \u0431\u044B \u043E\u0434\u0438\u043D \u0438\u0434\u0435\u043D\u0442\u0438\u0444\u0438\u043A\u0430\u0442\u043E\u0440 \u043C\u043E\u0434\u0435\u043B\u0438");
+  if (!models.length) throw new ValidationError("\u041D\u0443\u0436\u0435\u043D \u0445\u043E\u0442\u044F \u0431\u044B \u043E\u0434\u0438\u043D \u0438\u0434\u0435\u043D\u0442\u0438\u0444\u0438\u043A\u0430\u0442\u043E\u0440 \u043C\u043E\u0434\u0435\u043B\u0438");
   const requested = text(record.default_model) || (current && models.includes(current.default_model) ? current.default_model : models[0]);
   if (!models.includes(requested)) {
-    throw new ValidationError2("\u041C\u043E\u0434\u0435\u043B\u044C \u043F\u043E \u0443\u043C\u043E\u043B\u0447\u0430\u043D\u0438\u044E \u0434\u043E\u043B\u0436\u043D\u0430 \u0432\u0445\u043E\u0434\u0438\u0442\u044C \u0432 \u0441\u043F\u0438\u0441\u043E\u043A models");
+    throw new ValidationError("\u041C\u043E\u0434\u0435\u043B\u044C \u043F\u043E \u0443\u043C\u043E\u043B\u0447\u0430\u043D\u0438\u044E \u0434\u043E\u043B\u0436\u043D\u0430 \u0432\u0445\u043E\u0434\u0438\u0442\u044C \u0432 \u0441\u043F\u0438\u0441\u043E\u043A models");
   }
   return {
     id,
@@ -566,7 +529,7 @@ function numberValue(value) {
 function timestamp(value, field, index) {
   const text3 = stringValue(value);
   if (!text3 || Number.isNaN(Date.parse(text3))) {
-    throw new UpstreamError2(`Entire \u0432\u0435\u0440\u043D\u0443\u043B \u043D\u0435\u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u043E\u0435 \u043F\u043E\u043B\u0435 ${field} \u0443 \u0441\u0435\u0441\u0441\u0438\u0438 #${index + 1}`);
+    throw new UpstreamError(`Entire \u0432\u0435\u0440\u043D\u0443\u043B \u043D\u0435\u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u043E\u0435 \u043F\u043E\u043B\u0435 ${field} \u0443 \u0441\u0435\u0441\u0441\u0438\u0438 #${index + 1}`);
   }
   return new Date(text3).toISOString();
 }
@@ -578,12 +541,12 @@ function optionalTimestamp(value) {
 }
 function parseSession(raw, index) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-    throw new UpstreamError2(`Entire \u0432\u0435\u0440\u043D\u0443\u043B \u043D\u0435\u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u0443\u044E \u0441\u0435\u0441\u0441\u0438\u044E #${index + 1}`);
+    throw new UpstreamError(`Entire \u0432\u0435\u0440\u043D\u0443\u043B \u043D\u0435\u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u0443\u044E \u0441\u0435\u0441\u0441\u0438\u044E #${index + 1}`);
   }
   const value = raw;
   const sessionId = stringValue(value.session_id);
   if (!sessionId) {
-    throw new UpstreamError2(`Entire \u0432\u0435\u0440\u043D\u0443\u043B \u0441\u0435\u0441\u0441\u0438\u044E #${index + 1} \u0431\u0435\u0437 session_id`);
+    throw new UpstreamError(`Entire \u0432\u0435\u0440\u043D\u0443\u043B \u0441\u0435\u0441\u0441\u0438\u044E #${index + 1} \u0431\u0435\u0437 session_id`);
   }
   const files = Array.isArray(value.files_touched) ? value.files_touched.filter((entry) => typeof entry === "string" && entry.length > 0) : [];
   const tokens = value.tokens && typeof value.tokens === "object" && !Array.isArray(value.tokens) ? numberValue(value.tokens.total) : null;
@@ -630,10 +593,10 @@ var EntireCli = class {
     try {
       parsed = JSON.parse(output);
     } catch {
-      throw new UpstreamError2("Entire CLI \u0432\u0435\u0440\u043D\u0443\u043B \u043D\u0435\u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u044B\u0439 JSON \u0441\u0442\u0430\u0442\u0443\u0441\u0430");
+      throw new UpstreamError("Entire CLI \u0432\u0435\u0440\u043D\u0443\u043B \u043D\u0435\u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u044B\u0439 JSON \u0441\u0442\u0430\u0442\u0443\u0441\u0430");
     }
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      throw new UpstreamError2("Entire CLI \u0432\u0435\u0440\u043D\u0443\u043B \u043D\u0435\u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u044B\u0439 \u0441\u0442\u0430\u0442\u0443\u0441");
+      throw new UpstreamError("Entire CLI \u0432\u0435\u0440\u043D\u0443\u043B \u043D\u0435\u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u044B\u0439 \u0441\u0442\u0430\u0442\u0443\u0441");
     }
     const value = parsed;
     return {
@@ -647,10 +610,10 @@ var EntireCli = class {
     try {
       parsed = JSON.parse(output);
     } catch {
-      throw new UpstreamError2("Entire CLI \u0432\u0435\u0440\u043D\u0443\u043B \u043D\u0435\u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u044B\u0439 JSON \u0438\u0441\u0442\u043E\u0440\u0438\u0438");
+      throw new UpstreamError("Entire CLI \u0432\u0435\u0440\u043D\u0443\u043B \u043D\u0435\u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u044B\u0439 JSON \u0438\u0441\u0442\u043E\u0440\u0438\u0438");
     }
     if (!Array.isArray(parsed)) {
-      throw new UpstreamError2("Entire CLI \u0432\u0435\u0440\u043D\u0443\u043B \u0438\u0441\u0442\u043E\u0440\u0438\u044E \u043D\u0435 \u0432 \u0432\u0438\u0434\u0435 \u043C\u0430\u0441\u0441\u0438\u0432\u0430");
+      throw new UpstreamError("Entire CLI \u0432\u0435\u0440\u043D\u0443\u043B \u0438\u0441\u0442\u043E\u0440\u0438\u044E \u043D\u0435 \u0432 \u0432\u0438\u0434\u0435 \u043C\u0430\u0441\u0441\u0438\u0432\u0430");
     }
     return parsed.map((entry, index) => parseSession(entry, index));
   }
@@ -666,27 +629,27 @@ var EntireCli = class {
         shell: process.platform === "win32" && /\.(cmd|bat)$/i.test(this.#cliPath)
       });
       const output = result.stdout.trim();
-      if (!output) throw new UpstreamError2(`Entire CLI \u043D\u0435 \u0432\u0435\u0440\u043D\u0443\u043B \u0434\u0430\u043D\u043D\u044B\u0435 (${args[0]})`);
+      if (!output) throw new UpstreamError(`Entire CLI \u043D\u0435 \u0432\u0435\u0440\u043D\u0443\u043B \u0434\u0430\u043D\u043D\u044B\u0435 (${args[0]})`);
       this.#log?.debug("Entire CLI \u043E\u0442\u0432\u0435\u0442\u0438\u043B", {
         command: args.join(" "),
         duration_ms: Date.now() - started
       });
       return output;
     } catch (error) {
-      if (error instanceof UpstreamError2) throw error;
+      if (error instanceof UpstreamError) throw error;
       const details = error;
       if (details.code === "ENOENT") {
-        throw new UpstreamError2(`Entire CLI \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D: ${this.#cliPath}`, { cli_path: this.#cliPath });
+        throw new UpstreamError(`Entire CLI \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D: ${this.#cliPath}`, { cli_path: this.#cliPath });
       }
       if (details.killed || details.signal) {
-        throw new UpstreamError2(`Entire CLI \u043D\u0435 \u043E\u0442\u0432\u0435\u0442\u0438\u043B \u0437\u0430 ${this.#timeoutMs} \u043C\u0441`, {
+        throw new UpstreamError(`Entire CLI \u043D\u0435 \u043E\u0442\u0432\u0435\u0442\u0438\u043B \u0437\u0430 ${this.#timeoutMs} \u043C\u0441`, {
           cli_path: this.#cliPath,
           timeout_ms: this.#timeoutMs
         });
       }
       const stderr = (details.stderr ?? "").trim();
       const message = stderr || details.message || "\u043D\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043D\u0430\u044F \u043E\u0448\u0438\u0431\u043A\u0430 Entire CLI";
-      throw new UpstreamError2(`Entire CLI: ${message.slice(0, 500)}`, { cli_path: this.#cliPath });
+      throw new UpstreamError(`Entire CLI: ${message.slice(0, 500)}`, { cli_path: this.#cliPath });
     }
   }
 };
@@ -699,9 +662,9 @@ var SESSION_LIMIT = 100;
 var STALE_SYNC_MESSAGE = "\u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u044F \u043F\u0440\u0435\u0440\u0432\u0430\u043D\u0430 \u043F\u0435\u0440\u0435\u0437\u0430\u043F\u0443\u0441\u043A\u043E\u043C \u043F\u0440\u0438\u043B\u043E\u0436\u0435\u043D\u0438\u044F";
 function optionalText(value, field, max = 500) {
   if (value === void 0 || value === null) return "";
-  if (typeof value !== "string") throw new ValidationError2(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB \u0434\u043E\u043B\u0436\u043D\u043E \u0431\u044B\u0442\u044C \u0441\u0442\u0440\u043E\u043A\u043E\u0439`);
+  if (typeof value !== "string") throw new ValidationError(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB \u0434\u043E\u043B\u0436\u043D\u043E \u0431\u044B\u0442\u044C \u0441\u0442\u0440\u043E\u043A\u043E\u0439`);
   const text3 = value.trim();
-  if (text3.length > max) throw new ValidationError2(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB: \u043D\u0435 \u0431\u043E\u043B\u044C\u0448\u0435 ${max} \u0441\u0438\u043C\u0432\u043E\u043B\u043E\u0432`);
+  if (text3.length > max) throw new ValidationError(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB: \u043D\u0435 \u0431\u043E\u043B\u044C\u0448\u0435 ${max} \u0441\u0438\u043C\u0432\u043E\u043B\u043E\u0432`);
   return text3;
 }
 function syncFromRow(row) {
@@ -793,7 +756,7 @@ var EntireService = class {
   }
   configure(raw) {
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-      throw new ValidationError2("\u041D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438 Entire \u0434\u043E\u043B\u0436\u043D\u044B \u0431\u044B\u0442\u044C \u043E\u0431\u044A\u0435\u043A\u0442\u043E\u043C");
+      throw new ValidationError("\u041D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438 Entire \u0434\u043E\u043B\u0436\u043D\u044B \u0431\u044B\u0442\u044C \u043E\u0431\u044A\u0435\u043A\u0442\u043E\u043C");
     }
     const input = raw;
     const current = this.#settings();
@@ -809,7 +772,7 @@ var EntireService = class {
         isDirectory = false;
       }
       if (!isDirectory) {
-        throw new ValidationError2(`\u041A\u0430\u0442\u0430\u043B\u043E\u0433 \u0440\u0435\u043F\u043E\u0437\u0438\u0442\u043E\u0440\u0438\u044F Entire \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D: ${normalizedRepo}`);
+        throw new ValidationError(`\u041A\u0430\u0442\u0430\u043B\u043E\u0433 \u0440\u0435\u043F\u043E\u0437\u0438\u0442\u043E\u0440\u0438\u044F Entire \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D: ${normalizedRepo}`);
       }
     }
     this.#db.raw.prepare(`INSERT INTO entire_settings (id, repo_path, cli_path, updated_at)
@@ -825,11 +788,11 @@ var EntireService = class {
   }
   startSync() {
     if (this.#active) {
-      throw new ConflictError2("\u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u044F Entire \u0443\u0436\u0435 \u0432\u044B\u043F\u043E\u043B\u043D\u044F\u0435\u0442\u0441\u044F", { id: this.#active });
+      throw new ConflictError("\u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u044F Entire \u0443\u0436\u0435 \u0432\u044B\u043F\u043E\u043B\u043D\u044F\u0435\u0442\u0441\u044F", { id: this.#active });
     }
     const settings = this.#settings();
     if (!settings.repo_path) {
-      throw new ValidationError2("\u0421\u043D\u0430\u0447\u0430\u043B\u0430 \u0443\u043A\u0430\u0436\u0438\u0442\u0435 \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u044B\u0439 git-\u0440\u0435\u043F\u043E\u0437\u0438\u0442\u043E\u0440\u0438\u0439 Entire");
+      throw new ValidationError("\u0421\u043D\u0430\u0447\u0430\u043B\u0430 \u0443\u043A\u0430\u0436\u0438\u0442\u0435 \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u044B\u0439 git-\u0440\u0435\u043F\u043E\u0437\u0438\u0442\u043E\u0440\u0438\u0439 Entire");
     }
     const startedAt = this.#clock.now().toISOString();
     const id = `entire_${randomUUID()}`;
@@ -990,22 +953,22 @@ var FREEBUFF_INSTRUCTIONS = [
   "Freebuff Developer API \u2014 \u043E\u0442\u0434\u0435\u043B\u044C\u043D\u044B\u0439 \u043F\u043B\u0430\u0442\u043D\u044B\u0439 API-\u0434\u043E\u0441\u0442\u0443\u043F; \u0432\u043D\u0435\u0448\u043D\u0438\u0439 \u043A\u043B\u0438\u0435\u043D\u0442 \u043D\u0435 \u043F\u043E\u043B\u0443\u0447\u0430\u0435\u0442 free tier CLI/Desktop."
 ];
 function text2(value, field, min, max) {
-  if (typeof value !== "string") throw new ValidationError2(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB \u0434\u043E\u043B\u0436\u043D\u043E \u0431\u044B\u0442\u044C \u0441\u0442\u0440\u043E\u043A\u043E\u0439`);
+  if (typeof value !== "string") throw new ValidationError(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB \u0434\u043E\u043B\u0436\u043D\u043E \u0431\u044B\u0442\u044C \u0441\u0442\u0440\u043E\u043A\u043E\u0439`);
   const normalized = value.trim();
   if (normalized.length < min || normalized.length > max) {
-    throw new ValidationError2(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB: \u0434\u043B\u0438\u043D\u0430 \u043E\u0442 ${min} \u0434\u043E ${max}`);
+    throw new ValidationError(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB: \u0434\u043B\u0438\u043D\u0430 \u043E\u0442 ${min} \u0434\u043E ${max}`);
   }
   return normalized;
 }
 function integer(value, field, min, max) {
   const parsed = typeof value === "string" && value.trim() !== "" ? Number(value) : value;
   if (!Number.isInteger(parsed) || parsed < min || parsed > max) {
-    throw new ValidationError2(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB: \u0446\u0435\u043B\u043E\u0435 \u043E\u0442 ${min} \u0434\u043E ${max}`);
+    throw new ValidationError(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB: \u0446\u0435\u043B\u043E\u0435 \u043E\u0442 ${min} \u0434\u043E ${max}`);
   }
   return parsed;
 }
 function bool(value, field) {
-  if (typeof value !== "boolean") throw new ValidationError2(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB \u0434\u043E\u043B\u0436\u043D\u043E \u0431\u044B\u0442\u044C boolean`);
+  if (typeof value !== "boolean") throw new ValidationError(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB \u0434\u043E\u043B\u0436\u043D\u043E \u0431\u044B\u0442\u044C boolean`);
   return value;
 }
 function optionalObject(raw) {
@@ -1088,7 +1051,7 @@ var ToolboxService = class {
           added_at: row.added_at
         });
       } catch (error) {
-        if (!(error instanceof NotFoundError2)) throw error;
+        if (!(error instanceof NotFoundError)) throw error;
         stale.push(row.task_id);
       }
     }
@@ -1127,7 +1090,7 @@ var ToolboxService = class {
     const taskId = text2(rawTaskId, "task_id", 1, 100);
     const { task } = this.#tasks.get(taskId);
     if (task.status !== "open" && task.status !== "blocked") {
-      throw new ConflictError2("\u0412 \u0440\u0435\u0437\u0435\u0440\u0432 \u043C\u043E\u0436\u043D\u043E \u043A\u043B\u0430\u0441\u0442\u044C \u0442\u043E\u043B\u044C\u043A\u043E \u043E\u0442\u043A\u0440\u044B\u0442\u044B\u0435 \u0438\u043B\u0438 \u0437\u0430\u0431\u043B\u043E\u043A\u0438\u0440\u043E\u0432\u0430\u043D\u043D\u044B\u0435 \u043A\u0430\u0440\u0442\u043E\u0447\u043A\u0438", {
+      throw new ConflictError("\u0412 \u0440\u0435\u0437\u0435\u0440\u0432 \u043C\u043E\u0436\u043D\u043E \u043A\u043B\u0430\u0441\u0442\u044C \u0442\u043E\u043B\u044C\u043A\u043E \u043E\u0442\u043A\u0440\u044B\u0442\u044B\u0435 \u0438\u043B\u0438 \u0437\u0430\u0431\u043B\u043E\u043A\u0438\u0440\u043E\u0432\u0430\u043D\u043D\u044B\u0435 \u043A\u0430\u0440\u0442\u043E\u0447\u043A\u0438", {
         status: task.status
       });
     }
@@ -1135,7 +1098,7 @@ var ToolboxService = class {
     if (existing) return this.reserve();
     const state = this.reserve();
     if (state.used >= state.limit) {
-      throw new ConflictError2(`\u041B\u0438\u043C\u0438\u0442 \u0440\u0435\u0437\u0435\u0440\u0432\u0430 \u0438\u0441\u0447\u0435\u0440\u043F\u0430\u043D: ${state.used} \u0438\u0437 ${state.limit}`, {
+      throw new ConflictError(`\u041B\u0438\u043C\u0438\u0442 \u0440\u0435\u0437\u0435\u0440\u0432\u0430 \u0438\u0441\u0447\u0435\u0440\u043F\u0430\u043D: ${state.used} \u0438\u0437 ${state.limit}`, {
         limit: state.limit,
         used: state.used
       });
@@ -1236,12 +1199,12 @@ var ToolboxService = class {
     const current = this.#spareSettings();
     const start = input.start_hour === void 0 ? current.start_hour : integer(input.start_hour, "start_hour", 0, 23);
     const end = input.end_hour === void 0 ? current.end_hour : integer(input.end_hour, "end_hour", 0, 23);
-    if (start === end) throw new ValidationError2("\u041D\u0430\u0447\u0430\u043B\u043E \u0438 \u043A\u043E\u043D\u0435\u0446 \u0441\u0432\u043E\u0431\u043E\u0434\u043D\u043E\u0433\u043E \u0432\u0440\u0435\u043C\u0435\u043D\u0438 \u0434\u043E\u043B\u0436\u043D\u044B \u0440\u0430\u0437\u043B\u0438\u0447\u0430\u0442\u044C\u0441\u044F");
+    if (start === end) throw new ValidationError("\u041D\u0430\u0447\u0430\u043B\u043E \u0438 \u043A\u043E\u043D\u0435\u0446 \u0441\u0432\u043E\u0431\u043E\u0434\u043D\u043E\u0433\u043E \u0432\u0440\u0435\u043C\u0435\u043D\u0438 \u0434\u043E\u043B\u0436\u043D\u044B \u0440\u0430\u0437\u043B\u0438\u0447\u0430\u0442\u044C\u0441\u044F");
     let override = current.override;
     if (input.override !== void 0) {
       if (input.override === null || input.override === "auto") override = null;
       else if (input.override === "open" || input.override === "closed") override = input.override;
-      else throw new ValidationError2("\u041F\u043E\u043B\u0435 \xABoverride\xBB: auto, open, closed \u0438\u043B\u0438 null");
+      else throw new ValidationError("\u041F\u043E\u043B\u0435 \xABoverride\xBB: auto, open, closed \u0438\u043B\u0438 null");
     }
     const next = {
       enabled: input.enabled === void 0 ? current.enabled : bool(input.enabled, "enabled"),
@@ -1265,7 +1228,7 @@ var ToolboxService = class {
     const value = input.override;
     const override = value === null || value === "auto" ? null : value === "open" || value === "closed" ? value : null;
     if (value !== null && value !== "auto" && value !== "open" && value !== "closed") {
-      throw new ValidationError2("\u041F\u043E\u043B\u0435 \xABoverride\xBB: auto, open \u0438\u043B\u0438 closed");
+      throw new ValidationError("\u041F\u043E\u043B\u0435 \xABoverride\xBB: auto, open \u0438\u043B\u0438 closed");
     }
     this.#saveSettings("spare", { ...this.#spareSettings(), override });
     return this.spare();
@@ -1343,7 +1306,7 @@ var ToolboxService = class {
   }
   async freebuffChat(raw) {
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-      throw new ValidationError2("\u041F\u0430\u0440\u0430\u043C\u0435\u0442\u0440\u044B Freebuff \u0434\u043E\u043B\u0436\u043D\u044B \u0431\u044B\u0442\u044C \u043E\u0431\u044A\u0435\u043A\u0442\u043E\u043C");
+      throw new ValidationError("\u041F\u0430\u0440\u0430\u043C\u0435\u0442\u0440\u044B Freebuff \u0434\u043E\u043B\u0436\u043D\u044B \u0431\u044B\u0442\u044C \u043E\u0431\u044A\u0435\u043A\u0442\u043E\u043C");
     }
     const input = raw;
     const modelId = text2(input.model, "model", 1, 200);
@@ -1351,7 +1314,7 @@ var ToolboxService = class {
     const key = this.#freebuffKey();
     const catalog = await this.freebuffModels();
     if (!catalog.some((model) => model.id === modelId)) {
-      throw new ValidationError2(`\u041C\u043E\u0434\u0435\u043B\u044C \xAB${modelId}\xBB \u043E\u0442\u0441\u0443\u0442\u0441\u0442\u0432\u0443\u0435\u0442 \u0432 \u0442\u0435\u043A\u0443\u0449\u0435\u043C \u043A\u0430\u0442\u0430\u043B\u043E\u0433\u0435 Freebuff; \u043E\u0431\u043D\u043E\u0432\u0438\u0442\u0435 \u0441\u043F\u0438\u0441\u043E\u043A \u043C\u043E\u0434\u0435\u043B\u0435\u0439`);
+      throw new ValidationError(`\u041C\u043E\u0434\u0435\u043B\u044C \xAB${modelId}\xBB \u043E\u0442\u0441\u0443\u0442\u0441\u0442\u0432\u0443\u0435\u0442 \u0432 \u0442\u0435\u043A\u0443\u0449\u0435\u043C \u043A\u0430\u0442\u0430\u043B\u043E\u0433\u0435 Freebuff; \u043E\u0431\u043D\u043E\u0432\u0438\u0442\u0435 \u0441\u043F\u0438\u0441\u043E\u043A \u043C\u043E\u0434\u0435\u043B\u0435\u0439`);
     }
     const response = await this.#freebuffRequest(this.#freebuffEndpoint("chat/completions"), key, {
       method: "POST",
@@ -1390,10 +1353,10 @@ var ToolboxService = class {
   #freebuffKey() {
     const key = this.#store.get().providers.freebuff ?? "";
     if (!key) {
-      throw new ValidationError2("\u0414\u043B\u044F Freebuff Developer API \u043D\u0443\u0436\u0435\u043D \u043A\u043B\u044E\u0447 \u0438\u0437 https://freebuff.com/account/api");
+      throw new ValidationError("\u0414\u043B\u044F Freebuff Developer API \u043D\u0443\u0436\u0435\u043D \u043A\u043B\u044E\u0447 \u0438\u0437 https://freebuff.com/account/api");
     }
     if (this.#isSessionToken(key)) {
-      throw new ValidationError2("\u042D\u0442\u043E \u043F\u043E\u0445\u043E\u0436\u0435 \u043D\u0430 \u0441\u0435\u0441\u0441\u0438\u043E\u043D\u043D\u044B\u0439 \u0442\u043E\u043A\u0435\u043D Freebuff CLI/Desktop. \u0414\u043B\u044F \u0432\u043D\u0435\u0448\u043D\u0438\u0445 \u043F\u0440\u0438\u043B\u043E\u0436\u0435\u043D\u0438\u0439 \u043D\u0443\u0436\u0435\u043D Developer API key \u0438\u0437 https://freebuff.com/account/api");
+      throw new ValidationError("\u042D\u0442\u043E \u043F\u043E\u0445\u043E\u0436\u0435 \u043D\u0430 \u0441\u0435\u0441\u0441\u0438\u043E\u043D\u043D\u044B\u0439 \u0442\u043E\u043A\u0435\u043D Freebuff CLI/Desktop. \u0414\u043B\u044F \u0432\u043D\u0435\u0448\u043D\u0438\u0445 \u043F\u0440\u0438\u043B\u043E\u0436\u0435\u043D\u0438\u0439 \u043D\u0443\u0436\u0435\u043D Developer API key \u0438\u0437 https://freebuff.com/account/api");
     }
     return key;
   }
@@ -1406,15 +1369,15 @@ var ToolboxService = class {
     try {
       parsed = new URL(base);
     } catch {
-      throw new ValidationError2("FREEBUFF_API_URL \u0434\u043E\u043B\u0436\u0435\u043D \u0431\u044B\u0442\u044C \u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u044B\u043C URL");
+      throw new ValidationError("FREEBUFF_API_URL \u0434\u043E\u043B\u0436\u0435\u043D \u0431\u044B\u0442\u044C \u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u044B\u043C URL");
     }
-    const host4 = parsed.hostname.toLowerCase();
-    const loopback = host4 === "localhost" || host4 === "127.0.0.1" || host4 === "[::1]" || host4 === "::1";
+    const host5 = parsed.hostname.toLowerCase();
+    const loopback = host5 === "localhost" || host5 === "127.0.0.1" || host5 === "[::1]" || host5 === "::1";
     if (parsed.protocol !== "https:" && !(loopback && parsed.protocol === "http:")) {
-      throw new ValidationError2("Freebuff Developer API \u0434\u043E\u043B\u0436\u0435\u043D \u0438\u0441\u043F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u0442\u044C HTTPS; HTTP \u0440\u0430\u0437\u0440\u0435\u0448\u0451\u043D \u0442\u043E\u043B\u044C\u043A\u043E \u0434\u043B\u044F localhost");
+      throw new ValidationError("Freebuff Developer API \u0434\u043E\u043B\u0436\u0435\u043D \u0438\u0441\u043F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u0442\u044C HTTPS; HTTP \u0440\u0430\u0437\u0440\u0435\u0448\u0451\u043D \u0442\u043E\u043B\u044C\u043A\u043E \u0434\u043B\u044F localhost");
     }
-    if (!loopback && host4 !== "freebuff.com" && host4 !== "www.freebuff.com") {
-      throw new ValidationError2("API-\u043A\u043B\u044E\u0447 Freebuff \u0440\u0430\u0437\u0440\u0435\u0448\u0435\u043D\u043E \u043E\u0442\u043F\u0440\u0430\u0432\u043B\u044F\u0442\u044C \u0442\u043E\u043B\u044C\u043A\u043E \u043D\u0430 freebuff.com \u0438\u043B\u0438 localhost");
+    if (!loopback && host5 !== "freebuff.com" && host5 !== "www.freebuff.com") {
+      throw new ValidationError("API-\u043A\u043B\u044E\u0447 Freebuff \u0440\u0430\u0437\u0440\u0435\u0448\u0435\u043D\u043E \u043E\u0442\u043F\u0440\u0430\u0432\u043B\u044F\u0442\u044C \u0442\u043E\u043B\u044C\u043A\u043E \u043D\u0430 freebuff.com \u0438\u043B\u0438 localhost");
     }
     return `${base}/${suffix}`;
   }
@@ -1439,7 +1402,7 @@ var ToolboxService = class {
       }
       return response;
     } catch (error) {
-      if (error instanceof ValidationError2 || error instanceof UpstreamError2) throw error;
+      if (error instanceof ValidationError || error instanceof UpstreamError) throw error;
       const message = error instanceof Error && error.name === "AbortError" ? `Freebuff \u043D\u0435 \u043E\u0442\u0432\u0435\u0442\u0438\u043B \u0437\u0430 ${timeoutMs} \u043C\u0441` : error instanceof Error && error.message.includes("redirect") ? "Freebuff API \u043F\u0435\u0440\u0435\u043D\u0430\u043F\u0440\u0430\u0432\u0438\u043B \u0437\u0430\u043F\u0440\u043E\u0441; \u043A\u043B\u044E\u0447 \u043D\u0435 \u0431\u044B\u043B \u043F\u0435\u0440\u0435\u0441\u043B\u0430\u043D \u043D\u0430 \u0434\u0440\u0443\u0433\u043E\u0439 \u0430\u0434\u0440\u0435\u0441" : `Freebuff API \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u0435\u043D: ${error instanceof Error ? error.message : String(error)}`;
       throw this.#freebuffError(message, void 0, operation);
     } finally {
@@ -1467,7 +1430,7 @@ var ToolboxService = class {
         error: message
       });
     }
-    return new UpstreamError2(message, httpStatus === void 0 ? {} : { http_status: httpStatus });
+    return new UpstreamError(message, httpStatus === void 0 ? {} : { http_status: httpStatus });
   }
   #positiveInteger(value) {
     return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : null;
@@ -1677,7 +1640,7 @@ var GitHubAdapter = class {
   }
   #token() {
     const token = this.#secrets().token;
-    if (!token) throw new UpstreamError2("GitHub \u043D\u0435 \u043D\u0430\u0441\u0442\u0440\u043E\u0435\u043D: \u0434\u043E\u0431\u0430\u0432\u044C\u0442\u0435 \u0442\u043E\u043A\u0435\u043D \u0432 \u0438\u043D\u0441\u0442\u0440\u0443\u043C\u0435\u043D\u0442\u0430\u0445");
+    if (!token) throw new UpstreamError("GitHub \u043D\u0435 \u043D\u0430\u0441\u0442\u0440\u043E\u0435\u043D: \u0434\u043E\u0431\u0430\u0432\u044C\u0442\u0435 \u0442\u043E\u043A\u0435\u043D \u0432 \u0438\u043D\u0441\u0442\u0440\u0443\u043C\u0435\u043D\u0442\u0430\u0445");
     return token;
   }
   async #request(path, init = {}) {
@@ -1697,7 +1660,7 @@ var GitHubAdapter = class {
         }
       });
     } catch {
-      throw new UpstreamError2("GitHub \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u0435\u043D: \u043F\u0440\u043E\u0432\u0435\u0440\u044C\u0442\u0435 \u0441\u0435\u0442\u044C");
+      throw new UpstreamError("GitHub \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u0435\u043D: \u043F\u0440\u043E\u0432\u0435\u0440\u044C\u0442\u0435 \u0441\u0435\u0442\u044C");
     }
     const body = await response.text();
     if (!response.ok) {
@@ -1719,7 +1682,7 @@ var GitHubAdapter = class {
         } catch {
         }
       }
-      throw new UpstreamError2(`GitHub: ${reason}`, { status: response.status });
+      throw new UpstreamError(`GitHub: ${reason}`, { status: response.status });
     }
     return body ? JSON.parse(body) : null;
   }
@@ -1764,7 +1727,7 @@ var GitHubAdapter = class {
         date: data.commit?.author?.date ?? data.commit?.committer?.date ?? ""
       };
     } catch (error) {
-      if (error instanceof UpstreamError2 && error.details.status === 409) return null;
+      if (error instanceof UpstreamError && error.details.status === 409) return null;
       throw error;
     }
   }
@@ -1783,7 +1746,7 @@ var GitHubAdapter = class {
     assertRepo(repo);
     const data = await this.#request(`/repos/${repo}/git/blobs/${encodeURIComponent(sha)}`);
     if (typeof data.content !== "string") {
-      throw new UpstreamError2("GitHub: \u0431\u043B\u043E\u0431 \u043F\u0440\u0438\u0448\u0451\u043B \u0431\u0435\u0437 \u0441\u043E\u0434\u0435\u0440\u0436\u0438\u043C\u043E\u0433\u043E");
+      throw new UpstreamError("GitHub: \u0431\u043B\u043E\u0431 \u043F\u0440\u0438\u0448\u0451\u043B \u0431\u0435\u0437 \u0441\u043E\u0434\u0435\u0440\u0436\u0438\u043C\u043E\u0433\u043E");
     }
     const encoding = data.encoding === "utf-8" ? "utf-8" : "base64";
     const buffer = encoding === "base64" ? Buffer.from(data.content.replace(/\s+/g, ""), "base64") : Buffer.from(data.content, "utf8");
@@ -1806,7 +1769,7 @@ var GitHubAdapter = class {
   async createIssue(repo, input) {
     assertRepo(repo);
     const title = input.title.trim();
-    if (!title) throw new UpstreamError2("GitHub: \u043D\u0443\u0436\u0435\u043D \u0437\u0430\u0433\u043E\u043B\u043E\u0432\u043E\u043A \u0437\u0430\u0434\u0430\u0447\u0438");
+    if (!title) throw new UpstreamError("GitHub: \u043D\u0443\u0436\u0435\u043D \u0437\u0430\u0433\u043E\u043B\u043E\u0432\u043E\u043A \u0437\u0430\u0434\u0430\u0447\u0438");
     const data = await this.#request(`/repos/${repo}/issues`, {
       method: "POST",
       body: JSON.stringify({ title, body: input.body ?? "" })
@@ -1822,7 +1785,7 @@ var GitHubAdapter = class {
   }
   async pull(repo, number) {
     assertRepo(repo);
-    if (!Number.isInteger(number) || number < 1) throw new UpstreamError2("GitHub: \u043D\u0443\u0436\u0435\u043D \u043D\u043E\u043C\u0435\u0440 PR");
+    if (!Number.isInteger(number) || number < 1) throw new UpstreamError("GitHub: \u043D\u0443\u0436\u0435\u043D \u043D\u043E\u043C\u0435\u0440 PR");
     return toPull(await this.#request(`/repos/${repo}/pulls/${number}`));
   }
   async createPull(repo, input) {
@@ -1830,8 +1793,8 @@ var GitHubAdapter = class {
     const title = input.title.trim();
     const head = input.head.trim();
     const base = input.base.trim();
-    if (!title) throw new UpstreamError2("GitHub: \u043D\u0443\u0436\u0435\u043D \u0437\u0430\u0433\u043E\u043B\u043E\u0432\u043E\u043A PR");
-    if (!head || !base) throw new UpstreamError2("GitHub: \u043D\u0443\u0436\u043D\u044B \u0432\u0435\u0442\u043A\u0438 head \u0438 base");
+    if (!title) throw new UpstreamError("GitHub: \u043D\u0443\u0436\u0435\u043D \u0437\u0430\u0433\u043E\u043B\u043E\u0432\u043E\u043A PR");
+    if (!head || !base) throw new UpstreamError("GitHub: \u043D\u0443\u0436\u043D\u044B \u0432\u0435\u0442\u043A\u0438 head \u0438 base");
     return toPull(await this.#request(`/repos/${repo}/pulls`, {
       method: "POST",
       body: JSON.stringify({
@@ -1861,7 +1824,7 @@ function toPull(pull) {
 }
 function assertRepo(repo) {
   if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) {
-    throw new UpstreamError2("GitHub: \u0440\u0435\u043F\u043E\u0437\u0438\u0442\u043E\u0440\u0438\u0439 \u0443\u043A\u0430\u0437\u044B\u0432\u0430\u0435\u0442\u0441\u044F \u043A\u0430\u043A owner/name");
+    throw new UpstreamError("GitHub: \u0440\u0435\u043F\u043E\u0437\u0438\u0442\u043E\u0440\u0438\u0439 \u0443\u043A\u0430\u0437\u044B\u0432\u0430\u0435\u0442\u0441\u044F \u043A\u0430\u043A owner/name");
   }
 }
 function toIssue(issue) {
@@ -1893,7 +1856,7 @@ var DiscordAdapter = class {
   }
   async #botRequest(path, init = {}) {
     const token = this.#secrets().bot_token;
-    if (!token) throw new UpstreamError2("Discord: \u043D\u0435 \u0437\u0430\u0434\u0430\u043D \u0442\u043E\u043A\u0435\u043D \u0431\u043E\u0442\u0430");
+    if (!token) throw new UpstreamError("Discord: \u043D\u0435 \u0437\u0430\u0434\u0430\u043D \u0442\u043E\u043A\u0435\u043D \u0431\u043E\u0442\u0430");
     return this.#json(`${API2}${path}`, {
       ...init,
       headers: {
@@ -1905,7 +1868,7 @@ var DiscordAdapter = class {
   }
   async #userRequest(path, init = {}) {
     const token = this.#secrets().user_token;
-    if (!token) throw new UpstreamError2("Discord: \u043D\u0435 \u0437\u0430\u0434\u0430\u043D \u0442\u043E\u043A\u0435\u043D \u043B\u0438\u0447\u043D\u043E\u0433\u043E \u0430\u043A\u043A\u0430\u0443\u043D\u0442\u0430");
+    if (!token) throw new UpstreamError("Discord: \u043D\u0435 \u0437\u0430\u0434\u0430\u043D \u0442\u043E\u043A\u0435\u043D \u043B\u0438\u0447\u043D\u043E\u0433\u043E \u0430\u043A\u043A\u0430\u0443\u043D\u0442\u0430");
     return this.#json(`${API2}${path}`, {
       ...init,
       headers: {
@@ -1920,11 +1883,11 @@ var DiscordAdapter = class {
     try {
       response = await this.#fetch(url, { ...init, signal: init.signal ?? AbortSignal.timeout(15e3) });
     } catch {
-      throw new UpstreamError2("Discord \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u0435\u043D: \u043F\u0440\u043E\u0432\u0435\u0440\u044C\u0442\u0435 \u0441\u0435\u0442\u044C");
+      throw new UpstreamError("Discord \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u0435\u043D: \u043F\u0440\u043E\u0432\u0435\u0440\u044C\u0442\u0435 \u0441\u0435\u0442\u044C");
     }
     const body = await response.text();
     if (!response.ok) {
-      throw new UpstreamError2(`Discord: HTTP ${response.status}`, { status: response.status });
+      throw new UpstreamError(`Discord: HTTP ${response.status}`, { status: response.status });
     }
     return body ? JSON.parse(body) : null;
   }
@@ -1958,13 +1921,13 @@ var DiscordAdapter = class {
     }
   }
   async guilds() {
-    if (this.#mode() !== "bot") throw new UpstreamError2("Discord: \u0441\u043F\u0438\u0441\u043E\u043A \u0441\u0435\u0440\u0432\u0435\u0440\u043E\u0432 \u0434\u043E\u0441\u0442\u0443\u043F\u0435\u043D \u0442\u043E\u043B\u044C\u043A\u043E \u0431\u043E\u0442\u0443");
+    if (this.#mode() !== "bot") throw new UpstreamError("Discord: \u0441\u043F\u0438\u0441\u043E\u043A \u0441\u0435\u0440\u0432\u0435\u0440\u043E\u0432 \u0434\u043E\u0441\u0442\u0443\u043F\u0435\u043D \u0442\u043E\u043B\u044C\u043A\u043E \u0431\u043E\u0442\u0443");
     const data = await this.#botRequest("/users/@me/guilds");
     return data.map((guild) => ({ id: guild.id, name: guild.name }));
   }
   async channels(guildId) {
-    if (!/^\d{5,25}$/.test(guildId)) throw new UpstreamError2("Discord: \u043D\u0443\u0436\u0435\u043D \u0447\u0438\u0441\u043B\u043E\u0432\u043E\u0439 id \u0441\u0435\u0440\u0432\u0435\u0440\u0430");
-    if (this.#mode() !== "bot") throw new UpstreamError2("Discord: \u043A\u0430\u043D\u0430\u043B\u044B \u0434\u043E\u0441\u0442\u0443\u043F\u043D\u044B \u0442\u043E\u043B\u044C\u043A\u043E \u0431\u043E\u0442\u0443");
+    if (!/^\d{5,25}$/.test(guildId)) throw new UpstreamError("Discord: \u043D\u0443\u0436\u0435\u043D \u0447\u0438\u0441\u043B\u043E\u0432\u043E\u0439 id \u0441\u0435\u0440\u0432\u0435\u0440\u0430");
+    if (this.#mode() !== "bot") throw new UpstreamError("Discord: \u043A\u0430\u043D\u0430\u043B\u044B \u0434\u043E\u0441\u0442\u0443\u043F\u043D\u044B \u0442\u043E\u043B\u044C\u043A\u043E \u0431\u043E\u0442\u0443");
     const data = await this.#botRequest(`/guilds/${guildId}/channels`);
     return data.filter((channel) => channel.type === 0 || channel.type === 5).map((channel) => ({ id: channel.id, name: channel.name, type: channel.type }));
   }
@@ -1974,16 +1937,16 @@ var DiscordAdapter = class {
     if (this.#mode() === "bot") {
       const channel = secrets.channel_id;
       if (!/^\d{5,25}$/.test(channel)) {
-        throw new UpstreamError2("Discord: \u0443\u043A\u0430\u0436\u0438\u0442\u0435 id \u043A\u0430\u043D\u0430\u043B\u0430 \u0434\u043B\u044F \u043E\u0442\u043F\u0440\u0430\u0432\u043A\u0438 \u043E\u0442 \u0431\u043E\u0442\u0430");
+        throw new UpstreamError("Discord: \u0443\u043A\u0430\u0436\u0438\u0442\u0435 id \u043A\u0430\u043D\u0430\u043B\u0430 \u0434\u043B\u044F \u043E\u0442\u043F\u0440\u0430\u0432\u043A\u0438 \u043E\u0442 \u0431\u043E\u0442\u0430");
       }
       return this.sendTo(channel, content);
     }
-    throw new UpstreamError2("Discord \u043D\u0435 \u043D\u0430\u0441\u0442\u0440\u043E\u0435\u043D: \u0434\u043E\u0431\u0430\u0432\u044C\u0442\u0435 \u0442\u043E\u043A\u0435\u043D \u0431\u043E\u0442\u0430 \u0438\u043B\u0438 \u0432\u0435\u0431\u0445\u0443\u043A");
+    throw new UpstreamError("Discord \u043D\u0435 \u043D\u0430\u0441\u0442\u0440\u043E\u0435\u043D: \u0434\u043E\u0431\u0430\u0432\u044C\u0442\u0435 \u0442\u043E\u043A\u0435\u043D \u0431\u043E\u0442\u0430 \u0438\u043B\u0438 \u0432\u0435\u0431\u0445\u0443\u043A");
   }
   async #sendWebhook(content) {
     const body = content.trim();
-    if (!body) throw new UpstreamError2("Discord: \u043F\u0443\u0441\u0442\u043E\u0435 \u0441\u043E\u043E\u0431\u0449\u0435\u043D\u0438\u0435");
-    if (body.length > 2e3) throw new UpstreamError2("Discord: \u0441\u043E\u043E\u0431\u0449\u0435\u043D\u0438\u0435 \u0434\u043B\u0438\u043D\u043D\u0435\u0435 2000 \u0441\u0438\u043C\u0432\u043E\u043B\u043E\u0432");
+    if (!body) throw new UpstreamError("Discord: \u043F\u0443\u0441\u0442\u043E\u0435 \u0441\u043E\u043E\u0431\u0449\u0435\u043D\u0438\u0435");
+    if (body.length > 2e3) throw new UpstreamError("Discord: \u0441\u043E\u043E\u0431\u0449\u0435\u043D\u0438\u0435 \u0434\u043B\u0438\u043D\u043D\u0435\u0435 2000 \u0441\u0438\u043C\u0432\u043E\u043B\u043E\u0432");
     await this.#json(this.#secrets().webhook_url, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -1998,9 +1961,9 @@ var DiscordAdapter = class {
    */
   async sendTo(channelId, content, replyTo) {
     const body = content.trim();
-    if (!body) throw new UpstreamError2("Discord: \u043F\u0443\u0441\u0442\u043E\u0435 \u0441\u043E\u043E\u0431\u0449\u0435\u043D\u0438\u0435");
-    if (body.length > 2e3) throw new UpstreamError2("Discord: \u0441\u043E\u043E\u0431\u0449\u0435\u043D\u0438\u0435 \u0434\u043B\u0438\u043D\u043D\u0435\u0435 2000 \u0441\u0438\u043C\u0432\u043E\u043B\u043E\u0432");
-    if (!/^\d{5,25}$/.test(channelId)) throw new UpstreamError2("Discord: \u043D\u0443\u0436\u0435\u043D \u0447\u0438\u0441\u043B\u043E\u0432\u043E\u0439 id \u043A\u0430\u043D\u0430\u043B\u0430");
+    if (!body) throw new UpstreamError("Discord: \u043F\u0443\u0441\u0442\u043E\u0435 \u0441\u043E\u043E\u0431\u0449\u0435\u043D\u0438\u0435");
+    if (body.length > 2e3) throw new UpstreamError("Discord: \u0441\u043E\u043E\u0431\u0449\u0435\u043D\u0438\u0435 \u0434\u043B\u0438\u043D\u043D\u0435\u0435 2000 \u0441\u0438\u043C\u0432\u043E\u043B\u043E\u0432");
+    if (!/^\d{5,25}$/.test(channelId)) throw new UpstreamError("Discord: \u043D\u0443\u0436\u0435\u043D \u0447\u0438\u0441\u043B\u043E\u0432\u043E\u0439 id \u043A\u0430\u043D\u0430\u043B\u0430");
     const reference = replyTo && /^\d{5,25}$/.test(replyTo) ? { message_reference: { message_id: replyTo, fail_if_not_exists: false } } : {};
     await this.#botRequest(`/channels/${channelId}/messages`, {
       method: "POST",
@@ -2010,12 +1973,12 @@ var DiscordAdapter = class {
   }
   /** Отправить выбранное пользователем вложение; сервер не принимает локальные пути. */
   async sendFile(channelId, name, data, content = "") {
-    if (!/^\d{5,25}$/.test(channelId)) throw new UpstreamError2("Discord: \u043D\u0443\u0436\u0435\u043D \u0447\u0438\u0441\u043B\u043E\u0432\u043E\u0439 id \u043A\u0430\u043D\u0430\u043B\u0430");
+    if (!/^\d{5,25}$/.test(channelId)) throw new UpstreamError("Discord: \u043D\u0443\u0436\u0435\u043D \u0447\u0438\u0441\u043B\u043E\u0432\u043E\u0439 id \u043A\u0430\u043D\u0430\u043B\u0430");
     const safeName = name.trim().replace(/[\\/]/g, "_").replace(/[\u0000-\u001f\u007f]/g, "_").slice(0, 180);
-    if (!safeName || safeName === "." || safeName === "..") throw new UpstreamError2("Discord: \u043D\u0435\u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u043E\u0435 \u0438\u043C\u044F \u0444\u0430\u0439\u043B\u0430");
-    if (data.byteLength > 25 * 1024 * 1024) throw new UpstreamError2("Discord: \u0444\u0430\u0439\u043B \u0431\u043E\u043B\u044C\u0448\u0435 25 \u041C\u0411");
+    if (!safeName || safeName === "." || safeName === "..") throw new UpstreamError("Discord: \u043D\u0435\u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u043E\u0435 \u0438\u043C\u044F \u0444\u0430\u0439\u043B\u0430");
+    if (data.byteLength > 25 * 1024 * 1024) throw new UpstreamError("Discord: \u0444\u0430\u0439\u043B \u0431\u043E\u043B\u044C\u0448\u0435 25 \u041C\u0411");
     const text3 = content.trim();
-    if (text3.length > 1900) throw new UpstreamError2("Discord: \u043F\u043E\u0434\u043F\u0438\u0441\u044C \u0434\u043B\u0438\u043D\u043D\u0435\u0435 1900 \u0441\u0438\u043C\u0432\u043E\u043B\u043E\u0432");
+    if (text3.length > 1900) throw new UpstreamError("Discord: \u043F\u043E\u0434\u043F\u0438\u0441\u044C \u0434\u043B\u0438\u043D\u043D\u0435\u0435 1900 \u0441\u0438\u043C\u0432\u043E\u043B\u043E\u0432");
     const form = new FormData();
     form.append("payload_json", JSON.stringify({
       content: text3,
@@ -2024,7 +1987,7 @@ var DiscordAdapter = class {
     }));
     form.append("files[0]", new Blob([new Uint8Array(data)], { type: mimeType(safeName) }), safeName);
     const token = this.#secrets().bot_token;
-    if (!token) throw new UpstreamError2("Discord: \u043D\u0435 \u0437\u0430\u0434\u0430\u043D \u0442\u043E\u043A\u0435\u043D \u0431\u043E\u0442\u0430");
+    if (!token) throw new UpstreamError("Discord: \u043D\u0435 \u0437\u0430\u0434\u0430\u043D \u0442\u043E\u043A\u0435\u043D \u0431\u043E\u0442\u0430");
     let response;
     try {
       response = await this.#fetch(`${API2}/channels/${channelId}/messages`, {
@@ -2034,15 +1997,15 @@ var DiscordAdapter = class {
         signal: AbortSignal.timeout(6e4)
       });
     } catch {
-      throw new UpstreamError2("Discord \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u0435\u043D: \u043F\u0440\u043E\u0432\u0435\u0440\u044C\u0442\u0435 \u0441\u0435\u0442\u044C");
+      throw new UpstreamError("Discord \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u0435\u043D: \u043F\u0440\u043E\u0432\u0435\u0440\u044C\u0442\u0435 \u0441\u0435\u0442\u044C");
     }
     const body = await response.text();
-    if (!response.ok) throw new UpstreamError2(`Discord: HTTP ${response.status}`, { status: response.status });
+    if (!response.ok) throw new UpstreamError(`Discord: HTTP ${response.status}`, { status: response.status });
     if (body) {
       try {
         JSON.parse(body);
       } catch {
-        throw new UpstreamError2("Discord: \u043D\u0435\u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u044B\u0439 \u043E\u0442\u0432\u0435\u0442 \u043D\u0430 \u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0443 \u0444\u0430\u0439\u043B\u0430");
+        throw new UpstreamError("Discord: \u043D\u0435\u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u044B\u0439 \u043E\u0442\u0432\u0435\u0442 \u043D\u0430 \u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0443 \u0444\u0430\u0439\u043B\u0430");
       }
     }
     return { delivered: true, name: safeName, bytes: data.byteLength };
@@ -2053,7 +2016,7 @@ var DiscordAdapter = class {
   }
   /** Гильдия канала: команды регистрируются в ней, чтобы появиться сразу. */
   async channelGuild(channelId) {
-    if (!/^\d{5,25}$/.test(channelId)) throw new UpstreamError2("Discord: \u043D\u0443\u0436\u0435\u043D \u0447\u0438\u0441\u043B\u043E\u0432\u043E\u0439 id \u043A\u0430\u043D\u0430\u043B\u0430");
+    if (!/^\d{5,25}$/.test(channelId)) throw new UpstreamError("Discord: \u043D\u0443\u0436\u0435\u043D \u0447\u0438\u0441\u043B\u043E\u0432\u043E\u0439 id \u043A\u0430\u043D\u0430\u043B\u0430");
     const data = await this.#botRequest(`/channels/${channelId}`);
     return String(data?.guild_id ?? "");
   }
@@ -2061,7 +2024,7 @@ var DiscordAdapter = class {
   async registerCommands(commands, guildId = "") {
     const application = this.#secrets().application_id ?? "";
     if (!/^\d{5,25}$/.test(application)) {
-      throw new UpstreamError2("Discord: \u043D\u0435 \u0437\u0430\u0434\u0430\u043D Application ID \u0434\u043B\u044F \u0441\u043B\u044D\u0448-\u043A\u043E\u043C\u0430\u043D\u0434");
+      throw new UpstreamError("Discord: \u043D\u0435 \u0437\u0430\u0434\u0430\u043D Application ID \u0434\u043B\u044F \u0441\u043B\u044D\u0448-\u043A\u043E\u043C\u0430\u043D\u0434");
     }
     const endpoint = /^\d{5,25}$/.test(guildId) ? `/applications/${application}/guilds/${guildId}/commands` : `/applications/${application}/commands`;
     const data = await this.#botRequest(endpoint, { method: "PUT", body: JSON.stringify(commands) });
@@ -2070,7 +2033,7 @@ var DiscordAdapter = class {
   /** Ответ на интеракцию: 4 — сообщение, 5 — отложенный ответ, 8 — автодополнение. */
   async interactionCallback(interactionId, token, data) {
     if (!/^\d{5,25}$/.test(interactionId) || !token) {
-      throw new UpstreamError2("Discord: \u043D\u0435\u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u0430\u044F \u0438\u043D\u0442\u0435\u0440\u0430\u043A\u0446\u0438\u044F");
+      throw new UpstreamError("Discord: \u043D\u0435\u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u0430\u044F \u0438\u043D\u0442\u0435\u0440\u0430\u043A\u0446\u0438\u044F");
     }
     await this.#botRequest(`/interactions/${interactionId}/${token}/callback`, {
       method: "POST",
@@ -2080,11 +2043,11 @@ var DiscordAdapter = class {
   /** Правка ответа на интеракцию (после отложенного подтверждения). */
   async editInteractionReply(applicationId, token, content) {
     if (!/^\d{5,25}$/.test(applicationId) || !token) {
-      throw new UpstreamError2("Discord: \u043D\u0435 \u0437\u0430\u0434\u0430\u043D Application ID \u0438\u043B\u0438 \u0442\u043E\u043A\u0435\u043D \u0438\u043D\u0442\u0435\u0440\u0430\u043A\u0446\u0438\u0438");
+      throw new UpstreamError("Discord: \u043D\u0435 \u0437\u0430\u0434\u0430\u043D Application ID \u0438\u043B\u0438 \u0442\u043E\u043A\u0435\u043D \u0438\u043D\u0442\u0435\u0440\u0430\u043A\u0446\u0438\u0438");
     }
     const body = content.trim();
-    if (!body) throw new UpstreamError2("Discord: \u043F\u0443\u0441\u0442\u043E\u0439 \u043E\u0442\u0432\u0435\u0442 \u043D\u0430 \u043A\u043E\u043C\u0430\u043D\u0434\u0443");
-    if (body.length > 2e3) throw new UpstreamError2("Discord: \u043E\u0442\u0432\u0435\u0442 \u0434\u043B\u0438\u043D\u043D\u0435\u0435 2000 \u0441\u0438\u043C\u0432\u043E\u043B\u043E\u0432");
+    if (!body) throw new UpstreamError("Discord: \u043F\u0443\u0441\u0442\u043E\u0439 \u043E\u0442\u0432\u0435\u0442 \u043D\u0430 \u043A\u043E\u043C\u0430\u043D\u0434\u0443");
+    if (body.length > 2e3) throw new UpstreamError("Discord: \u043E\u0442\u0432\u0435\u0442 \u0434\u043B\u0438\u043D\u043D\u0435\u0435 2000 \u0441\u0438\u043C\u0432\u043E\u043B\u043E\u0432");
     await this.#botRequest(`/webhooks/${applicationId}/${token}/messages/@original`, {
       method: "PATCH",
       body: JSON.stringify({ content: body, allowed_mentions: { parse: [] } })
@@ -2094,7 +2057,7 @@ var DiscordAdapter = class {
   async botMessages(after, limit = 50) {
     const secrets = this.#secrets();
     if (!/^\d{5,25}$/.test(secrets.channel_id)) {
-      throw new UpstreamError2("Discord: \u0443\u043A\u0430\u0436\u0438\u0442\u0435 id \u043A\u0430\u043D\u0430\u043B\u0430 \u0434\u043B\u044F \u043A\u043E\u043C\u0430\u043D\u0434 \u0431\u043E\u0442\u0430");
+      throw new UpstreamError("Discord: \u0443\u043A\u0430\u0436\u0438\u0442\u0435 id \u043A\u0430\u043D\u0430\u043B\u0430 \u0434\u043B\u044F \u043A\u043E\u043C\u0430\u043D\u0434 \u0431\u043E\u0442\u0430");
     }
     const tail = after ? `&after=${encodeURIComponent(after)}` : "";
     const data = await this.#botRequest(
@@ -2113,9 +2076,9 @@ var DiscordAdapter = class {
   /** Ответ от имени личного аккаунта в существующий личный канал. */
   async sendPersonal(channelId, content) {
     const body = content.trim();
-    if (!body) throw new UpstreamError2("Discord: \u043F\u0443\u0441\u0442\u043E\u0435 \u0441\u043E\u043E\u0431\u0449\u0435\u043D\u0438\u0435");
-    if (body.length > 2e3) throw new UpstreamError2("Discord: \u0441\u043E\u043E\u0431\u0449\u0435\u043D\u0438\u0435 \u0434\u043B\u0438\u043D\u043D\u0435\u0435 2000 \u0441\u0438\u043C\u0432\u043E\u043B\u043E\u0432");
-    if (!/^\d{5,25}$/.test(channelId)) throw new UpstreamError2("Discord: \u043D\u0443\u0436\u0435\u043D \u0447\u0438\u0441\u043B\u043E\u0432\u043E\u0439 id \u043B\u0438\u0447\u043D\u043E\u0433\u043E \u043A\u0430\u043D\u0430\u043B\u0430");
+    if (!body) throw new UpstreamError("Discord: \u043F\u0443\u0441\u0442\u043E\u0435 \u0441\u043E\u043E\u0431\u0449\u0435\u043D\u0438\u0435");
+    if (body.length > 2e3) throw new UpstreamError("Discord: \u0441\u043E\u043E\u0431\u0449\u0435\u043D\u0438\u0435 \u0434\u043B\u0438\u043D\u043D\u0435\u0435 2000 \u0441\u0438\u043C\u0432\u043E\u043B\u043E\u0432");
+    if (!/^\d{5,25}$/.test(channelId)) throw new UpstreamError("Discord: \u043D\u0443\u0436\u0435\u043D \u0447\u0438\u0441\u043B\u043E\u0432\u043E\u0439 id \u043B\u0438\u0447\u043D\u043E\u0433\u043E \u043A\u0430\u043D\u0430\u043B\u0430");
     await this.#userRequest(`/channels/${channelId}/messages`, {
       method: "POST",
       body: JSON.stringify({ content: body })
@@ -2167,7 +2130,7 @@ var GoogleAdapter = class {
     const secrets = this.#secrets();
     if (secrets.access_token) return secrets.access_token;
     if (!secrets.client_id || !secrets.client_secret || !secrets.refresh_token) {
-      throw new UpstreamError2("Google \u043D\u0435 \u043D\u0430\u0441\u0442\u0440\u043E\u0435\u043D: \u043D\u0443\u0436\u043D\u044B client_id, client_secret \u0438 refresh_token");
+      throw new UpstreamError("Google \u043D\u0435 \u043D\u0430\u0441\u0442\u0440\u043E\u0435\u043D: \u043D\u0443\u0436\u043D\u044B client_id, client_secret \u0438 refresh_token");
     }
     const key = `${secrets.client_id}:${secrets.refresh_token}`;
     if (this.#token && this.#token.key === key && this.#token.expires_at > Date.now() + 6e4) {
@@ -2187,7 +2150,7 @@ var GoogleAdapter = class {
         }).toString()
       });
     } catch {
-      throw new UpstreamError2("Google \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u0435\u043D: \u043F\u0440\u043E\u0432\u0435\u0440\u044C\u0442\u0435 \u0441\u0435\u0442\u044C");
+      throw new UpstreamError("Google \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u0435\u043D: \u043F\u0440\u043E\u0432\u0435\u0440\u044C\u0442\u0435 \u0441\u0435\u0442\u044C");
     }
     const body = await response.text() || "{}";
     if (!response.ok) {
@@ -2198,10 +2161,10 @@ var GoogleAdapter = class {
         else if (parsed2.error) reason += `: ${parsed2.error}`;
       } catch {
       }
-      throw new UpstreamError2(`Google: \u043D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043E\u0431\u043D\u043E\u0432\u0438\u0442\u044C \u0442\u043E\u043A\u0435\u043D (${reason})`, { status: response.status });
+      throw new UpstreamError(`Google: \u043D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043E\u0431\u043D\u043E\u0432\u0438\u0442\u044C \u0442\u043E\u043A\u0435\u043D (${reason})`, { status: response.status });
     }
     const parsed = JSON.parse(body);
-    if (!parsed.access_token) throw new UpstreamError2("Google: \u043E\u0442\u0432\u0435\u0442 \u0431\u0435\u0437 access_token");
+    if (!parsed.access_token) throw new UpstreamError("Google: \u043E\u0442\u0432\u0435\u0442 \u0431\u0435\u0437 access_token");
     this.#token = {
       key,
       value: parsed.access_token,
@@ -2218,7 +2181,7 @@ var GoogleAdapter = class {
         signal: AbortSignal.timeout(15e3)
       });
     } catch {
-      throw new UpstreamError2("Google \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u0435\u043D: \u043F\u0440\u043E\u0432\u0435\u0440\u044C\u0442\u0435 \u0441\u0435\u0442\u044C");
+      throw new UpstreamError("Google \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u0435\u043D: \u043F\u0440\u043E\u0432\u0435\u0440\u044C\u0442\u0435 \u0441\u0435\u0442\u044C");
     }
     const body = await response.text();
     if (!response.ok) {
@@ -2229,7 +2192,7 @@ var GoogleAdapter = class {
       } catch {
       }
       if (response.status === 401) reason = "\u0442\u043E\u043A\u0435\u043D \u043E\u0442\u043A\u043B\u043E\u043D\u0451\u043D (HTTP 401)";
-      throw new UpstreamError2(`Google: ${reason}`, { status: response.status });
+      throw new UpstreamError(`Google: ${reason}`, { status: response.status });
     }
     return body ? JSON.parse(body) : null;
   }
@@ -2713,11 +2676,9 @@ var DiscordGateway = class {
   }
 };
 
-// src/kernel/ids.ts
-import { randomUUID as randomUUID3 } from "node:crypto";
-function newId(prefix) {
-  return `${prefix}_${randomUUID3().replace(/-/g, "").slice(0, 16)}`;
-}
+// team-host-api:src/kernel/ids.ts
+var host4 = globalThis["__teamPlatformHostApi"] ?? {};
+var newId = host4["newId"];
 
 // src/app/discord-queue.ts
 var MAX_PENDING_QUESTIONS = 50;
@@ -3678,70 +3639,70 @@ var ToolsService = class {
     return this.telegramStatus();
   }
   configureTelegram(body) {
-    if (!this.#telegram) throw new UpstreamError2("Telegram-\u043C\u043E\u0441\u0442 \u043D\u0435 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0451\u043D");
+    if (!this.#telegram) throw new UpstreamError("Telegram-\u043C\u043E\u0441\u0442 \u043D\u0435 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0451\u043D");
     try {
       const status = this.#telegram.configure(body);
       this.#cache = null;
       return status;
     } catch (error) {
-      throw new ValidationError2(error instanceof Error ? error.message : String(error));
+      throw new ValidationError(error instanceof Error ? error.message : String(error));
     }
   }
   beginTelegramLogin(phone) {
-    if (!this.#telegram) throw new UpstreamError2("Telegram-\u043C\u043E\u0441\u0442 \u043D\u0435 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0451\u043D");
+    if (!this.#telegram) throw new UpstreamError("Telegram-\u043C\u043E\u0441\u0442 \u043D\u0435 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0451\u043D");
     return this.#telegram.beginLogin(phone).catch((error) => {
-      throw new ValidationError2(error instanceof Error ? error.message : String(error));
+      throw new ValidationError(error instanceof Error ? error.message : String(error));
     });
   }
   submitTelegramCode(code) {
-    if (!this.#telegram) throw new UpstreamError2("Telegram-\u043C\u043E\u0441\u0442 \u043D\u0435 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0451\u043D");
+    if (!this.#telegram) throw new UpstreamError("Telegram-\u043C\u043E\u0441\u0442 \u043D\u0435 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0451\u043D");
     try {
       return this.#telegram.submitCode(code);
     } catch (error) {
-      throw new ValidationError2(error instanceof Error ? error.message : String(error));
+      throw new ValidationError(error instanceof Error ? error.message : String(error));
     }
   }
   submitTelegramPassword(password) {
-    if (!this.#telegram) throw new UpstreamError2("Telegram-\u043C\u043E\u0441\u0442 \u043D\u0435 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0451\u043D");
+    if (!this.#telegram) throw new UpstreamError("Telegram-\u043C\u043E\u0441\u0442 \u043D\u0435 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0451\u043D");
     try {
       return this.#telegram.submitPassword(password);
     } catch (error) {
-      throw new ValidationError2(error instanceof Error ? error.message : String(error));
+      throw new ValidationError(error instanceof Error ? error.message : String(error));
     }
   }
   cancelTelegramLogin() {
-    if (!this.#telegram) throw new UpstreamError2("Telegram-\u043C\u043E\u0441\u0442 \u043D\u0435 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0451\u043D");
+    if (!this.#telegram) throw new UpstreamError("Telegram-\u043C\u043E\u0441\u0442 \u043D\u0435 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0451\u043D");
     return this.#telegram.cancelLogin();
   }
   checkTelegram() {
-    if (!this.#telegram) throw new UpstreamError2("Telegram-\u043C\u043E\u0441\u0442 \u043D\u0435 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0451\u043D");
+    if (!this.#telegram) throw new UpstreamError("Telegram-\u043C\u043E\u0441\u0442 \u043D\u0435 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0451\u043D");
     return this.#telegram.check();
   }
   sendTelegram(chat, text3) {
-    if (!this.#telegram) throw new UpstreamError2("Telegram-\u043C\u043E\u0441\u0442 \u043D\u0435 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0451\u043D");
+    if (!this.#telegram) throw new UpstreamError("Telegram-\u043C\u043E\u0441\u0442 \u043D\u0435 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0451\u043D");
     return this.#telegram.send(chat, text3).catch((error) => {
-      throw new ValidationError2(error instanceof Error ? error.message : String(error));
+      throw new ValidationError(error instanceof Error ? error.message : String(error));
     });
   }
   logoutTelegram() {
-    if (!this.#telegram) throw new UpstreamError2("Telegram-\u043C\u043E\u0441\u0442 \u043D\u0435 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0451\u043D");
+    if (!this.#telegram) throw new UpstreamError("Telegram-\u043C\u043E\u0441\u0442 \u043D\u0435 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0451\u043D");
     return this.#telegram.logout().catch((error) => {
-      throw new UpstreamError2(error instanceof Error ? error.message : String(error));
+      throw new UpstreamError(error instanceof Error ? error.message : String(error));
     });
   }
   discordStatus() {
     return this.#discordBridge?.status() ?? null;
   }
   async configureDiscordBot(enabled) {
-    if (!this.#discordBridge) throw new UpstreamError2("Discord-\u043C\u043E\u0441\u0442 \u043D\u0435 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0451\u043D");
+    if (!this.#discordBridge) throw new UpstreamError("Discord-\u043C\u043E\u0441\u0442 \u043D\u0435 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0451\u043D");
     return this.#discordBridge.configureBot(enabled);
   }
   async setDiscordPresence(enabled) {
-    if (!this.#discordBridge) throw new UpstreamError2("Discord-\u043C\u043E\u0441\u0442 \u043D\u0435 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0451\u043D");
+    if (!this.#discordBridge) throw new UpstreamError("Discord-\u043C\u043E\u0441\u0442 \u043D\u0435 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0451\u043D");
     return this.#discordBridge.setPresence(enabled);
   }
   async checkDiscordBot() {
-    if (!this.#discordBridge) throw new UpstreamError2("Discord-\u043C\u043E\u0441\u0442 \u043D\u0435 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0451\u043D");
+    if (!this.#discordBridge) throw new UpstreamError("Discord-\u043C\u043E\u0441\u0442 \u043D\u0435 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0451\u043D");
     await this.#discordBridge.tick();
     return this.#discordBridge.status();
   }
@@ -3985,7 +3946,7 @@ var ToolsService = class {
       for (const key of keys) {
         const value = input[key];
         if (value === void 0) continue;
-        if (typeof value !== "string") throw new UpstreamError2(`\u041F\u043E\u043B\u0435 ${key} \u0434\u043E\u043B\u0436\u043D\u043E \u0431\u044B\u0442\u044C \u0441\u0442\u0440\u043E\u043A\u043E\u0439`);
+        if (typeof value !== "string") throw new UpstreamError(`\u041F\u043E\u043B\u0435 ${key} \u0434\u043E\u043B\u0436\u043D\u043E \u0431\u044B\u0442\u044C \u0441\u0442\u0440\u043E\u043A\u043E\u0439`);
         result[key] = value;
       }
       return result;
@@ -4031,7 +3992,7 @@ var ToolsService = class {
         this.configureTelegram(body);
         break;
       default:
-        throw new UpstreamError2(`\u041D\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043D\u0430\u044F \u0438\u043D\u0442\u0435\u0433\u0440\u0430\u0446\u0438\u044F \xAB${id}\xBB`);
+        throw new UpstreamError(`\u041D\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043D\u0430\u044F \u0438\u043D\u0442\u0435\u0433\u0440\u0430\u0446\u0438\u044F \xAB${id}\xBB`);
     }
     this.#cache = null;
     return this.#store.masked();
@@ -4047,11 +4008,11 @@ var ToolsService = class {
   /** Значение поля сайта для подстановки в форму; наружу не отдаётся. */
   siteSecret(ref) {
     const parts = ref.trim().split(".");
-    if (parts.length !== 2) throw new UpstreamError2("\u0421\u0435\u043A\u0440\u0435\u0442 \u0443\u043A\u0430\u0437\u044B\u0432\u0430\u0435\u0442\u0441\u044F \u043A\u0430\u043A site.field");
+    if (parts.length !== 2) throw new UpstreamError("\u0421\u0435\u043A\u0440\u0435\u0442 \u0443\u043A\u0430\u0437\u044B\u0432\u0430\u0435\u0442\u0441\u044F \u043A\u0430\u043A site.field");
     const site = (parts[0] ?? "").trim().toLowerCase();
     const field = (parts[1] ?? "").trim().toLowerCase();
     const value = this.#store.get().sites[site]?.[field];
-    if (!value) throw new UpstreamError2(`\u0421\u0435\u043A\u0440\u0435\u0442 ${site}.${field} \u043D\u0435 \u0441\u043E\u0445\u0440\u0430\u043D\u0451\u043D`);
+    if (!value) throw new UpstreamError(`\u0421\u0435\u043A\u0440\u0435\u0442 ${site}.${field} \u043D\u0435 \u0441\u043E\u0445\u0440\u0430\u043D\u0451\u043D`);
     return value;
   }
   /** Убирает сохранённые секреты из текста страницы и журнала. */
@@ -4097,7 +4058,7 @@ var ToolsService = class {
   configureProvider(id, key) {
     const settings = this.#store.masked();
     const known = PROVIDERS.some((provider) => provider.id === id) || settings.provider_configs.some((provider) => provider.id === id);
-    if (!known) throw new UpstreamError2(`\u041D\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043D\u044B\u0439 \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440 \xAB${id}\xBB`);
+    if (!known) throw new UpstreamError(`\u041D\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043D\u044B\u0439 \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440 \xAB${id}\xBB`);
     this.#store.update({ providers: { [id]: key.trim() } });
     this.#cache = null;
     return this.#store.masked();
@@ -4111,7 +4072,7 @@ var ToolsService = class {
     const defaultModel = textField(input.default_model) || textField(input.defaultModel);
     const key = input.key;
     if (key !== void 0 && typeof key !== "string") {
-      throw new ValidationError2("\u041F\u043E\u043B\u0435 key \u0434\u043E\u043B\u0436\u043D\u043E \u0431\u044B\u0442\u044C \u0441\u0442\u0440\u043E\u043A\u043E\u0439");
+      throw new ValidationError("\u041F\u043E\u043B\u0435 key \u0434\u043E\u043B\u0436\u043D\u043E \u0431\u044B\u0442\u044C \u0441\u0442\u0440\u043E\u043A\u043E\u0439");
     }
     const config = {
       id,
@@ -4130,7 +4091,7 @@ var ToolsService = class {
   removeCustomProvider(id) {
     const wanted = id.trim().toLowerCase();
     if (!this.#store.masked().provider_configs.some((provider) => provider.id === wanted)) {
-      throw new UpstreamError2(`\u041A\u0430\u0441\u0442\u043E\u043C\u043D\u044B\u0439 \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440 \xAB${wanted}\xBB \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D`);
+      throw new UpstreamError(`\u041A\u0430\u0441\u0442\u043E\u043C\u043D\u044B\u0439 \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440 \xAB${wanted}\xBB \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D`);
     }
     this.#store.update({ provider_configs: { [wanted]: null } });
     this.#cache = null;
@@ -4138,7 +4099,7 @@ var ToolsService = class {
   }
   async test(id) {
     const status = id === "github" ? await this.#github.status() : id === "discord" ? await this.#discord.status() : id === "google" ? await this.#google.status() : null;
-    if (!status) throw new UpstreamError2(`\u041D\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043D\u0430\u044F \u0438\u043D\u0442\u0435\u0433\u0440\u0430\u0446\u0438\u044F \xAB${id}\xBB`);
+    if (!status) throw new UpstreamError(`\u041D\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043D\u0430\u044F \u0438\u043D\u0442\u0435\u0433\u0440\u0430\u0446\u0438\u044F \xAB${id}\xBB`);
     this.#cache = null;
     return status;
   }
@@ -4184,7 +4145,7 @@ var ToolsService = class {
   }
   removeSite(site) {
     const existing = this.#store.get().sites[site.trim().toLowerCase()];
-    if (!existing) throw new UpstreamError2(`\u0421\u0430\u0439\u0442 \xAB${site}\xBB \u043D\u0435 \u0441\u043E\u0445\u0440\u0430\u043D\u0451\u043D`);
+    if (!existing) throw new UpstreamError(`\u0421\u0430\u0439\u0442 \xAB${site}\xBB \u043D\u0435 \u0441\u043E\u0445\u0440\u0430\u043D\u0451\u043D`);
     const cleared = Object.fromEntries(Object.keys(existing).map((field) => [field, ""]));
     const settings = this.#store.update({ sites: { [site]: cleared } });
     this.#cache = null;
@@ -4213,9 +4174,9 @@ var ToolsService = class {
   }
   async sendDiscordFile(name, data, text3 = "") {
     const discord = this.#store.get().discord;
-    if (!discord.bot_token) throw new UpstreamError2("Discord: \u0444\u0430\u0439\u043B\u044B \u043E\u0442\u043F\u0440\u0430\u0432\u043B\u044F\u0435\u0442 \u0442\u043E\u043B\u044C\u043A\u043E \u0431\u043E\u0442");
+    if (!discord.bot_token) throw new UpstreamError("Discord: \u0444\u0430\u0439\u043B\u044B \u043E\u0442\u043F\u0440\u0430\u0432\u043B\u044F\u0435\u0442 \u0442\u043E\u043B\u044C\u043A\u043E \u0431\u043E\u0442");
     if (!/^\d{5,25}$/.test(discord.channel_id)) {
-      throw new UpstreamError2("Discord: \u0443\u043A\u0430\u0436\u0438\u0442\u0435 id \u043A\u0430\u043D\u0430\u043B\u0430 \u0434\u043B\u044F \u043E\u0442\u043F\u0440\u0430\u0432\u043A\u0438 \u0444\u0430\u0439\u043B\u043E\u0432");
+      throw new UpstreamError("Discord: \u0443\u043A\u0430\u0436\u0438\u0442\u0435 id \u043A\u0430\u043D\u0430\u043B\u0430 \u0434\u043B\u044F \u043E\u0442\u043F\u0440\u0430\u0432\u043A\u0438 \u0444\u0430\u0439\u043B\u043E\u0432");
     }
     const result = await this.#discord.sendFile(discord.channel_id, name, data, text3);
     this.#log.info("\u0424\u0430\u0439\u043B \u043E\u0442\u043F\u0440\u0430\u0432\u043B\u0435\u043D \u0432 Discord", { name: result.name, bytes: result.bytes });
@@ -4239,22 +4200,22 @@ var ToolsService = class {
 function stringField(body, name, required = true) {
   const value = body && typeof body === "object" ? body[name] : void 0;
   if (value === void 0 || value === null) {
-    if (required) throw new ValidationError2(`\u041D\u0443\u0436\u043D\u043E \u043F\u043E\u043B\u0435 ${name}`);
+    if (required) throw new ValidationError(`\u041D\u0443\u0436\u043D\u043E \u043F\u043E\u043B\u0435 ${name}`);
     return "";
   }
-  if (typeof value !== "string") throw new ValidationError2(`\u041F\u043E\u043B\u0435 ${name} \u0434\u043E\u043B\u0436\u043D\u043E \u0431\u044B\u0442\u044C \u0441\u0442\u0440\u043E\u043A\u043E\u0439`);
+  if (typeof value !== "string") throw new ValidationError(`\u041F\u043E\u043B\u0435 ${name} \u0434\u043E\u043B\u0436\u043D\u043E \u0431\u044B\u0442\u044C \u0441\u0442\u0440\u043E\u043A\u043E\u0439`);
   return value;
 }
 function boolField(body, name) {
   const value = body && typeof body === "object" ? body[name] : void 0;
-  if (typeof value !== "boolean") throw new ValidationError2(`\u041F\u043E\u043B\u0435 ${name} \u0434\u043E\u043B\u0436\u043D\u043E \u0431\u044B\u0442\u044C boolean`);
+  if (typeof value !== "boolean") throw new ValidationError(`\u041F\u043E\u043B\u0435 ${name} \u0434\u043E\u043B\u0436\u043D\u043E \u0431\u044B\u0442\u044C boolean`);
   return value;
 }
 function numberParam(raw, fallback, min, max) {
   if (raw === null || raw === "") return fallback;
   const value = Number(raw);
   if (!Number.isInteger(value) || value < min || value > max) {
-    throw new ValidationError2(`\u041E\u0436\u0438\u0434\u0430\u043B\u043E\u0441\u044C \u0446\u0435\u043B\u043E\u0435 \u043E\u0442 ${min} \u0434\u043E ${max}`);
+    throw new ValidationError(`\u041E\u0436\u0438\u0434\u0430\u043B\u043E\u0441\u044C \u0446\u0435\u043B\u043E\u0435 \u043E\u0442 ${min} \u0434\u043E ${max}`);
   }
   return value;
 }
@@ -4492,14 +4453,14 @@ function registerToolsRoutes(router, deps) {
     const site = stringField(c.body, "site").trim().toLowerCase();
     const fields = c.body && typeof c.body === "object" ? c.body.fields : void 0;
     if (!fields || typeof fields !== "object" || Array.isArray(fields)) {
-      throw new ValidationError2("\u041D\u0443\u0436\u0435\u043D \u043E\u0431\u044A\u0435\u043A\u0442 fields \u0441 \u043F\u043E\u043B\u044F\u043C\u0438 \u0441\u0430\u0439\u0442\u0430");
+      throw new ValidationError("\u041D\u0443\u0436\u0435\u043D \u043E\u0431\u044A\u0435\u043A\u0442 fields \u0441 \u043F\u043E\u043B\u044F\u043C\u0438 \u0441\u0430\u0439\u0442\u0430");
     }
     const values = {};
     for (const [name, value] of Object.entries(fields)) {
-      if (typeof value !== "string") throw new ValidationError2(`\u041F\u043E\u043B\u0435 ${name} \u0434\u043E\u043B\u0436\u043D\u043E \u0431\u044B\u0442\u044C \u0441\u0442\u0440\u043E\u043A\u043E\u0439`);
+      if (typeof value !== "string") throw new ValidationError(`\u041F\u043E\u043B\u0435 ${name} \u0434\u043E\u043B\u0436\u043D\u043E \u0431\u044B\u0442\u044C \u0441\u0442\u0440\u043E\u043A\u043E\u0439`);
       values[name] = value;
     }
-    if (!Object.keys(values).length) throw new ValidationError2("\u041D\u0435 \u043F\u0435\u0440\u0435\u0434\u0430\u043D\u043E \u043D\u0438 \u043E\u0434\u043D\u043E\u0433\u043E \u043F\u043E\u043B\u044F \u0441\u0430\u0439\u0442\u0430");
+    if (!Object.keys(values).length) throw new ValidationError("\u041D\u0435 \u043F\u0435\u0440\u0435\u0434\u0430\u043D\u043E \u043D\u0438 \u043E\u0434\u043D\u043E\u0433\u043E \u043F\u043E\u043B\u044F \u0441\u0430\u0439\u0442\u0430");
     return { body: { ok: true, settings: tools.configureSite(site, values) } };
   });
   router.add("POST", "/api/tools/:id/configure", (c) => ({
@@ -4522,10 +4483,10 @@ function registerToolsRoutes(router, deps) {
   }));
   router.add("GET", "/api/tools/github/pulls", async (c) => {
     const repo = c.query.get("repo") ?? "";
-    if (!repo) throw new ValidationError2("\u041D\u0443\u0436\u0435\u043D \u043F\u0430\u0440\u0430\u043C\u0435\u0442\u0440 repo (owner/name)");
+    if (!repo) throw new ValidationError("\u041D\u0443\u0436\u0435\u043D \u043F\u0430\u0440\u0430\u043C\u0435\u0442\u0440 repo (owner/name)");
     const state = c.query.get("state");
     if (state && !["open", "closed", "all"].includes(state)) {
-      throw new ValidationError2("state: open, closed \u0438\u043B\u0438 all");
+      throw new ValidationError("state: open, closed \u0438\u043B\u0438 all");
     }
     return {
       body: {
@@ -4540,9 +4501,9 @@ function registerToolsRoutes(router, deps) {
   });
   router.add("GET", "/api/tools/github/pulls/:number", async (c) => {
     const repo = c.query.get("repo") ?? "";
-    if (!repo) throw new ValidationError2("\u041D\u0443\u0436\u0435\u043D \u043F\u0430\u0440\u0430\u043C\u0435\u0442\u0440 repo (owner/name)");
+    if (!repo) throw new ValidationError("\u041D\u0443\u0436\u0435\u043D \u043F\u0430\u0440\u0430\u043C\u0435\u0442\u0440 repo (owner/name)");
     const number = Number(c.params.number);
-    if (!Number.isInteger(number) || number < 1) throw new ValidationError2("\u041D\u0443\u0436\u0435\u043D \u043D\u043E\u043C\u0435\u0440 PR");
+    if (!Number.isInteger(number) || number < 1) throw new ValidationError("\u041D\u0443\u0436\u0435\u043D \u043D\u043E\u043C\u0435\u0440 PR");
     return { body: { ok: true, pull: await tools.pull(repo, number) } };
   });
   router.add("POST", "/api/tools/github/pulls", async (c) => ({
@@ -4565,7 +4526,7 @@ function registerToolsRoutes(router, deps) {
   }));
   router.add("GET", "/api/tools/github/issues", async (c) => {
     const repo = c.query.get("repo") ?? "";
-    if (!repo) throw new ValidationError2("\u041D\u0443\u0436\u0435\u043D \u043F\u0430\u0440\u0430\u043C\u0435\u0442\u0440 repo (owner/name)");
+    if (!repo) throw new ValidationError("\u041D\u0443\u0436\u0435\u043D \u043F\u0430\u0440\u0430\u043C\u0435\u0442\u0440 repo (owner/name)");
     return {
       body: { ok: true, issues: await tools.issues(repo, numberParam(c.query.get("limit"), 20, 1, 100)) }
     };
@@ -4623,12 +4584,12 @@ function registerToolsRoutes(router, deps) {
     const name = stringField(c.body, "name");
     const encoded = stringField(c.body, "data");
     if (!encoded || !/^[A-Za-z0-9+/]*={0,2}$/.test(encoded) || encoded.length % 4 !== 0) {
-      throw new ValidationError2("\u041F\u043E\u043B\u0435 data \u0434\u043E\u043B\u0436\u043D\u043E \u0431\u044B\u0442\u044C base64");
+      throw new ValidationError("\u041F\u043E\u043B\u0435 data \u0434\u043E\u043B\u0436\u043D\u043E \u0431\u044B\u0442\u044C base64");
     }
-    if (encoded.length > 36e6) throw new ValidationError2("\u0424\u0430\u0439\u043B \u0431\u043E\u043B\u044C\u0448\u0435 25 \u041C\u0411");
+    if (encoded.length > 36e6) throw new ValidationError("\u0424\u0430\u0439\u043B \u0431\u043E\u043B\u044C\u0448\u0435 25 \u041C\u0411");
     const data = Buffer.from(encoded, "base64");
     if (data.toString("base64") !== encoded || data.byteLength > 25 * 1024 * 1024) {
-      throw new ValidationError2("\u041D\u0435\u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u044B\u0439 \u0438\u043B\u0438 \u0441\u043B\u0438\u0448\u043A\u043E\u043C \u0431\u043E\u043B\u044C\u0448\u043E\u0439 \u0444\u0430\u0439\u043B");
+      throw new ValidationError("\u041D\u0435\u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u044B\u0439 \u0438\u043B\u0438 \u0441\u043B\u0438\u0448\u043A\u043E\u043C \u0431\u043E\u043B\u044C\u0448\u043E\u0439 \u0444\u0430\u0439\u043B");
     }
     return {
       body: {
