@@ -372,7 +372,7 @@
     {
       "id": "github",
       "name": "GitHub",
-      "version": "1.1.2",
+      "version": "1.1.3",
       "summary": "Пул-реквесты, задачи, поиск по коду, снимки репозиториев и сторож обновлений.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -392,10 +392,10 @@
           }
         ]
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/github-1.1.2.mjs",
-      "size": 67890,
-      "integrity": "sha512-NKCFsPWtPTnnMM3AayqvMeBp1tOfz0CHx2VvmGTP8btbHH2dLD+mMXYvMaL0+B8V933a8pjyZchHsKiStJvJQA==",
-      "signature": "Mie0fvPCxVJagWUizh34BlYwGa/AU+VMzWDF2nFC4ZbuNqMkweiZNslTsfE7zw0QkXFFJsj1WUT6R8E58ggnDg=="
+      "url": "https://attrazion.github.io/team-platform-catalog/github-1.1.3.mjs",
+      "size": 67286,
+      "integrity": "sha512-Nt+NpT+GaC6LBg5Yge7W/udbDborh37Q9jifG1ow9jKxj4Gh0rdANAxDFRzLjAxZsko7YOkmF/LhR5zQv/hKnw==",
+      "signature": "9mb2bJ9JZlpUul0LHjjBykwT154DIzLtS8hRwF99CrcgRsK5bR35md1w0AYAfktkQuPP0wRrKL9IdspxQwg9BA=="
     },
     {
       "id": "google",

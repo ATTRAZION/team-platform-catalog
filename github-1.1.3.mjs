@@ -1,36 +1,16 @@
 import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);
 
-// src/kernel/errors.ts
-var AppError = class extends Error {
-  code;
-  status;
-  details;
-  constructor(code, message, status, details = {}) {
-    super(message);
-    this.name = new.target.name;
-    this.code = code;
-    this.status = status;
-    this.details = details;
-  }
-};
-var ValidationError = class extends AppError {
-  constructor(message, details = {}, options = {}) {
-    super(options.code ?? "validation_failed", message, options.status ?? 400, details);
-  }
-};
-var NotFoundError = class extends AppError {
-  /** Детали необязательны: старые вызовы без них продолжают работать. */
-  constructor(message = "\u041D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u043E", details = {}) {
-    super("not_found", message, 404, details);
-  }
-};
-var UpstreamError = class extends AppError {
-  constructor(message, details = {}) {
-    super("upstream_error", message, 502, details);
-  }
-};
+// team-host-api:src/kernel/errors.ts
+var host = globalThis["__teamPlatformHostApi"] ?? {};
+var AppError = host["AppError"];
+var ConflictError = host["ConflictError"];
+var ForbiddenError = host["ForbiddenError"];
+var NotFoundError = host["NotFoundError"];
+var UpstreamError = host["UpstreamError"];
+var ValidationError = host["ValidationError"];
+var isAppError = host["isAppError"];
 
-// src/adapters/integrations/github.ts
+// modules/github/adapter.ts
 var API = "https://api.github.com";
 var GitHubAdapter = class {
   #secrets;
@@ -239,7 +219,7 @@ function toIssue(issue) {
   };
 }
 
-// src/adapters/storage/sqlite-github.ts
+// modules/github/store.ts
 var META_COLUMNS = `id, repo, ref, commit_sha, commit_message, commit_author, commit_date,
   generated_at, created_at, file_count, total_bytes, truncated, truncation_reason, empty`;
 var SNAPSHOT_COLUMNS = `${META_COLUMNS}, files_json`;
@@ -520,7 +500,7 @@ var SqliteGitHubStore = class {
   }
 };
 
-// src/domain/github/snapshot.ts
+// modules/github/snapshot.ts
 function byPath(left, right) {
   return left.path < right.path ? -1 : left.path > right.path ? 1 : 0;
 }
@@ -568,7 +548,7 @@ function diffIndexes(previous, next) {
   };
 }
 
-// src/domain/github/search.ts
+// modules/github/search.ts
 var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
   "png",
   "jpg",
@@ -835,7 +815,7 @@ function scoreHit(entry, query) {
   return score;
 }
 
-// src/app/github-service.ts
+// modules/github/service.ts
 var CONTENT_CONCURRENCY = 6;
 var SKIPPED_LIMIT = 500;
 var EMPTY_DIFF = {
@@ -1483,11 +1463,11 @@ function statusOf(error) {
 }
 
 // team-host-api:src/adapters/http/router.ts
-var host = globalThis["__teamPlatformHostApi"] ?? {};
-var Router = host["Router"];
-var ScopedRouter = host["ScopedRouter"];
+var host2 = globalThis["__teamPlatformHostApi"] ?? {};
+var Router = host2["Router"];
+var ScopedRouter = host2["ScopedRouter"];
 
-// src/modules/github/schema.ts
+// modules/github/schema.ts
 var githubMigrations = [
   {
     version: "github/0001_snapshots_watch",
@@ -1591,7 +1571,7 @@ var githubMigrations = [
   }
 ];
 
-// src/modules/github/github.module.ts
+// modules/github/routes.ts
 function stringField(body, name, required = true) {
   const value = body && typeof body === "object" ? body[name] : void 0;
   if (value === void 0 || value === null) {
@@ -1773,21 +1753,21 @@ var module = {
   apiVersion: 1,
   migrations: [...githubMigrations],
   register(ctx) {
-    const host2 = ctx.require("tools");
-    host2.tools.enable("github");
+    const host3 = ctx.require("tools");
+    host3.tools.enable("github");
     const github = new GitHubService(
-      new GitHubAdapter(() => host2.store.get().github),
+      new GitHubAdapter(() => host3.store.get().github),
       new SqliteGitHubStore(ctx.storage),
       ctx.bus,
       ctx.log,
       { ...ctx.settings.github }
     );
     const api = new ScopedRouter(["/api/tools/github"]);
-    host2.registerRoutes(api);
+    host3.registerRoutes(api);
     registerGitHubRoutes(api, github);
     ctx.api.mount("/", api);
     ctx.router.add("GET", "/", () => ({
-      raw: host2.page(
+      raw: host3.page(
         "github",
         "GitHub",
         "\u0422\u043E\u043A\u0435\u043D\u044B, \u043F\u0443\u043B-\u0440\u0435\u043A\u0432\u0435\u0441\u0442\u044B, \u0437\u0430\u0434\u0430\u0447\u0438, \u043F\u043E\u0438\u0441\u043A \u043F\u043E \u043A\u043E\u0434\u0443 \u0438 \u0441\u0442\u043E\u0440\u043E\u0436 \u0440\u0435\u043F\u043E\u0437\u0438\u0442\u043E\u0440\u0438\u0435\u0432."
