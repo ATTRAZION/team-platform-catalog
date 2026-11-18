@@ -1,68 +1,36 @@
 import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);
 
-// src/kernel/errors.ts
-var AppError = class extends Error {
-  code;
-  status;
-  details;
-  constructor(code, message, status, details = {}) {
-    super(message);
-    this.name = new.target.name;
-    this.code = code;
-    this.status = status;
-    this.details = details;
-  }
-};
-var ValidationError = class extends AppError {
-  constructor(message, details = {}, options = {}) {
-    super(options.code ?? "validation_failed", message, options.status ?? 400, details);
-  }
-};
-var NotFoundError = class extends AppError {
-  /** Детали необязательны: старые вызовы без них продолжают работать. */
-  constructor(message = "\u041D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u043E", details = {}) {
-    super("not_found", message, 404, details);
-  }
-};
-var ConflictError = class extends AppError {
-  constructor(message, details = {}) {
-    super("conflict", message, 409, details);
-  }
-};
+// team-host-api:src/kernel/errors.ts
+var host = globalThis["__teamPlatformHostApi"] ?? {};
+var AppError = host["AppError"];
+var ConflictError = host["ConflictError"];
+var ForbiddenError = host["ForbiddenError"];
+var NotFoundError = host["NotFoundError"];
+var UpstreamError = host["UpstreamError"];
+var ValidationError = host["ValidationError"];
+var isAppError = host["isAppError"];
 
-// src/kernel/clock.ts
-function nextTimestamp(previous, now) {
-  const base = now.getTime();
-  const prev = previous ? Date.parse(previous) : Number.NaN;
-  return new Date(Number.isFinite(prev) ? Math.max(base, prev + 1) : base).toISOString();
-}
+// team-host-api:src/kernel/clock.ts
+var host2 = globalThis["__teamPlatformHostApi"] ?? {};
+var fixedClock = host2["fixedClock"];
+var nextTimestamp = host2["nextTimestamp"];
+var systemClock = host2["systemClock"];
 
-// src/kernel/ids.ts
-import { randomUUID } from "node:crypto";
-function newId(prefix) {
-  return `${prefix}_${randomUUID().replace(/-/g, "").slice(0, 16)}`;
-}
+// team-host-api:src/kernel/ids.ts
+var host3 = globalThis["__teamPlatformHostApi"] ?? {};
+var newId = host3["newId"];
 
-// src/kernel/validate.ts
-function record(raw, what) {
-  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
-    throw new ValidationError(`${what}: \u043E\u0436\u0438\u0434\u0430\u043B\u0441\u044F \u043E\u0431\u044A\u0435\u043A\u0442`);
-  }
-  return raw;
-}
-function text(raw, field, max, required = false) {
-  if (raw === void 0 || raw === null) {
-    if (required) throw new ValidationError(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB \u043E\u0431\u044F\u0437\u0430\u0442\u0435\u043B\u044C\u043D\u043E`);
-    return "";
-  }
-  if (typeof raw !== "string") throw new ValidationError(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB \u0434\u043E\u043B\u0436\u043D\u043E \u0431\u044B\u0442\u044C \u0441\u0442\u0440\u043E\u043A\u043E\u0439`);
-  const value = raw.trim();
-  if (required && !value) throw new ValidationError(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB \u043E\u0431\u044F\u0437\u0430\u0442\u0435\u043B\u044C\u043D\u043E`);
-  if (value.length > max) throw new ValidationError(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB \u0434\u043B\u0438\u043D\u043D\u0435\u0435 ${max} \u0441\u0438\u043C\u0432\u043E\u043B\u043E\u0432`);
-  return value;
-}
+// team-host-api:src/kernel/validate.ts
+var host4 = globalThis["__teamPlatformHostApi"] ?? {};
+var integer = host4["integer"];
+var oneOf = host4["oneOf"];
+var optionalInteger = host4["optionalInteger"];
+var optionalName = host4["optionalName"];
+var record = host4["record"];
+var requiredOneOf = host4["requiredOneOf"];
+var text = host4["text"];
 
-// src/domain/missions/mission.ts
+// modules/missions/mission.ts
 var MISSION_STATUSES = ["ready", "running", "review", "paused", "complete"];
 var ACTIVE_STAGE_STATUSES = ["running", "review"];
 function stageKey(position) {
@@ -592,7 +560,7 @@ function completeMission(mission, stages, summary, actor, now) {
   };
 }
 
-// src/domain/missions/gate.ts
+// modules/missions/gate.ts
 function normalizeGateDecision(raw) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     throw new ValidationError("\u0420\u0435\u0448\u0435\u043D\u0438\u0435 \u0432\u043E\u0440\u043E\u0442: \u043E\u0436\u0438\u0434\u0430\u043B\u0441\u044F \u043E\u0431\u044A\u0435\u043A\u0442");
@@ -610,10 +578,10 @@ function normalizeGateDecision(raw) {
   return { decision, actor, reason };
 }
 
-// src/app/mission-service.ts
+// modules/missions/service.ts
 import { join as join2, resolve as resolve3 } from "node:path";
 
-// src/app/immutable-artifact-store.ts
+// modules/missions/artifact-store.ts
 import { createHash as createHash2 } from "node:crypto";
 import {
   existsSync as existsSync2,
@@ -626,12 +594,12 @@ import {
 } from "node:fs";
 import { dirname, isAbsolute as isAbsolute2, join, relative as relative2, resolve as resolve2, sep } from "node:path";
 
-// src/app/artifact-receipts.ts
+// modules/missions/artifact-receipts.ts
 import { createHash } from "node:crypto";
 import { accessSync, constants, existsSync, lstatSync, readFileSync, realpathSync, statSync, unlinkSync } from "node:fs";
 import { isAbsolute, relative, resolve } from "node:path";
 
-// src/domain/missions/receipt-ttl.ts
+// modules/missions/receipt-ttl.ts
 var DEFAULT_RECEIPT_TTL_MS = 7 * 24 * 60 * 60 * 1e3;
 function receiptExpiresAt(receipt, ttlMs = DEFAULT_RECEIPT_TTL_MS) {
   const created = Date.parse(receipt.created_at);
@@ -645,7 +613,7 @@ function receiptState(receipt, now, ttlMs = DEFAULT_RECEIPT_TTL_MS) {
   return now.getTime() >= Date.parse(expires) ? "expired" : "fresh";
 }
 
-// src/app/artifact-receipts.ts
+// modules/missions/artifact-receipts.ts
 var MAX_ARTIFACT_BYTES = 50 * 1024 * 1024;
 function normalizeWorkspaceRoot(raw) {
   const value = raw.trim();
@@ -788,7 +756,7 @@ function sweepExpiredArtifacts(root, receipts, options = {}) {
   return result;
 }
 
-// src/app/immutable-artifact-store.ts
+// modules/missions/artifact-store.ts
 var SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/;
 function segment(raw, label) {
   if (typeof raw !== "string" || !SEGMENT.test(raw)) {
@@ -1043,7 +1011,7 @@ var ImmutableArtifactStore = class {
   }
 };
 
-// src/app/mission-service.ts
+// modules/missions/service.ts
 function actorOf(raw) {
   if (!raw || typeof raw !== "object") return "human";
   const value = raw.actor;
@@ -1801,7 +1769,7 @@ ${mission.goal}`.toLowerCase().includes(query)).map((mission) => missionSummary(
   }
 };
 
-// src/app/mission-runner.ts
+// modules/missions/runner.ts
 var RUN_EVENTS = /* @__PURE__ */ new Set(["run.succeeded", "run.failed", "run.cancelled"]);
 var MissionRunner = class {
   #service;
@@ -1859,7 +1827,7 @@ var MissionRunner = class {
   }
 };
 
-// src/adapters/storage/sqlite-missions.ts
+// modules/missions/repository.ts
 var MISSION_COLUMNS = "id, title, goal, status, current_stage_id, revision, summary, agent, created_at, updated_at";
 var STAGE_COLUMNS = `id, mission_id, key, position, title, acceptance, artifacts, depends_on, status,
   result, task_id, run_id, error, agent, dispatch_attempt, started_at, submitted_at, finished_at, revision`;
@@ -2131,13 +2099,7 @@ var SqliteMissionRepository = class {
   }
 };
 
-// team-host-api:src/kernel/clock.ts
-var host = globalThis["__teamPlatformHostApi"] ?? {};
-var fixedClock = host["fixedClock"];
-var nextTimestamp2 = host["nextTimestamp"];
-var systemClock = host["systemClock"];
-
-// src/modules/missions/schema.ts
+// modules/missions/schema.ts
 var missionsMigrations = [
   {
     version: "missions/0001_missions_stages",
@@ -2241,7 +2203,7 @@ var missionsMigrations = [
   }
 ];
 
-// src/modules/idempotency-http.ts
+// modules/missions/idempotency-http.ts
 import { createHash as createHash3 } from "node:crypto";
 function canonical(value) {
   if (Array.isArray(value)) return value.map(canonical);
@@ -2297,7 +2259,7 @@ async function idempotentReply(request, service, fallbackPath, handler) {
   return { status: result.status, body: result.body };
 }
 
-// src/modules/missions/missions.module.ts
+// modules/missions/routes.ts
 function registerMissionsRoutes(router, deps) {
   const missions = deps.missions;
   const idem = (request, handler) => idempotentReply(

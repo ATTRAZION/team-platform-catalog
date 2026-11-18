@@ -644,7 +644,7 @@
     {
       "id": "missions",
       "name": "Миссии",
-      "version": "1.0.5",
+      "version": "1.0.6",
       "summary": "Этапы, приёмка и автоматическое продвижение миссии. Нужны доска задач и очередь запусков.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -666,10 +666,10 @@
           }
         ]
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/missions-1.0.5.mjs",
-      "size": 114588,
-      "integrity": "sha512-x02gU2fHsz+DK4qLxT7PurUnI4v0VOoXkb1QAeoBfoWaLZ6NJzs6fdHEDNptLv8FmtL465SM4kmr1xfmKlmrzg==",
-      "signature": "Qlt+abOjO9GS6pXDvDG1TL9VCAs9LfSHcKaZ39i6uWvgHxlrMdPkWTPzCyXofxCbk745QB3zEpMxHp+jHbjuBA=="
+      "url": "https://attrazion.github.io/team-platform-catalog/missions-1.0.6.mjs",
+      "size": 112923,
+      "integrity": "sha512-bc9OB0hTi024pIRfx4ZDzBX04ZfppO66k3Ljf8jIr8uX1eqBq7Jp6VzT1WRs710U52/EMzF5J0RWjNzMdgszJQ==",
+      "signature": "2mWHYlWygftjOMqj9vtqPhUMGc1JsQTvUBINMTr8gkBb23swUYYm6z4lCGRKucygEYxgUzdb8hUWSVt4kdTZCA=="
     },
     {
       "id": "modern-web-local",
