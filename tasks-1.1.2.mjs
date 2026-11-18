@@ -1,44 +1,27 @@
 import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);
 
-// src/adapters/storage/sqlite.ts
-import { backup, DatabaseSync } from "node:sqlite";
+// team-host-api:src/kernel/clock.ts
+var host = globalThis["__teamPlatformHostApi"] ?? {};
+var fixedClock = host["fixedClock"];
+var nextTimestamp = host["nextTimestamp"];
+var systemClock = host["systemClock"];
 
-// src/kernel/errors.ts
-var AppError = class extends Error {
-  code;
-  status;
-  details;
-  constructor(code, message, status, details = {}) {
-    super(message);
-    this.name = new.target.name;
-    this.code = code;
-    this.status = status;
-    this.details = details;
-  }
-};
-var ValidationError = class extends AppError {
-  constructor(message, details = {}, options = {}) {
-    super(options.code ?? "validation_failed", message, options.status ?? 400, details);
-  }
-};
-var NotFoundError = class extends AppError {
-  /** Детали необязательны: старые вызовы без них продолжают работать. */
-  constructor(message = "\u041D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u043E", details = {}) {
-    super("not_found", message, 404, details);
-  }
-};
-var ConflictError = class extends AppError {
-  constructor(message, details = {}) {
-    super("conflict", message, 409, details);
-  }
-};
-var ForbiddenError = class extends AppError {
-  constructor(message = "\u041D\u0435\u0434\u043E\u0441\u0442\u0430\u0442\u043E\u0447\u043D\u043E \u043F\u043E\u043B\u043D\u043E\u043C\u043E\u0447\u0438\u0439", details = {}) {
-    super("forbidden", message, 403, details);
-  }
-};
+// team-host-api:src/app/export-format.ts
+var host2 = globalThis["__teamPlatformHostApi"] ?? {};
+var csv = host2["csv"];
+var downloadHeaders = host2["downloadHeaders"];
 
-// src/adapters/storage/cursor.ts
+// team-host-api:src/kernel/errors.ts
+var host3 = globalThis["__teamPlatformHostApi"] ?? {};
+var AppError = host3["AppError"];
+var ConflictError = host3["ConflictError"];
+var ForbiddenError = host3["ForbiddenError"];
+var NotFoundError = host3["NotFoundError"];
+var UpstreamError = host3["UpstreamError"];
+var ValidationError = host3["ValidationError"];
+var isAppError = host3["isAppError"];
+
+// modules/tasks/cursor.ts
 function encodeCursor(at, id) {
   return Buffer.from(`${at}\0${id}`, "utf8").toString("base64url");
 }
@@ -51,7 +34,7 @@ function decodeCursor(cursor) {
   return { at, id: decoded.slice(index + 1) };
 }
 
-// src/adapters/storage/sqlite.ts
+// modules/tasks/repository.ts
 function toTask(row) {
   return {
     id: row.id,
@@ -255,66 +238,21 @@ var SqliteTaskRepository = class {
   }
 };
 
-// team-host-api:src/kernel/clock.ts
-var host = globalThis["__teamPlatformHostApi"] ?? {};
-var fixedClock = host["fixedClock"];
-var nextTimestamp = host["nextTimestamp"];
-var systemClock = host["systemClock"];
+// team-host-api:src/kernel/ids.ts
+var host4 = globalThis["__teamPlatformHostApi"] ?? {};
+var newId = host4["newId"];
 
-// src/kernel/clock.ts
-function nextTimestamp2(previous, now) {
-  const base = now.getTime();
-  const prev = previous ? Date.parse(previous) : Number.NaN;
-  return new Date(Number.isFinite(prev) ? Math.max(base, prev + 1) : base).toISOString();
-}
+// team-host-api:src/kernel/validate.ts
+var host5 = globalThis["__teamPlatformHostApi"] ?? {};
+var integer = host5["integer"];
+var oneOf = host5["oneOf"];
+var optionalInteger = host5["optionalInteger"];
+var optionalName = host5["optionalName"];
+var record = host5["record"];
+var requiredOneOf = host5["requiredOneOf"];
+var text = host5["text"];
 
-// src/kernel/ids.ts
-import { randomUUID } from "node:crypto";
-function newId(prefix) {
-  return `${prefix}_${randomUUID().replace(/-/g, "").slice(0, 16)}`;
-}
-
-// src/kernel/validate.ts
-function record(raw, what) {
-  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
-    throw new ValidationError(`${what}: \u043E\u0436\u0438\u0434\u0430\u043B\u0441\u044F \u043E\u0431\u044A\u0435\u043A\u0442`);
-  }
-  return raw;
-}
-function text(raw, field, max, required = false) {
-  if (raw === void 0 || raw === null) {
-    if (required) throw new ValidationError(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB \u043E\u0431\u044F\u0437\u0430\u0442\u0435\u043B\u044C\u043D\u043E`);
-    return "";
-  }
-  if (typeof raw !== "string") throw new ValidationError(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB \u0434\u043E\u043B\u0436\u043D\u043E \u0431\u044B\u0442\u044C \u0441\u0442\u0440\u043E\u043A\u043E\u0439`);
-  const value = raw.trim();
-  if (required && !value) throw new ValidationError(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB \u043E\u0431\u044F\u0437\u0430\u0442\u0435\u043B\u044C\u043D\u043E`);
-  if (value.length > max) throw new ValidationError(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB \u0434\u043B\u0438\u043D\u043D\u0435\u0435 ${max} \u0441\u0438\u043C\u0432\u043E\u043B\u043E\u0432`);
-  return value;
-}
-function oneOf(raw, field, allowed, fallback) {
-  if (raw === void 0 || raw === null) return fallback;
-  const value = String(raw);
-  if (!allowed.includes(value)) {
-    throw new ValidationError(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB: \u0434\u043E\u043F\u0443\u0441\u0442\u0438\u043C\u043E ${allowed.join(", ")}`, { value });
-  }
-  return value;
-}
-function optionalName(raw, field) {
-  if (raw === void 0 || raw === null) return null;
-  const value = text(raw, field, 100, true);
-  return value || null;
-}
-function integer(raw, field, min, max, fallback) {
-  if (raw === void 0 || raw === null) return fallback;
-  const value = typeof raw === "number" ? raw : Number(raw);
-  if (!Number.isInteger(value) || value < min || value > max) {
-    throw new ValidationError(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB: \u0446\u0435\u043B\u043E\u0435 \u043E\u0442 ${min} \u0434\u043E ${max}`);
-  }
-  return value;
-}
-
-// src/domain/tasks/task.ts
+// modules/tasks/task.ts
 var TASK_STATUSES = ["open", "claimed", "blocked", "done", "cancelled"];
 var TASK_TYPES = ["work", "research", "maintenance", "internal", "human"];
 var TRANSITIONS = {
@@ -523,7 +461,7 @@ function event(task, type, actor, payload, at) {
   return { task_id: task.id, type, actor, payload, created_at: at };
 }
 function next(task, now, patch, type, actor, payload) {
-  const at = nextTimestamp2(task.updated_at, now);
+  const at = nextTimestamp(task.updated_at, now);
   const nextTask = { ...task, ...patch, revision: task.revision + 1, updated_at: at };
   return { task: nextTask, event: event(nextTask, type, actor, payload, at) };
 }
@@ -545,7 +483,7 @@ function changeTaskStatus(task, change, now, options = {}) {
       requireTaskPermission(task, change.agent, "task.assign", "\u043D\u0430\u0437\u043D\u0430\u0447\u0438\u0442\u044C \u0434\u0440\u0443\u0433\u043E\u0433\u043E \u0438\u0441\u043F\u043E\u043B\u043D\u0438\u0442\u0435\u043B\u044F");
     }
   }
-  const at = nextTimestamp2(task.updated_at, now);
+  const at = nextTimestamp(task.updated_at, now);
   const assignee = change.assignee !== void 0 ? change.assignee : change.to === "claimed" && !task.assignee ? change.agent : change.to === "open" ? null : task.assignee;
   const closing = change.to === "done" || change.to === "cancelled";
   const reopening = change.to === "open";
@@ -598,7 +536,7 @@ function requestTaskHandover(task, change, now) {
     now,
     {
       pending_assignee: change.to,
-      handover_requested_at: nextTimestamp2(task.updated_at, now),
+      handover_requested_at: nextTimestamp(task.updated_at, now),
       handover_requested_by: change.actor,
       handover_note: change.note,
       owner_until: change.owner_until,
@@ -622,7 +560,7 @@ function acceptTaskHandover(task, action, now) {
     {
       assignee: task.pending_assignee,
       pending_assignee: null,
-      handover_accepted_at: nextTimestamp2(task.updated_at, now),
+      handover_accepted_at: nextTimestamp(task.updated_at, now),
       handover_note: null
     },
     "task.handover_accepted",
@@ -738,7 +676,7 @@ function escalateTaskSla(task, action, now) {
   return next(
     task,
     now,
-    { sla_escalated_at: nextTimestamp2(task.updated_at, now), sla_escalated_to: action.to },
+    { sla_escalated_at: nextTimestamp(task.updated_at, now), sla_escalated_to: action.to },
     "task.sla_escalated",
     action.actor,
     { title: task.title, due_at: due, to: action.to, reason: action.reason }
@@ -815,7 +753,7 @@ function autoEscalateTaskSla(task, now, to) {
   return next(
     task,
     now,
-    { sla_escalated_at: nextTimestamp2(task.updated_at, now), sla_escalated_to: to },
+    { sla_escalated_at: nextTimestamp(task.updated_at, now), sla_escalated_to: to },
     "task.sla_escalated",
     "system",
     { title: task.title, due_at: due, to, automatic: true }
@@ -838,7 +776,7 @@ function taskSla(task, now) {
   };
 }
 
-// src/app/task-service.ts
+// modules/tasks/service.ts
 function enumParam(value, field, allowed) {
   if (value === void 0 || value === "") return void 0;
   if (!allowed.includes(value)) {
@@ -1131,12 +1069,7 @@ var TaskService = class {
   }
 };
 
-// team-host-api:src/app/export-format.ts
-var host2 = globalThis["__teamPlatformHostApi"] ?? {};
-var csv = host2["csv"];
-var downloadHeaders = host2["downloadHeaders"];
-
-// src/modules/tasks/schema.ts
+// modules/tasks/schema.ts
 var tasksMigrations = [
   {
     version: "tasks/0001_tasks",

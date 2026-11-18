@@ -1183,7 +1183,7 @@
     {
       "id": "tasks",
       "name": "Доска задач",
-      "version": "1.1.1",
+      "version": "1.1.2",
       "summary": "Карточки, статусы и журнал изменений. Прежние адреса /api/tasks сохраняются.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -1196,10 +1196,10 @@
         "core": "^0.8.0",
         "modules": []
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/tasks-1.1.1.mjs",
-      "size": 78599,
-      "integrity": "sha512-8LcckHOl072nusxn8NgktQzmjz5PPuiDnmd0pl+l0pc9WWRU1hcc9q+qKZGTFeVWNhtseb+lZlrPjNo6yFHXGA==",
-      "signature": "H6NGZteSZSbJpNpxU4fQ0DQuj/0Qis0q3orzQ4FSW1dokb6Y+rZS0ErGoP+lYTViLZGg8w9EvrtX+UyM47uGBg=="
+      "url": "https://attrazion.github.io/team-platform-catalog/tasks-1.1.2.mjs",
+      "size": 75651,
+      "integrity": "sha512-ijcBg8UCnkCCq+/Ce2GW5KRZATbYbZoP0fS8S8/z+bEJuQZHLM/PMsDdl7diXpXok893OrnR+Kk/OjdSneJ1vg==",
+      "signature": "YLr+FKQiQY/vllbar0INq1htZwKZxYd3OJzBi0a9mUM0aJJk7r7zIOYElf3KUlkGm88Lb2MHIjQ2Nq45/4H5CA=="
     },
     {
       "id": "telegram",
