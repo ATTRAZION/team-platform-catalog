@@ -1,39 +1,19 @@
 import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);
 
-// src/app/agent-executor.ts
+// modules/runs/executor.ts
 import { spawn } from "node:child_process";
 
-// src/kernel/errors.ts
-var AppError = class extends Error {
-  code;
-  status;
-  details;
-  constructor(code, message, status, details = {}) {
-    super(message);
-    this.name = new.target.name;
-    this.code = code;
-    this.status = status;
-    this.details = details;
-  }
-};
-var ValidationError = class extends AppError {
-  constructor(message, details = {}, options = {}) {
-    super(options.code ?? "validation_failed", message, options.status ?? 400, details);
-  }
-};
-var NotFoundError = class extends AppError {
-  /** Детали необязательны: старые вызовы без них продолжают работать. */
-  constructor(message = "\u041D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u043E", details = {}) {
-    super("not_found", message, 404, details);
-  }
-};
-var ConflictError = class extends AppError {
-  constructor(message, details = {}) {
-    super("conflict", message, 409, details);
-  }
-};
+// team-host-api:src/kernel/errors.ts
+var host = globalThis["__teamPlatformHostApi"] ?? {};
+var AppError = host["AppError"];
+var ConflictError = host["ConflictError"];
+var ForbiddenError = host["ForbiddenError"];
+var NotFoundError = host["NotFoundError"];
+var UpstreamError = host["UpstreamError"];
+var ValidationError = host["ValidationError"];
+var isAppError = host["isAppError"];
 
-// src/domain/agents/budget-required.ts
+// modules/runs/budget-required.ts
 var AGENT_BUDGET_REQUIRED_CODE = "agent_budget_required";
 var AGENT_ROLES = ["designer", "coder", "reviewer"];
 var AgentBudgetRequiredError = class extends AppError {
@@ -78,7 +58,7 @@ function planAgentRun(raw) {
   };
 }
 
-// src/domain/runs/failure.ts
+// modules/runs/failure.ts
 var RULES = [
   {
     kind: "quota",
@@ -132,7 +112,7 @@ function explainFailure(text2) {
 }
 var FAILURE_CATEGORIES = RULES.map(({ kind, label }) => ({ kind, label }));
 
-// src/domain/runs/retry.ts
+// modules/runs/retry.ts
 var RETRY_FALLBACK_MS = 9e5;
 var RETRY_MAX_MS = 36e5;
 var RETRY_JITTER_MS = 3e4;
@@ -160,46 +140,21 @@ function nextRetryDelay(input = {}) {
   return Math.max(0, nextRetryAt({ ...input, now }) - now);
 }
 
-// src/adapters/agents/file-registry.ts
+// modules/runs/file-registry.ts
 import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 
-// src/kernel/validate.ts
-function record(raw, what) {
-  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
-    throw new ValidationError(`${what}: \u043E\u0436\u0438\u0434\u0430\u043B\u0441\u044F \u043E\u0431\u044A\u0435\u043A\u0442`);
-  }
-  return raw;
-}
-function text(raw, field, max, required = false) {
-  if (raw === void 0 || raw === null) {
-    if (required) throw new ValidationError(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB \u043E\u0431\u044F\u0437\u0430\u0442\u0435\u043B\u044C\u043D\u043E`);
-    return "";
-  }
-  if (typeof raw !== "string") throw new ValidationError(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB \u0434\u043E\u043B\u0436\u043D\u043E \u0431\u044B\u0442\u044C \u0441\u0442\u0440\u043E\u043A\u043E\u0439`);
-  const value = raw.trim();
-  if (required && !value) throw new ValidationError(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB \u043E\u0431\u044F\u0437\u0430\u0442\u0435\u043B\u044C\u043D\u043E`);
-  if (value.length > max) throw new ValidationError(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB \u0434\u043B\u0438\u043D\u043D\u0435\u0435 ${max} \u0441\u0438\u043C\u0432\u043E\u043B\u043E\u0432`);
-  return value;
-}
-function oneOf(raw, field, allowed, fallback) {
-  if (raw === void 0 || raw === null) return fallback;
-  const value = String(raw);
-  if (!allowed.includes(value)) {
-    throw new ValidationError(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB: \u0434\u043E\u043F\u0443\u0441\u0442\u0438\u043C\u043E ${allowed.join(", ")}`, { value });
-  }
-  return value;
-}
-function integer(raw, field, min, max, fallback) {
-  if (raw === void 0 || raw === null) return fallback;
-  const value = typeof raw === "number" ? raw : Number(raw);
-  if (!Number.isInteger(value) || value < min || value > max) {
-    throw new ValidationError(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB: \u0446\u0435\u043B\u043E\u0435 \u043E\u0442 ${min} \u0434\u043E ${max}`);
-  }
-  return value;
-}
+// team-host-api:src/kernel/validate.ts
+var host2 = globalThis["__teamPlatformHostApi"] ?? {};
+var integer = host2["integer"];
+var oneOf = host2["oneOf"];
+var optionalInteger = host2["optionalInteger"];
+var optionalName = host2["optionalName"];
+var record = host2["record"];
+var requiredOneOf = host2["requiredOneOf"];
+var text = host2["text"];
 
-// src/adapters/agents/file-registry.ts
+// modules/runs/file-registry.ts
 function defaultAgents() {
   if (process.platform === "win32") {
     return [{
@@ -342,7 +297,7 @@ function mtimeOf(file) {
   }
 }
 
-// src/app/workspace-lock.ts
+// modules/runs/workspace-lock.ts
 import { createHash } from "node:crypto";
 import {
   closeSync,
@@ -424,7 +379,7 @@ function acquireWorkspaceLock(cwd, runId, now = Date.now()) {
   return null;
 }
 
-// src/app/agent-executor.ts
+// modules/runs/executor.ts
 var OUTPUT_TAIL = 2e4;
 var RESULT_TAIL = 4e3;
 var CHUNK = 2e3;
@@ -1023,7 +978,7 @@ var AgentExecutor = class {
   }
 };
 
-// src/app/availability-service.ts
+// modules/runs/availability.ts
 function toPause(row) {
   return {
     agent: row.agent,
@@ -1109,23 +1064,20 @@ var AgentAvailability = class {
   }
 };
 
-// src/domain/runs/run.ts
+// modules/runs/run.ts
 import { createHash as createHash2 } from "node:crypto";
 
-// src/kernel/clock.ts
-function nextTimestamp(previous, now) {
-  const base = now.getTime();
-  const prev = previous ? Date.parse(previous) : Number.NaN;
-  return new Date(Number.isFinite(prev) ? Math.max(base, prev + 1) : base).toISOString();
-}
+// team-host-api:src/kernel/clock.ts
+var host3 = globalThis["__teamPlatformHostApi"] ?? {};
+var fixedClock = host3["fixedClock"];
+var nextTimestamp = host3["nextTimestamp"];
+var systemClock = host3["systemClock"];
 
-// src/kernel/ids.ts
-import { randomUUID } from "node:crypto";
-function newId(prefix) {
-  return `${prefix}_${randomUUID().replace(/-/g, "").slice(0, 16)}`;
-}
+// team-host-api:src/kernel/ids.ts
+var host4 = globalThis["__teamPlatformHostApi"] ?? {};
+var newId = host4["newId"];
 
-// src/domain/runs/run.ts
+// modules/runs/run.ts
 var RUN_STATUSES = ["queued", "running", "succeeded", "failed", "cancelled"];
 var TERMINAL_RUN_STATUSES = ["succeeded", "failed", "cancelled"];
 var RUN_OUTCOMES = ["succeeded", "failed", "cancelled"];
@@ -1607,7 +1559,7 @@ function expireRun(run, now) {
   };
 }
 
-// src/app/run-service.ts
+// modules/runs/service.ts
 var SWEEP_BATCH = 200;
 var SWEEP_MAX_BATCHES = 10;
 var RunService = class {
@@ -2070,7 +2022,7 @@ var RunService = class {
   }
 };
 
-// src/app/run-watchdog.ts
+// modules/runs/watchdog.ts
 var RunWatchdog = class {
   #service;
   #log;
@@ -2121,12 +2073,12 @@ var RunWatchdog = class {
   }
 };
 
-// src/domain/runs/metrics.ts
+// modules/runs/metrics.ts
 function emptyStatusCounts() {
   return Object.fromEntries(RUN_STATUSES.map((status) => [status, 0]));
 }
 
-// src/adapters/storage/cursor.ts
+// modules/runs/cursor.ts
 function encodeCursor(at, id) {
   return Buffer.from(`${at}\0${id}`, "utf8").toString("base64url");
 }
@@ -2139,7 +2091,7 @@ function decodeCursor(cursor) {
   return { at, id: decoded.slice(index + 1) };
 }
 
-// src/adapters/storage/sqlite-runs.ts
+// modules/runs/repository.ts
 var COLUMNS = `id, task_id, agent, model, status, attempt, max_attempts, retry_of, retry_attempt,
   idempotency_key, idempotency_fingerprint, idempotency_expires_at, lease_owner, lease_ceiling_at, lease_epoch, lease_expires_at, cancel_requested_at, exit_code,
   error_class, error_message, result, not_before, deadline_at, revision, created_at, started_at, finished_at,
@@ -2397,7 +2349,7 @@ var SqliteRunRepository = class {
   }
 };
 
-// src/adapters/process/system-process-tree.ts
+// modules/runs/system-process-tree.ts
 import { spawnSync } from "node:child_process";
 function pidAlive2(pid) {
   try {
@@ -2488,18 +2440,12 @@ var SystemProcessTree = class {
   }
 };
 
-// team-host-api:src/kernel/clock.ts
-var host = globalThis["__teamPlatformHostApi"] ?? {};
-var fixedClock = host["fixedClock"];
-var nextTimestamp2 = host["nextTimestamp"];
-var systemClock = host["systemClock"];
-
 // team-host-api:src/app/export-format.ts
-var host2 = globalThis["__teamPlatformHostApi"] ?? {};
-var csv = host2["csv"];
-var downloadHeaders = host2["downloadHeaders"];
+var host5 = globalThis["__teamPlatformHostApi"] ?? {};
+var csv = host5["csv"];
+var downloadHeaders = host5["downloadHeaders"];
 
-// src/adapters/storage/sqlite-process-tree-journal.ts
+// modules/runs/process-tree-journal.ts
 var processTreeJournalMigrations = [
   {
     // Журнал сигналов — публичное доказательство остановки, поэтому он живёт
@@ -2515,7 +2461,7 @@ var processTreeJournalMigrations = [
   }
 ];
 
-// src/modules/runs/schema.ts
+// modules/runs/schema.ts
 var runsMigrations = [
   {
     version: "runs/0001_runs",
@@ -2645,7 +2591,7 @@ var runsMigrations = [
   ...processTreeJournalMigrations
 ];
 
-// src/modules/agents/schema.ts
+// modules/runs/agents-schema.ts
 var agentsMigrations = [
   {
     // Пауза участника после инфраструктурного сбоя переживает перезапуск:

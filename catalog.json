@@ -1041,7 +1041,7 @@
     {
       "id": "runs",
       "name": "Запуски и исполнитель",
-      "version": "1.1.5",
+      "version": "1.1.6",
       "summary": "Очередь запусков, аренда, отмена и локальный исполнитель агентов. Зависит от доски задач.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -1060,10 +1060,10 @@
           }
         ]
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/runs-1.1.5.mjs",
-      "size": 136748,
-      "integrity": "sha512-D5cN4wqPluCIv7oBSyqiKq040UDu1a6LDtZNbYVF1RT/mw8uKjxJyAtsRfcehY6rBLhqpLa9P3VPPpOMhArKEw==",
-      "signature": "B24HgPBD1UitDkl8A7n5QMLdwdB2xciOq+1gHSpkW6yXyaeCvCi7R6wjc29zJgrV90TgDVMRWdPmVEUDbZniBg=="
+      "url": "https://attrazion.github.io/team-platform-catalog/runs-1.1.6.mjs",
+      "size": 134265,
+      "integrity": "sha512-jJDXR4wl1M5/visnBMc119LRMJCFR/a0+CJR2/WnxgNYeAg3YMbRf+4BzcAesl4X8soBZVzueCd0434I+LRrlA==",
+      "signature": "2sADNp8BHvHMhxghU4Ft0GIocBp62D2gd7iSvpivij1wxIrvjxffKVvbtRl7qDnseDegYac4B1XXsRnJqE4dCQ=="
     },
     {
       "id": "scene-registry",
