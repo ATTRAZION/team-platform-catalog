@@ -202,7 +202,8 @@ var assetStoreMigrations = [
 var PAGE = `<!DOCTYPE html>
 <html lang="ru">
 <head><meta charset="utf-8" /><title>\u0425\u0440\u0430\u043D\u0438\u043B\u0438\u0449\u0435 \u0444\u0430\u0439\u043B\u043E\u0432</title></head>
-<body><h1>\u0425\u0440\u0430\u043D\u0438\u043B\u0438\u0449\u0435 \u0444\u0430\u0439\u043B\u043E\u0432</h1><p>\u041B\u043E\u043A\u0430\u043B\u044C\u043D\u043E\u0435 \u0445\u0440\u0430\u043D\u0435\u043D\u0438\u0435 \u0431\u0438\u043D\u0430\u0440\u043D\u044B\u0445 \u0444\u0430\u0439\u043B\u043E\u0432 \u0441 \u043F\u0440\u043E\u0432\u0435\u0440\u043A\u043E\u0439 \u0446\u0435\u043B\u043E\u0441\u0442\u043D\u043E\u0441\u0442\u0438.</p></body>
+<body><h1>\u0425\u0440\u0430\u043D\u0438\u043B\u0438\u0449\u0435 \u0444\u0430\u0439\u043B\u043E\u0432</h1><p><code>POST /api/tools/asset-store/ship-check</code> \u0441 <code>{ asset_ids }</code> \u043F\u0440\u043E\u0432\u0435\u0440\u044F\u0435\u0442 \u043B\u0438\u0446\u0435\u043D\u0437\u0438\u0438 \u043A\u043E\u043D\u043A\u0440\u0435\u0442\u043D\u043E\u0433\u043E \u043D\u0430\u0431\u043E\u0440\u0430 \u0444\u0430\u0439\u043B\u043E\u0432 \u0447\u0435\u0440\u0435\u0437 <code>asset-license</code>; \u0444\u0430\u0439\u043B \u0431\u0435\u0437 \u0437\u0430\u043F\u0438\u0441\u0438 \u043F\u043E\u043B\u0443\u0447\u0430\u0435\u0442 <code>license_missing</code>.</p>
+<p>\u041B\u043E\u043A\u0430\u043B\u044C\u043D\u043E\u0435 \u0445\u0440\u0430\u043D\u0435\u043D\u0438\u0435 \u0431\u0438\u043D\u0430\u0440\u043D\u044B\u0445 \u0444\u0430\u0439\u043B\u043E\u0432 \u0441 \u043F\u0440\u043E\u0432\u0435\u0440\u043A\u043E\u0439 \u0446\u0435\u043B\u043E\u0441\u0442\u043D\u043E\u0441\u0442\u0438.</p></body>
 </html>`;
 
 // modules/asset-store/index.ts
@@ -237,6 +238,35 @@ var module = {
       headers: NO_STORE,
       body: { ok: true, ...store.remove(request.params.id) }
     }));
+    ctx.api.add("POST", "/api/tools/asset-store/ship-check", (request) => {
+      const body = bodyOf(request.body);
+      if (!Array.isArray(body.asset_ids)) {
+        throw new ValidationError("asset_ids \u2014 \u043C\u0430\u0441\u0441\u0438\u0432 \u0438\u0434\u0435\u043D\u0442\u0438\u0444\u0438\u043A\u0430\u0442\u043E\u0440\u043E\u0432 \u0430\u0441\u0441\u0435\u0442\u043E\u0432", { received: typeof body.asset_ids }, {
+          code: "asset_store_asset_ids_invalid"
+        });
+      }
+      if (body.asset_ids.length > 200) {
+        throw new ValidationError("\u0411\u043E\u043B\u044C\u0448\u0435 200 \u0430\u0441\u0441\u0435\u0442\u043E\u0432 \u043D\u0435 \u043F\u0440\u043E\u0432\u0435\u0440\u044F\u0435\u0442\u0441\u044F", { limit: 200 }, {
+          code: "asset_store_asset_ids_too_many"
+        });
+      }
+      const files = body.asset_ids.map((id) => store.get(String(id)));
+      const result = ctx.require("asset-license").shipCheck({
+        assets: files.map((file) => ({ asset_id: file.id, sha256: file.sha256 }))
+      });
+      return {
+        status: 200,
+        headers: NO_STORE,
+        body: {
+          ok: true,
+          ...result,
+          assets: result.assets.map((asset) => ({
+            ...asset,
+            name: files.find((file) => file.id === asset.asset_id)?.name ?? null
+          }))
+        }
+      };
+    });
     ctx.api.add("GET", "/api/tools/asset-store/summary", () => ({
       headers: NO_STORE,
       body: { ok: true, summary: store.summary() }

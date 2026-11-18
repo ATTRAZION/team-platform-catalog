@@ -42,10 +42,10 @@
       "signature": "gTHG/OZ/ArRBn72+ivlu4084lpj7w4buQNSAIp3XcQ+lZM9H7ZrOddnhelVd20dxS0RScfJ1dJNa1B+5n8x8BA=="
     },
     {
-      "id": "asset-store",
-      "name": "Хранилище файлов",
-      "version": "1.0.1",
-      "summary": "Локальное хранение бинарных файлов (до 1 МиБ на файл, 64 МиБ всего, 200 файлов) с sha256, метаданными и проверкой целостности; без сети и ключей.",
+      "id": "asset-license",
+      "name": "Реестр лицензий ассетов",
+      "version": "1.1.0",
+      "summary": "Общий реестр лицензий для 3D и геймдева: атрибуция, commercial-use, share-alike, производные, запрет ИИ-обучения, дата и sha256; проверка «можно ли шипить» по записям, одной лицензии или набору ассетов с причинами отказа.",
       "publisher": "Team Platform",
       "trust": "official",
       "category": "work",
@@ -56,15 +56,58 @@
         "core": "^0.8.0",
         "modules": []
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/asset-store-1.0.1.mjs",
-      "size": 10474,
-      "integrity": "sha512-L9oVV+UbuRxxn38ScsnBjvfRFAu6Fc/ml2IqDBr+cKJz1hiaThaLJS95fafg/3xY4MaMonlIz78MK8+2xtO+Ng==",
-      "signature": "nubbTTIzwRnj9Z/l893XFnnoHz4hpzOF/UEemEO0DWXiuynKZ9pP3pFRtjCm8Ye0eKlgAEIlgETyt2gPwEG4AQ=="
+      "url": "https://attrazion.github.io/team-platform-catalog/asset-license-1.1.0.mjs",
+      "size": 24059,
+      "integrity": "sha512-rwe2xlzTKKJQMKX1e24tPUZhf/Jcqns1OcMRtEf00ZyJviIyqPp6hc/2f0gwghm1agFvOYKFQejdPzHN489DYA==",
+      "signature": "cTREZelsFzUYfILC1Q/Vi0toWjafXMAGmD+uF8sJLNO7rPp5p16FSg8LPdJi/NeAIuqmciST7TQoIAl1o64lDQ=="
+    },
+    {
+      "id": "asset-store",
+      "name": "Хранилище файлов",
+      "version": "1.0.2",
+      "summary": "Локальное хранение бинарных файлов (до 1 МиБ на файл, 64 МиБ всего, 200 файлов) с sha256, метаданными, проверкой целостности и ship-check набора ассетов через asset-license; без сети и ключей.",
+      "publisher": "Team Platform",
+      "trust": "official",
+      "category": "work",
+      "permissions": [
+        "storage"
+      ],
+      "requires": {
+        "core": "^0.8.0",
+        "modules": [
+          {
+            "id": "asset-license",
+            "range": "^1.1.0"
+          }
+        ]
+      },
+      "url": "https://attrazion.github.io/team-platform-catalog/asset-store-1.0.2.mjs",
+      "size": 12392,
+      "integrity": "sha512-v+OmKSyKrD7l/Gn3TRpzWLBweiiWzARNn5q2IjBWiP1XW+5NvBYwknw+c4ZgXXrZ08TLITKLI3pfJB0yhO1/og==",
+      "signature": "Q37uI89Mn4L7hLyLN6/VjC5RXEQ5k0jqEJxODNtGfZ/7in1NBxnfibDe4WqcyQsipavvjE7w7GbCvSApv8i3Dw=="
+    },
+    {
+      "id": "audio-info",
+      "name": "Метаданные аудио",
+      "version": "1.0.0",
+      "summary": "Длительность, частота, каналы и битрейт WAV/FLAC/OGG/MP3 по заголовку без ffmpeg, сети и зависимостей.",
+      "publisher": "Team Platform",
+      "trust": "official",
+      "category": "work",
+      "permissions": [],
+      "requires": {
+        "core": "^0.8.0",
+        "modules": []
+      },
+      "url": "https://attrazion.github.io/team-platform-catalog/audio-info-1.0.0.mjs",
+      "size": 14268,
+      "integrity": "sha512-dXZbXuj2EylS+8dcTgQYlYgARriZS4nzTcWt508NT41Pi5fF2iHzzJSsnOiDxQnmVzU2S97IcSmggnBmGUnkyg==",
+      "signature": "j4MCNjt6vBDB1gqQkmSB589CZi2gn4tDZUY5za9fWwIM160bAfIx2qwCOmdZt4yH91RApnx3tqiGUfxMEFoeDA=="
     },
     {
       "id": "author-studio",
       "name": "Студия автора",
-      "version": "1.6.1",
+      "version": "1.6.3",
       "summary": "Заметки, шаблоны, цитаты, ассеты, черновики, читательский вид по снимку версии, повторяемый сценарий статьи, генерация черновика из шаблона и экспорт библиографии в BibTeX/RIS.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -76,10 +119,10 @@
         "core": "^0.8.0",
         "modules": []
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/author-studio-1.6.1.mjs",
-      "size": 66749,
-      "integrity": "sha512-w199QuDV9EQl+R80X1dXH7gTPNko55DiR3B35Wwe+OlrvUobmOlBQu6bI7lbtpDpS5VdmzdR0ZJ5aUVSw/jbpg==",
-      "signature": "b5kqv5CWPcob95Bl9HBHLIIaeoJO/NGH5W0ldetzowIWM9bGo3mdE7cEWkaRAYs6fSbuK6ty8daujRgPr2EBAg=="
+      "url": "https://attrazion.github.io/team-platform-catalog/author-studio-1.6.3.mjs",
+      "size": 68316,
+      "integrity": "sha512-QhHk6kWSjRDfujwR3EKwf9vlUT6+kRBdmBYsd9XofFTr8bzZyZQdPprDDy4QvmAeX7de6VUjL9tJFBAvopTPUQ==",
+      "signature": "yd+2iynhnkHHdPJBv52GEXFCy+PopWKI4iITAJBEC3Ame9ogh0MA/4W2nGCUdArwkrR5faLF91nrQxo8us94Ag=="
     },
     {
       "id": "botpsy-local",
@@ -144,10 +187,28 @@
       "signature": "tYkh05h8b9Pt96LkrfmkDVrNv23lUg6njp2DsVabRGAAugUNbveEofOBXF4KfsvuOiFopOJDIhrTVUtAHoUBAw=="
     },
     {
+      "id": "citation-match",
+      "name": "Сверка цитаты с записью",
+      "version": "1.1.4",
+      "summary": "Сверка цитаты с уже найденной записью по DOI, названию, авторам и году: exact, metadata_mismatch, not_found, ambiguous. Названия сохраняют + и # (C++ ≠ C# ≠ C), DOI нормализует www/dx и завершающую пунктуацию, published проверяется календарно. Авторы — упорядоченный префикс записи; частицы фамилий (`van der Waals`) сохраняются в обеих формах. Без сети, ключей и внешних программ.",
+      "publisher": "Team Platform",
+      "trust": "official",
+      "category": "work",
+      "permissions": [],
+      "requires": {
+        "core": "^0.8.0",
+        "modules": []
+      },
+      "url": "https://attrazion.github.io/team-platform-catalog/citation-match-1.1.4.mjs",
+      "size": 21215,
+      "integrity": "sha512-2gFGzuiRCkWk/PfUXPRf2B0Nz3ol0ScHN6+NYJXtjCysmc7SphpVX/hISMT0w7QhYWjPwU+akohFlj7yDl2rEg==",
+      "signature": "w7Y9eNPxirAxH0u6wA28KWyHFNcn6MapnL0UsAapREwaQV0k7rsqgP0wjO7rpPYcUPl/0+hSngnRQh3SLn/0BQ=="
+    },
+    {
       "id": "citation-verify",
       "name": "Проверка цитат по Crossref",
-      "version": "1.1.0",
-      "summary": "Сверка цитаты с метаданными Crossref по DOI: заголовок, авторы, год, тип, издатель; отчёт о расхождениях. Без ключей и платных сервисов (требуется сеть).",
+      "version": "1.2.1",
+      "summary": "Сверка цитаты с метаданными Crossref по DOI и вердикты citation-match: exact, metadata_mismatch, ambiguous; черновик проверяется по карточкам author-studio. Без ключей и платных сервисов (требуется сеть).",
       "publisher": "Team Platform",
       "trust": "official",
       "category": "integrations",
@@ -161,13 +222,17 @@
           {
             "id": "author-studio",
             "range": "^1.0.0"
+          },
+          {
+            "id": "citation-match",
+            "range": "^1.1.0"
           }
         ]
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/citation-verify-1.1.0.mjs",
-      "size": 9597,
-      "integrity": "sha512-Gqd2DKqWlRcdPh2bOf5iGNQCbb5A1is1n88SgZwZX/97uJpOwIYeXZRpSlZlkWC3d/SJ5Wl0BtREHq4cbUUYnQ==",
-      "signature": "hRyADetYIETFG/qKzvJutwRyUPsI+a1DUD8FFuxFi+j8aXNQ9cjb+LmPJSJprbNCk1/6p+nXJgzcgGmR9+csAQ=="
+      "url": "https://attrazion.github.io/team-platform-catalog/citation-verify-1.2.1.mjs",
+      "size": 10627,
+      "integrity": "sha512-g13zdIe15o3ofU9bDYa5Te1OdiHUydEXrOnRBqvl5I1GY2uiNDoBCMvrGGa/lg0U+DJnINidNjn1hOrvo3mcCA==",
+      "signature": "Ayz3K2sRReh2Yax82FDpGYctDO0G9UrHzGt4419DN9UC4tOIheJ7HDpNKeLTtLkTHmKR3ilRDHV8HbpKdHmBDA=="
     },
     {
       "id": "color-palette",
@@ -256,6 +321,46 @@
       "size": 1298,
       "integrity": "sha512-58sh+K7xviVrPqfM+Bgop5B+5uYB23Y9YUzeRsnVWk7JWefCRJnsYyWrCs3fJ2E/ognEI+moDb5CuvWeeOkp9A==",
       "signature": "Ft0XRpaWY4ErFgMOf2M8KV9/I7N1zJ9S8jBwzHnmCc+CMvti5Iy24KQLu/o2oN7qNCu3Fztvp5tDBOCQsTpnAg=="
+    },
+    {
+      "id": "downloads",
+      "name": "Загрузки",
+      "version": "1.0.0",
+      "summary": "Portable-загрузчик «Скачать» как модуль: состояние приложения, очередь и история из его папки данных, запуск exe и открытие папки данных. Путь задаётся TEAM_DOWNLOADER_DIR, по умолчанию D:\\Downloader.",
+      "publisher": "Team Platform",
+      "trust": "official",
+      "category": "tools",
+      "permissions": [
+        "process"
+      ],
+      "requires": {
+        "core": "^0.8.0",
+        "modules": []
+      },
+      "url": "https://attrazion.github.io/team-platform-catalog/downloads-1.0.0.mjs",
+      "size": 19255,
+      "integrity": "sha512-TcfS85vZkY8OaVAyymgfUNEVY38iPgWcmikubfSugqmg+dh/oN9PRb/GOr+U6SwsceD5kwyLvFrj1BWx974RoA==",
+      "signature": "4CElruXw0px9kUGTVUdPvjFErZqM29XqoFbFO/++oXZd8/3VD5zGs826D4PzjaUIcHGoWbQwQhssdwMmagDxAQ=="
+    },
+    {
+      "id": "engine-detect",
+      "name": "Определение движка",
+      "version": "1.0.0",
+      "summary": "Godot, Unity, Unreal, Bevy и Phaser по файлам проекта: версия и платформы без запуска движка, сети и процессов.",
+      "publisher": "Team Platform",
+      "trust": "official",
+      "category": "work",
+      "permissions": [
+        "storage"
+      ],
+      "requires": {
+        "core": "^0.8.0",
+        "modules": []
+      },
+      "url": "https://attrazion.github.io/team-platform-catalog/engine-detect-1.0.0.mjs",
+      "size": 10059,
+      "integrity": "sha512-n0ZB6+Rnw7TnB6gJ036Cc0s90LLuhYZrSBxj4UBy8BefmX1JVDEqDSnz3T84F/oYgAzGw9wEEuXp08JVlvzgqA==",
+      "signature": "Xdhza9XrvPfeFWo0KiyQ3EZ/8biz423SOJML2TlNiWxbU19T7ZACAn4FpRJCMw9f0PJyI1f+qdL7pst2lw1hCQ=="
     },
     {
       "id": "entire",
@@ -417,6 +522,29 @@
       "size": 67286,
       "integrity": "sha512-Nt+NpT+GaC6LBg5Yge7W/udbDborh37Q9jifG1ow9jKxj4Gh0rdANAxDFRzLjAxZsko7YOkmF/LhR5zQv/hKnw==",
       "signature": "9mb2bJ9JZlpUul0LHjjBykwT154DIzLtS8hRwF99CrcgRsK5bR35md1w0AYAfktkQuPP0wRrKL9IdspxQwg9BA=="
+    },
+    {
+      "id": "glb-info",
+      "name": "Разбор GLB",
+      "version": "1.0.2",
+      "summary": "Метаданные GLB по чанкам и лицензия файла из asset-license по sha256: версия, меши, примитивы, вершины, материалы, текстуры, анимации, расширения и сжатие. Без Blender, сети и зависимостей.",
+      "publisher": "Team Platform",
+      "trust": "official",
+      "category": "work",
+      "permissions": [],
+      "requires": {
+        "core": "^0.8.0",
+        "modules": [
+          {
+            "id": "asset-license",
+            "range": "^1.1.0"
+          }
+        ]
+      },
+      "url": "https://attrazion.github.io/team-platform-catalog/glb-info-1.0.2.mjs",
+      "size": 11702,
+      "integrity": "sha512-RB0hlzouDV0JQOEUngkklzixLAmYQ/ESYhAqOub69S3h4opuNhcMgn5+8HtJtbN5JqJSLVWy6rbFgMogwF9VGA==",
+      "signature": "tzGqRTzPbqjen7V0+pAD0uwr4FEw1SAfKqjCRZAwM5YKEDEdIATcw9Sylc9PSoCZkK7xJnNoBJIQfyXHiSC2BQ=="
     },
     {
       "id": "google",
@@ -1414,7 +1542,7 @@
     {
       "id": "whisper-local",
       "name": "Локальная расшифровка аудио и видео",
-      "version": "1.12.0",
+      "version": "1.12.1",
       "summary": "Офлайн-расшифровка аудио и звуковой дорожки MP4 через Whisper, Qwen3-ASR или MOSS.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -1427,10 +1555,10 @@
         "core": "^0.8.0",
         "modules": []
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/whisper-local-1.12.0.mjs",
-      "size": 53879,
-      "integrity": "sha512-1/aFhX0LFyhOf+8LJk+yXFuC5vEjX8LHbRv8EWBxa5uCQ6pOqhXQxzJiIKeWqLH0EC2MF6YN/buVECSwjeqgNA==",
-      "signature": "vRFGeV+muzgf+rdMZ+O9/TtXFWWjepkiQpRDITP9R/PTtL4LK3vQTXfYjZDAGxTW0OMtA7oXcu/HB+2w8XYVAg=="
+      "url": "https://attrazion.github.io/team-platform-catalog/whisper-local-1.12.1.mjs",
+      "size": 54128,
+      "integrity": "sha512-4HV3ZQEriKAn0eey0Oq3p8Q8/hlQr4CpwivoNJfJB8lmSr9FA+9btxQKq5TlD9B9NkRgEARghQuywV+l8H29PA==",
+      "signature": "5N5vWphDvTMmh05RidUsx1pZyCnDDjvmcGOs5slz+MN5UAKY7nK5fcmWl/R30h+EPvC99lWq3LDbZZMTYWjZCA=="
     },
     {
       "id": "wikipedia-search",

@@ -583,6 +583,31 @@ var AuthorStudioService = class {
       locator: citation.citation.locator
     })).sort((left, right) => left.source_id === right.source_id ? left.locator.localeCompare(right.locator) : left.source_id.localeCompare(right.source_id));
   }
+  /**
+   * CAP-0146: карточки цитат черновика для сверки. Название, массив авторов и
+   * кандидаты — необязательные поля старых карточек, поэтому они читаются
+   * терпимо: старый черновик без них остаётся проверяемым по source_id/author/year.
+   */
+  citationCards(draftId) {
+    const rows = this.#db.raw.prepare("SELECT * FROM author_studio_items WHERE kind = ? ORDER BY created_at ASC").all("citation");
+    return rows.map(toItem).filter((item) => textValue(item.metadata.draft_id) === draftId).map((item) => {
+      const sourceId = textValue(item.metadata.source_id);
+      const author = textValue(item.metadata.author);
+      const year = Number(item.metadata.year);
+      const title = textValue(item.metadata.title) || null;
+      const authors = Array.isArray(item.metadata.authors) ? item.metadata.authors.filter((entry) => typeof entry === "string") : author ? [author] : [];
+      const candidates = item.metadata.candidates;
+      return {
+        citation_id: item.id,
+        source_id: sourceId,
+        title,
+        authors,
+        year: Number.isFinite(year) ? year : null,
+        locator: textValue(item.metadata.locator),
+        candidates: candidates === void 0 || candidates === null ? null : candidates
+      };
+    });
+  }
   /** Сводка работы автора: элементы по видам, версии, экспорты и связи. */
   metrics() {
     const itemsByKind = Object.fromEntries(KINDS.map((kind) => [kind, 0]));
@@ -1529,6 +1554,10 @@ var module = {
   register(ctx) {
     const studio = new AuthorStudioService(ctx.storage);
     const replays = new AuthorStudioReplayService(ctx.storage, studio);
+    ctx.publish?.({
+      citations: (draftId) => studio.citationCards(draftId),
+      sourceCards: (draftId) => studio.sourceCards(draftId)
+    });
     registerAuthorStudioRoutes(ctx.api, studio, replays);
     ctx.router.add("GET", "/", () => ({
       raw: PAGE,
