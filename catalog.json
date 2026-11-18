@@ -344,6 +344,27 @@
       "signature": "MmnUsBiOdzFpoDlsHEriLdEtuI5KIW7zJl1uYzw7f9wTi/d4pRKzxab6x5ZPpkhFBgYTRhX9amRP3egcQTmZAg=="
     },
     {
+      "id": "free-model-catalog",
+      "name": "Бесплатные модели OpenRouter",
+      "version": "1.4.1",
+      "summary": "Проверка публичного каталога бесплатных текстовых моделей без ключа.",
+      "publisher": "Team Platform",
+      "trust": "official",
+      "category": "integrations",
+      "permissions": [
+        "network",
+        "storage"
+      ],
+      "requires": {
+        "core": "^0.8.0",
+        "modules": []
+      },
+      "url": "https://attrazion.github.io/team-platform-catalog/free-model-catalog-1.4.1.mjs",
+      "size": 47613,
+      "integrity": "sha512-jVrvQ2DkPjU/eofEG19IausZVu4pCLHlSTBqBBX7yEOORU/KB81PVLAgD8T/CX5zH+QqWhSRstlJf473cGVFRw==",
+      "signature": "sYaU05uMoMXrVT5pd7QVxt00pzpj31WDUTB66Mg3h11XOWHpXKtPB1OQnEY9l6VKqXme6kOwCz+/TfCbZdyvDw=="
+    },
+    {
       "id": "freebuff",
       "name": "Freebuff",
       "version": "1.1.2",
@@ -799,6 +820,24 @@
       "size": 6550,
       "integrity": "sha512-FKokZC+bWQEYyojOQFebAAZeJwbJDRfSVPtyvUQ00rMfPu0Oo7v5gWmJuc5HFAlB7VmJfP0+yiu2DREsfXaMvQ==",
       "signature": "Y9gjkFucmQiv34fF/o1Ef1pdpI2Wr2a1BAoYMXIiMmdcQToz2Cbc/SqRzg4xpNvDQibS0y+g0bpYD5iHpPWCBQ=="
+    },
+    {
+      "id": "palette-diff",
+      "name": "Сравнение палитр",
+      "version": "1.0.0",
+      "summary": "Пересечение двух палитр, добавленные и ушедшие цвета с ближайшим соседом и расстоянием CIEDE2000 (CIE 2001, Sharma 2005). Чистая математика без сети, ключей и зависимостей — правка палитры становится проверяемым шагом.",
+      "publisher": "Team Platform",
+      "trust": "official",
+      "category": "work",
+      "permissions": [],
+      "requires": {
+        "core": "^0.8.0",
+        "modules": []
+      },
+      "url": "https://attrazion.github.io/team-platform-catalog/palette-diff-1.0.0.mjs",
+      "size": 12436,
+      "integrity": "sha512-eiSqjdh2Ikf/6PVMdThOC0yIE9edPTXcjh0NKGG6AvLMEqehXa3iwyLjYpSo71vRrQDn7te7/m7c9cgllUpvUg==",
+      "signature": "jYWlmWmYg7rcr5DVD0rUSiAxY8uAY/CgFTXdXhcaAZqFCTLQ7JIHfn9dlN2VIyYmiN29oRQ9s3pcTDqNqK1sCQ=="
     },
     {
       "id": "palette-export",
@@ -1324,7 +1363,7 @@
     {
       "id": "transcript-tasks",
       "name": "Задачи из расшифровок",
-      "version": "1.2.0",
+      "version": "1.3.0",
       "summary": "Создание задач для людей и агентов из готовой локальной расшифровки.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -1342,14 +1381,14 @@
           },
           {
             "id": "whisper-local",
-            "range": "^1.0.0"
+            "range": "^1.12.0"
           }
         ]
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/transcript-tasks-1.2.0.mjs",
-      "size": 7123,
-      "integrity": "sha512-+y3FZ6iCcWzw6MONH7YJg8epk9Fbf0GTVhdTr6+fMdK1cU6kFD7gYmn14B5/dJ4PrfCKK2S2rtRseK8R+/RFcA==",
-      "signature": "+8cUDOoKEZkGH8UN0P1vQP/LJAJq/0ULS6pGHRyDsq5dLERGanDBHULUnR9hjgGBAxCXAnrpb+t+o+P8vouMAQ=="
+      "url": "https://attrazion.github.io/team-platform-catalog/transcript-tasks-1.3.0.mjs",
+      "size": 8513,
+      "integrity": "sha512-Oa7p8ls0gi8iVTCaMEQAPdkKeRuVplRMBW0R3ADycDSTz/q1LOsVJdcmggXHQITeijJh5W5Ny0n5EkFYzpxxbQ==",
+      "signature": "at5I03+iTY0nbwebWVftA6BxaC6uvR3KHNNW+wUrGjlomFV6F7A1O+IWe9E36DOGwVUZkN76w72HJ/bxL/uLBA=="
     },
     {
       "id": "video-frame",
@@ -1374,8 +1413,8 @@
     {
       "id": "whisper-local",
       "name": "Локальная расшифровка аудио и видео",
-      "version": "1.9.0",
-      "summary": "Офлайн-расшифровка аудио и звуковой дорожки MP4 через Whisper или Qwen3-ASR.",
+      "version": "1.12.0",
+      "summary": "Офлайн-расшифровка аудио и звуковой дорожки MP4 через Whisper, Qwen3-ASR или MOSS.",
       "publisher": "Team Platform",
       "trust": "official",
       "category": "tools",
@@ -1387,10 +1426,10 @@
         "core": "^0.8.0",
         "modules": []
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/whisper-local-1.9.0.mjs",
-      "size": 35360,
-      "integrity": "sha512-fdm7PCru2w1uK0H77A6wYPvoYY3PcMuT9V5gFN5yyaP1cVESdDkP/vjS3bfAVWtcBhHlZEaFzJKyx9FWKJV/ag==",
-      "signature": "q9XFTdZ0MeF24Te+JSDrUVP+c0YBGb8UUynHK0wnSTLYpz5fj1Wi6f8UFDRTMcVEaLiBZol6dPdIpUmyls64Aw=="
+      "url": "https://attrazion.github.io/team-platform-catalog/whisper-local-1.12.0.mjs",
+      "size": 53879,
+      "integrity": "sha512-1/aFhX0LFyhOf+8LJk+yXFuC5vEjX8LHbRv8EWBxa5uCQ6pOqhXQxzJiIKeWqLH0EC2MF6YN/buVECSwjeqgNA==",
+      "signature": "vRFGeV+muzgf+rdMZ+O9/TtXFWWjepkiQpRDITP9R/PTtL4LK3vQTXfYjZDAGxTW0OMtA7oXcu/HB+2w8XYVAg=="
     },
     {
       "id": "wikipedia-search",
