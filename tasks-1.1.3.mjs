@@ -11,28 +11,10 @@ var host2 = globalThis["__teamPlatformHostApi"] ?? {};
 var csv = host2["csv"];
 var downloadHeaders = host2["downloadHeaders"];
 
-// team-host-api:src/kernel/errors.ts
+// team-host-api:src/adapters/storage/cursor.ts
 var host3 = globalThis["__teamPlatformHostApi"] ?? {};
-var AppError = host3["AppError"];
-var ConflictError = host3["ConflictError"];
-var ForbiddenError = host3["ForbiddenError"];
-var NotFoundError = host3["NotFoundError"];
-var UpstreamError = host3["UpstreamError"];
-var ValidationError = host3["ValidationError"];
-var isAppError = host3["isAppError"];
-
-// modules/tasks/cursor.ts
-function encodeCursor(at, id) {
-  return Buffer.from(`${at}\0${id}`, "utf8").toString("base64url");
-}
-function decodeCursor(cursor) {
-  const decoded = Buffer.from(cursor, "base64url").toString("utf8");
-  const index = decoded.indexOf("\0");
-  if (index <= 0) throw new ValidationError("\u041D\u0435\u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u044B\u0439 \u043A\u0443\u0440\u0441\u043E\u0440 \u0441\u0442\u0440\u0430\u043D\u0438\u0446\u044B");
-  const at = decoded.slice(0, index);
-  if (Number.isNaN(Date.parse(at))) throw new ValidationError("\u041D\u0435\u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u044B\u0439 \u043A\u0443\u0440\u0441\u043E\u0440 \u0441\u0442\u0440\u0430\u043D\u0438\u0446\u044B");
-  return { at, id: decoded.slice(index + 1) };
-}
+var decodeCursor = host3["decodeCursor"];
+var encodeCursor = host3["encodeCursor"];
 
 // modules/tasks/repository.ts
 function toTask(row) {
@@ -238,19 +220,29 @@ var SqliteTaskRepository = class {
   }
 };
 
-// team-host-api:src/kernel/ids.ts
+// team-host-api:src/kernel/errors.ts
 var host4 = globalThis["__teamPlatformHostApi"] ?? {};
-var newId = host4["newId"];
+var AppError = host4["AppError"];
+var ConflictError = host4["ConflictError"];
+var ForbiddenError = host4["ForbiddenError"];
+var NotFoundError = host4["NotFoundError"];
+var UpstreamError = host4["UpstreamError"];
+var ValidationError = host4["ValidationError"];
+var isAppError = host4["isAppError"];
+
+// team-host-api:src/kernel/ids.ts
+var host5 = globalThis["__teamPlatformHostApi"] ?? {};
+var newId = host5["newId"];
 
 // team-host-api:src/kernel/validate.ts
-var host5 = globalThis["__teamPlatformHostApi"] ?? {};
-var integer = host5["integer"];
-var oneOf = host5["oneOf"];
-var optionalInteger = host5["optionalInteger"];
-var optionalName = host5["optionalName"];
-var record = host5["record"];
-var requiredOneOf = host5["requiredOneOf"];
-var text = host5["text"];
+var host6 = globalThis["__teamPlatformHostApi"] ?? {};
+var integer = host6["integer"];
+var oneOf = host6["oneOf"];
+var optionalInteger = host6["optionalInteger"];
+var optionalName = host6["optionalName"];
+var record = host6["record"];
+var requiredOneOf = host6["requiredOneOf"];
+var text = host6["text"];
 
 // modules/tasks/task.ts
 var TASK_STATUSES = ["open", "claimed", "blocked", "done", "cancelled"];

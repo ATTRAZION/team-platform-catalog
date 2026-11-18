@@ -644,7 +644,7 @@
     {
       "id": "missions",
       "name": "Миссии",
-      "version": "1.0.6",
+      "version": "1.0.7",
       "summary": "Этапы, приёмка и автоматическое продвижение миссии. Нужны доска задач и очередь запусков.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -666,10 +666,10 @@
           }
         ]
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/missions-1.0.6.mjs",
-      "size": 112923,
-      "integrity": "sha512-bc9OB0hTi024pIRfx4ZDzBX04ZfppO66k3Ljf8jIr8uX1eqBq7Jp6VzT1WRs710U52/EMzF5J0RWjNzMdgszJQ==",
-      "signature": "2mWHYlWygftjOMqj9vtqPhUMGc1JsQTvUBINMTr8gkBb23swUYYm6z4lCGRKucygEYxgUzdb8hUWSVt4kdTZCA=="
+      "url": "https://attrazion.github.io/team-platform-catalog/missions-1.0.7.mjs",
+      "size": 110971,
+      "integrity": "sha512-TONhC4Df56+vxs0ea4paedhCHwv4n1B/sBfv3mHhWDcQYmRR94xtb68tCSEv0mIBMTnnIpXUTGem4ylw7nEmXA==",
+      "signature": "MUGaIlglm2Y1ldXNGSspWlFuLtte72PNlInL6sc5A71+Gsbmn5d5eIVB4lcOje0eW4RHyvRbUxATmRJRDU5BBg=="
     },
     {
       "id": "modern-web-local",
@@ -1041,7 +1041,7 @@
     {
       "id": "runs",
       "name": "Запуски и исполнитель",
-      "version": "1.1.6",
+      "version": "1.1.7",
       "summary": "Очередь запусков, аренда, отмена и локальный исполнитель агентов. Зависит от доски задач.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -1060,10 +1060,10 @@
           }
         ]
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/runs-1.1.6.mjs",
-      "size": 134265,
-      "integrity": "sha512-jJDXR4wl1M5/visnBMc119LRMJCFR/a0+CJR2/WnxgNYeAg3YMbRf+4BzcAesl4X8soBZVzueCd0434I+LRrlA==",
-      "signature": "2sADNp8BHvHMhxghU4Ft0GIocBp62D2gd7iSvpivij1wxIrvjxffKVvbtRl7qDnseDegYac4B1XXsRnJqE4dCQ=="
+      "url": "https://attrazion.github.io/team-platform-catalog/runs-1.1.7.mjs",
+      "size": 133665,
+      "integrity": "sha512-cYcB4rz8TolyJ/6NCuveKLDt3sMeOM+cyHEdOgGbTfnsOlmuyRfv8xkByf01AwSkOtaFLl1tLZJ5qgxgJhVEUA==",
+      "signature": "k41h91fq7WAa4oagMCnsAKEQB7tmtEp4z3IGfuN5V7md5z+Tptc8iVIvmQvirNfuh6GaZ4pFPpx1gjE8LFlMCA=="
     },
     {
       "id": "scene-registry",
@@ -1183,7 +1183,7 @@
     {
       "id": "tasks",
       "name": "Доска задач",
-      "version": "1.1.2",
+      "version": "1.1.3",
       "summary": "Карточки, статусы и журнал изменений. Прежние адреса /api/tasks сохраняются.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -1196,10 +1196,10 @@
         "core": "^0.8.0",
         "modules": []
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/tasks-1.1.2.mjs",
-      "size": 75651,
-      "integrity": "sha512-ijcBg8UCnkCCq+/Ce2GW5KRZATbYbZoP0fS8S8/z+bEJuQZHLM/PMsDdl7diXpXok893OrnR+Kk/OjdSneJ1vg==",
-      "signature": "YLr+FKQiQY/vllbar0INq1htZwKZxYd3OJzBi0a9mUM0aJJk7r7zIOYElf3KUlkGm88Lb2MHIjQ2Nq45/4H5CA=="
+      "url": "https://attrazion.github.io/team-platform-catalog/tasks-1.1.3.mjs",
+      "size": 75050,
+      "integrity": "sha512-Hd3tsdnYPHhnJckCz6Yj6g+kk1AVubrzrkeOuZjE4jjZ5iDz1ux00N6NeRGK1sL7L1daTLr8T8bLu5eTKwzvRg==",
+      "signature": "J7QrAHi4fK5j0CzBBlIsn69WBFqJfLWVGbha3FrX9R+3eEjN2DkVsY6wmsoE6CeAzaEP5gYkaTa8Nxv3DTZ9BQ=="
     },
     {
       "id": "telegram",

@@ -2078,18 +2078,10 @@ function emptyStatusCounts() {
   return Object.fromEntries(RUN_STATUSES.map((status) => [status, 0]));
 }
 
-// modules/runs/cursor.ts
-function encodeCursor(at, id) {
-  return Buffer.from(`${at}\0${id}`, "utf8").toString("base64url");
-}
-function decodeCursor(cursor) {
-  const decoded = Buffer.from(cursor, "base64url").toString("utf8");
-  const index = decoded.indexOf("\0");
-  if (index <= 0) throw new ValidationError("\u041D\u0435\u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u044B\u0439 \u043A\u0443\u0440\u0441\u043E\u0440 \u0441\u0442\u0440\u0430\u043D\u0438\u0446\u044B");
-  const at = decoded.slice(0, index);
-  if (Number.isNaN(Date.parse(at))) throw new ValidationError("\u041D\u0435\u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u044B\u0439 \u043A\u0443\u0440\u0441\u043E\u0440 \u0441\u0442\u0440\u0430\u043D\u0438\u0446\u044B");
-  return { at, id: decoded.slice(index + 1) };
-}
+// team-host-api:src/adapters/storage/cursor.ts
+var host5 = globalThis["__teamPlatformHostApi"] ?? {};
+var decodeCursor = host5["decodeCursor"];
+var encodeCursor = host5["encodeCursor"];
 
 // modules/runs/repository.ts
 var COLUMNS = `id, task_id, agent, model, status, attempt, max_attempts, retry_of, retry_attempt,
@@ -2441,9 +2433,9 @@ var SystemProcessTree = class {
 };
 
 // team-host-api:src/app/export-format.ts
-var host5 = globalThis["__teamPlatformHostApi"] ?? {};
-var csv = host5["csv"];
-var downloadHeaders = host5["downloadHeaders"];
+var host6 = globalThis["__teamPlatformHostApi"] ?? {};
+var csv = host6["csv"];
+var downloadHeaders = host6["downloadHeaders"];
 
 // modules/runs/process-tree-journal.ts
 var processTreeJournalMigrations = [

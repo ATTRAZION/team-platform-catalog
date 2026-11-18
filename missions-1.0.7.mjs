@@ -2203,61 +2203,12 @@ var missionsMigrations = [
   }
 ];
 
-// modules/missions/idempotency-http.ts
-import { createHash as createHash3 } from "node:crypto";
-function canonical(value) {
-  if (Array.isArray(value)) return value.map(canonical);
-  if (value && typeof value === "object") {
-    return Object.fromEntries(
-      Object.keys(value).sort().map((key) => [key, canonical(value[key])])
-    );
-  }
-  return value;
-}
-function idempotencyFingerprint(method, path, body) {
-  const payload = JSON.stringify(canonical(body ?? null));
-  return createHash3("sha256").update(`${method.toUpperCase()}
-${path}
-${payload}`, "utf8").digest("hex");
-}
-function idempotencyKeyOf(request) {
-  const raw = request.req.headers["idempotency-key"];
-  const header = Array.isArray(raw) ? raw[0] : raw;
-  if (typeof header === "string" && header.trim()) return header.trim();
-  const body = request.body && typeof request.body === "object" ? request.body : null;
-  return typeof body?.idempotency_key === "string" ? body.idempotency_key.trim() : "";
-}
-function requestPathname(request, fallback) {
-  try {
-    return new URL(request.req.url ?? fallback, "http://localhost").pathname;
-  } catch {
-    return fallback;
-  }
-}
-async function idempotentReply(request, service, fallbackPath, handler) {
-  const key = idempotencyKeyOf(request);
-  if (!service || !key) return handler();
-  const method = (request.req.method ?? "POST").toUpperCase();
-  const path = requestPathname(request, fallbackPath);
-  const result = await service.execute({
-    method,
-    path,
-    key,
-    fingerprint: idempotencyFingerprint(method, path, request.body),
-    handler: async () => {
-      const reply = await handler();
-      if (reply === null || reply.raw !== void 0) {
-        throw new ConflictError("\u041E\u0442\u0432\u0435\u0442 \u044D\u0442\u043E\u0433\u043E \u043C\u0430\u0440\u0448\u0440\u0443\u0442\u0430 \u043D\u0435\u043B\u044C\u0437\u044F \u0441\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C \u043A\u0430\u043A \u0438\u0434\u0435\u043C\u043F\u043E\u0442\u0435\u043D\u0442\u043D\u044B\u0439", {
-          reason: "idempotency_unsupported_response",
-          method,
-          path
-        });
-      }
-      return { status: reply.status ?? 200, body: reply.body ?? null };
-    }
-  });
-  return { status: result.status, body: result.body };
-}
+// team-host-api:src/modules/idempotency-http.ts
+var host5 = globalThis["__teamPlatformHostApi"] ?? {};
+var idempotencyFingerprint = host5["idempotencyFingerprint"];
+var idempotencyKeyOf = host5["idempotencyKeyOf"];
+var idempotentReply = host5["idempotentReply"];
+var requestPathname = host5["requestPathname"];
 
 // modules/missions/routes.ts
 function registerMissionsRoutes(router, deps) {
