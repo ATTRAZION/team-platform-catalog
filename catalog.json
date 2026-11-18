@@ -64,7 +64,7 @@
     {
       "id": "author-studio",
       "name": "Студия автора",
-      "version": "1.6.0",
+      "version": "1.6.1",
       "summary": "Заметки, шаблоны, цитаты, ассеты, черновики, читательский вид по снимку версии, повторяемый сценарий статьи, генерация черновика из шаблона и экспорт библиографии в BibTeX/RIS.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -76,10 +76,10 @@
         "core": "^0.8.0",
         "modules": []
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/author-studio-1.6.0.mjs",
-      "size": 69533,
-      "integrity": "sha512-5bgx0UlSKVyu0KreD+P3JA8uaIg9Wa+C3Cdcqlo401J70ai9ehPEd/7zqPpSDSVeiDac4jV48hAnbwHy6WI4zA==",
-      "signature": "F4vCPNdfPULMuqtvQwQ2OR5RN1InT9phEk0ilCuOc19zWhEEdabfAyBOihraHH71CA2g2wuPMQKTV9pZcPMgBw=="
+      "url": "https://attrazion.github.io/team-platform-catalog/author-studio-1.6.1.mjs",
+      "size": 66749,
+      "integrity": "sha512-w199QuDV9EQl+R80X1dXH7gTPNko55DiR3B35Wwe+OlrvUobmOlBQu6bI7lbtpDpS5VdmzdR0ZJ5aUVSw/jbpg==",
+      "signature": "b5kqv5CWPcob95Bl9HBHLIIaeoJO/NGH5W0ldetzowIWM9bGo3mdE7cEWkaRAYs6fSbuK6ty8daujRgPr2EBAg=="
     },
     {
       "id": "botpsy-local",

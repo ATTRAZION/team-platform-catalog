@@ -1,100 +1,39 @@
 import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);
 
-// src/app/author-studio-service.ts
+// modules/author-studio/service.ts
 import { createHash } from "node:crypto";
 
-// src/kernel/clock.ts
-var systemClock = {
-  now: () => /* @__PURE__ */ new Date()
-};
-function nextTimestamp(previous, now) {
-  const base = now.getTime();
-  const prev = previous ? Date.parse(previous) : Number.NaN;
-  return new Date(Number.isFinite(prev) ? Math.max(base, prev + 1) : base).toISOString();
-}
+// team-host-api:src/kernel/clock.ts
+var host = globalThis["__teamPlatformHostApi"] ?? {};
+var fixedClock = host["fixedClock"];
+var nextTimestamp = host["nextTimestamp"];
+var systemClock = host["systemClock"];
 
-// src/kernel/errors.ts
-var AppError = class extends Error {
-  code;
-  status;
-  details;
-  constructor(code, message, status, details = {}) {
-    super(message);
-    this.name = new.target.name;
-    this.code = code;
-    this.status = status;
-    this.details = details;
-  }
-};
-var ValidationError = class extends AppError {
-  constructor(message, details = {}, options = {}) {
-    super(options.code ?? "validation_failed", message, options.status ?? 400, details);
-  }
-};
-var NotFoundError = class extends AppError {
-  /** Детали необязательны: старые вызовы без них продолжают работать. */
-  constructor(message = "\u041D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u043E", details = {}) {
-    super("not_found", message, 404, details);
-  }
-};
-var ConflictError = class extends AppError {
-  constructor(message, details = {}) {
-    super("conflict", message, 409, details);
-  }
-};
+// team-host-api:src/kernel/errors.ts
+var host2 = globalThis["__teamPlatformHostApi"] ?? {};
+var AppError = host2["AppError"];
+var ConflictError = host2["ConflictError"];
+var ForbiddenError = host2["ForbiddenError"];
+var NotFoundError = host2["NotFoundError"];
+var UpstreamError = host2["UpstreamError"];
+var ValidationError = host2["ValidationError"];
+var isAppError = host2["isAppError"];
 
-// src/kernel/ids.ts
-import { randomUUID } from "node:crypto";
-function newId(prefix) {
-  return `${prefix}_${randomUUID().replace(/-/g, "").slice(0, 16)}`;
-}
+// team-host-api:src/kernel/ids.ts
+var host3 = globalThis["__teamPlatformHostApi"] ?? {};
+var newId = host3["newId"];
 
-// src/kernel/validate.ts
-function record(raw, what) {
-  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
-    throw new ValidationError(`${what}: \u043E\u0436\u0438\u0434\u0430\u043B\u0441\u044F \u043E\u0431\u044A\u0435\u043A\u0442`);
-  }
-  return raw;
-}
-function text(raw, field, max, required = false) {
-  if (raw === void 0 || raw === null) {
-    if (required) throw new ValidationError(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB \u043E\u0431\u044F\u0437\u0430\u0442\u0435\u043B\u044C\u043D\u043E`);
-    return "";
-  }
-  if (typeof raw !== "string") throw new ValidationError(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB \u0434\u043E\u043B\u0436\u043D\u043E \u0431\u044B\u0442\u044C \u0441\u0442\u0440\u043E\u043A\u043E\u0439`);
-  const value = raw.trim();
-  if (required && !value) throw new ValidationError(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB \u043E\u0431\u044F\u0437\u0430\u0442\u0435\u043B\u044C\u043D\u043E`);
-  if (value.length > max) throw new ValidationError(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB \u0434\u043B\u0438\u043D\u043D\u0435\u0435 ${max} \u0441\u0438\u043C\u0432\u043E\u043B\u043E\u0432`);
-  return value;
-}
-function oneOf(raw, field, allowed, fallback) {
-  if (raw === void 0 || raw === null) return fallback;
-  const value = String(raw);
-  if (!allowed.includes(value)) {
-    throw new ValidationError(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB: \u0434\u043E\u043F\u0443\u0441\u0442\u0438\u043C\u043E ${allowed.join(", ")}`, { value });
-  }
-  return value;
-}
-function requiredOneOf(raw, field, allowed) {
-  if (raw === void 0 || raw === null) {
-    throw new ValidationError(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB \u043E\u0431\u044F\u0437\u0430\u0442\u0435\u043B\u044C\u043D\u043E: ${allowed.join(", ")}`);
-  }
-  const value = String(raw);
-  if (!allowed.includes(value)) {
-    throw new ValidationError(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB: \u0434\u043E\u043F\u0443\u0441\u0442\u0438\u043C\u043E ${allowed.join(", ")}`, { value });
-  }
-  return value;
-}
-function integer(raw, field, min, max, fallback) {
-  if (raw === void 0 || raw === null) return fallback;
-  const value = typeof raw === "number" ? raw : Number(raw);
-  if (!Number.isInteger(value) || value < min || value > max) {
-    throw new ValidationError(`\u041F\u043E\u043B\u0435 \xAB${field}\xBB: \u0446\u0435\u043B\u043E\u0435 \u043E\u0442 ${min} \u0434\u043E ${max}`);
-  }
-  return value;
-}
+// team-host-api:src/kernel/validate.ts
+var host4 = globalThis["__teamPlatformHostApi"] ?? {};
+var integer = host4["integer"];
+var oneOf = host4["oneOf"];
+var optionalInteger = host4["optionalInteger"];
+var optionalName = host4["optionalName"];
+var record = host4["record"];
+var requiredOneOf = host4["requiredOneOf"];
+var text = host4["text"];
 
-// src/domain/documents/export-citations.ts
+// modules/author-studio/export-citations.ts
 var EXPORT_CITATIONS_ERROR_CODE = "export_citations_unresolved";
 var ExportCitationsError = class extends AppError {
   constructor(message, details) {
@@ -182,7 +121,7 @@ function requireExportCitations(raw) {
   );
 }
 
-// src/domain/documents/publish-metadata.ts
+// modules/author-studio/publish-metadata.ts
 var PUBLISH_METADATA_ERROR_CODE = "publish_metadata_incomplete";
 var PUBLISH_CHANNELS = ["internal", "public"];
 var PUBLISH_LICENSES = [
@@ -264,7 +203,7 @@ function requirePublishMetadata(raw, options = {}) {
   return { title, author, license };
 }
 
-// src/domain/documents/version-diff.ts
+// modules/author-studio/version-diff.ts
 var DIFF_MAX_LINES = 5e3;
 function assertBudget(before, after) {
   if (before.length > DIFF_MAX_LINES || after.length > DIFF_MAX_LINES) {
@@ -332,7 +271,7 @@ function diffLines(beforeText, afterText) {
   return { changes, added, removed, unchanged };
 }
 
-// src/app/author-studio-service.ts
+// modules/author-studio/service.ts
 var KINDS = ["note", "template", "citation", "asset", "draft"];
 var LINK_KINDS = ["references", "derived-from", "related"];
 function metadataValue(raw) {
@@ -913,7 +852,7 @@ function renderRis(input) {
 `;
 }
 
-// src/modules/author-studio/replay.ts
+// modules/author-studio/replay.ts
 import { createHash as createHash2 } from "node:crypto";
 function digest(value) {
   return createHash2("sha256").update(value, "utf8").digest("hex");
@@ -1180,7 +1119,7 @@ var AuthorStudioReplayService = class {
   }
 };
 
-// src/modules/author-studio/author-studio.module.ts
+// modules/author-studio/routes.ts
 function requiredId(value) {
   if (!value) throw new ValidationError("\u041D\u0443\u0436\u0435\u043D id \u044D\u043B\u0435\u043C\u0435\u043D\u0442\u0430");
   return value;
@@ -1270,7 +1209,7 @@ function registerAuthorStudioRoutes(router, studio, replays) {
   }));
 }
 
-// src/modules/author-studio/schema.ts
+// modules/author-studio/schema.ts
 var authorStudioMigrations = [
   {
     version: "author-studio/0001_items",
