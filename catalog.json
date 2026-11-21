@@ -714,7 +714,7 @@
     {
       "id": "image-report",
       "name": "Сводка изображений",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "summary": "Собирает сводку по форматам и ориентации из результатов проверки изображений.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -724,10 +724,10 @@
         "core": "^0.8.0",
         "modules": []
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/image-report-1.0.0.mjs",
-      "size": 3283,
-      "integrity": "sha512-pzDjwk4nH1noyVZiaUpnK8Yt6bPEZ6SfLKgEcl1+YPxXty2ihd8rR8FojUxiT5Fn7D/CiLM3CqPWp4MK9mklhA==",
-      "signature": "ysb5ck5haLYjUSvXjfMbDqt48XvpsVriH6P3BsxLQsY2NnHlAgQ0DVLpiR3PNu8JB1h3ZFyLxayfbhwriZp8DQ=="
+      "url": "https://attrazion.github.io/team-platform-catalog/image-report-1.1.0.mjs",
+      "size": 1799,
+      "integrity": "sha512-TAuc3EDg7lxhBy7nzfUwSybPLQ6XHRY+SDjQD4lQgFAPPFhUvUYNyIVD0pSOcg3s48OPMJ5Fe9J0UbFGpQxP+A==",
+      "signature": "RalwTcE50xNE70yVoReq43lfe9+ckdsZ8mvq40e48GuTbmGtiqIuzA71RwbiON0pG0XXGT7+abymasIIRU2uCQ=="
     },
     {
       "id": "image-stats",
@@ -962,7 +962,7 @@
     {
       "id": "ollama-local",
       "name": "Локальные модели Ollama",
-      "version": "1.13.1",
+      "version": "1.14.0",
       "summary": "Локальный запрос к установленной модели Ollama без ключа и без облачных моделей.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -975,10 +975,10 @@
         "core": "^0.8.0",
         "modules": []
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/ollama-local-1.13.1.mjs",
-      "size": 79479,
-      "integrity": "sha512-Et/muDf2bQ1zH8rbVwVxQgalLrvWcKAoGh417Xy7prXiPD+5gt2os99Ccr3KL9n02uIA26FMS/U4TqrsaoGOAw==",
-      "signature": "aKAD6aN4z9OqwYxom8ryt5Zgc3H8C9YVEZi1UVwUA/RaeG30HxTx2KC10U0WemAugoKA+FqYHZ3MFr0vxz8TBA=="
+      "url": "https://attrazion.github.io/team-platform-catalog/ollama-local-1.14.0.mjs",
+      "size": 78230,
+      "integrity": "sha512-w1DNyQNMaB59EB0deV2lJmf0mjUlWSocU8DZGl+HuG6HhtnDtY1oIOkTYisqnsqQr/x6Jjvw62unBsed/3AAGw==",
+      "signature": "AxkHN2aW0p47qv7ame9KlhtUeOR7bloAnZ0D5iTP9kgHfTbSJnkzOgUdlRXC8kNwPCyOQTQeB24SzgLYEkI1BA=="
     },
     {
       "id": "open-library-search",
@@ -1503,7 +1503,7 @@
     {
       "id": "team-room",
       "name": "Общая комната",
-      "version": "1.3.0",
+      "version": "1.4.0",
       "summary": "Общая доска и выполнение разрешённой операции на компьютере участника.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -1526,10 +1526,10 @@
           }
         ]
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/team-room-1.3.0.mjs",
-      "size": 91777,
-      "integrity": "sha512-GxBCo0K4cRmqMFNWZ6JDMxBNnYZmV0D0EqO7mkAucZZGpVIvqkS7rlWbcGD8Pl5ahpwypNjyx7HIUC+QZ7cvEw==",
-      "signature": "XZeJdHfp1S+a+jE5iiQgQD8vBOAxvvfc08JRATIJDZV00rsIhAK38y//WKujM8DJNMwf5bxnUHGzwURhppp4Dw=="
+      "url": "https://attrazion.github.io/team-platform-catalog/team-room-1.4.0.mjs",
+      "size": 82416,
+      "integrity": "sha512-JrFSSPQornZxCe1ZHwDdQuzMAwSBrbPg/9ClXgHeCQM0NewljvlySFW3l6JApZ4eDFbTj0iRbT3CSfSzt0Q9mw==",
+      "signature": "cLvAcEmrZWlP/QY6InKpzzKO5aYFYr9rlAyqIaeunvzLyG0xW+1m7CLJrcsVI1FdCUM3on5+l9eCEnFSPI3nCg=="
     },
     {
       "id": "telegram",

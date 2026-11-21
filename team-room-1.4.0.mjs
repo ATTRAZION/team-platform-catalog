@@ -15,95 +15,31 @@ var UpstreamError = host["UpstreamError"];
 var ValidationError = host["ValidationError"];
 var isAppError = host["isAppError"];
 
-// src/domain/team-room/protocol.ts
-var IMAGE_MODULE = { id: "image-info", version: "1.1.0" };
-var IMAGE_OPERATION = "image.metadata@1";
-var REPORT_MODULE = { id: "image-report", version: "1.0.0" };
-var REPORT_OPERATION = "image.report@1";
-var TEXT_MODULE = { id: "ollama-local", version: "1.13.0" };
-var TEXT_OPERATION = "text.summary@1";
-var OPERATIONS = [IMAGE_OPERATION, REPORT_OPERATION, TEXT_OPERATION];
-var operationModules = { [IMAGE_OPERATION]: IMAGE_MODULE, [REPORT_OPERATION]: REPORT_MODULE, [TEXT_OPERATION]: TEXT_MODULE };
-var MAX_IMAGE_BYTES = 256 * 1024;
-var TOKEN = /^[a-f0-9]{64}$/;
-var UUID = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;
-var ID = /^[a-z0-9][a-z0-9_-]{0,39}$/;
-function localModel(raw) {
-  return typeof raw === "string" && /^[a-z0-9][a-z0-9._:/-]{0,79}$/i.test(raw) && !/(?:[:/-]|^)cloud(?:[:/._-]|$)/i.test(raw);
-}
-function multiline(raw, max, label) {
-  if (typeof raw !== "string" || !raw.trim() || raw.length > max || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(raw)) {
-    throw new ValidationError("\u041D\u0435\u0432\u0435\u0440\u043D\u043E\u0435 \u043F\u043E\u043B\u0435: " + label);
-  }
-  return raw.trim();
-}
-function textInput(raw) {
-  const { model, notes } = object(raw, ["model", "notes"]);
-  if (!localModel(model)) throw new ValidationError("\u0423\u043A\u0430\u0436\u0438\u0442\u0435 \u0442\u043E\u0447\u043D\u043E\u0435 \u0438\u043C\u044F \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u043E\u0439 \u043C\u043E\u0434\u0435\u043B\u0438 Ollama.");
-  return { model, notes: multiline(notes, 4e3, "\u0437\u0430\u043C\u0435\u0442\u043A\u0438") };
-}
-var defaultParticipation = (accepts_others = false) => ({
-  accepts_others,
-  trusted: [],
-  operations: [IMAGE_OPERATION, REPORT_OPERATION],
-  start: 0,
-  end: 0,
-  slots: 1,
-  own_first: true,
-  models: []
-});
-function participation(raw) {
-  const row = object(raw, ["accepts_others", "trusted", "operations", "start", "end", "slots", "own_first", "models"]);
-  if (typeof row.accepts_others !== "boolean" || typeof row.own_first !== "boolean" || !Array.isArray(row.trusted) || row.trusted.length > 50 || !row.trusted.every((id) => typeof id === "string" && ID.test(id)) || !Array.isArray(row.operations) || row.operations.length > OPERATIONS.length || !row.operations.every((item) => OPERATIONS.includes(item)) || ![row.start, row.end].every((value) => Number.isInteger(value) && Number(value) >= 0 && Number(value) <= 23) || !Number.isInteger(row.slots) || Number(row.slots) < 1 || Number(row.slots) > 4 || !Array.isArray(row.models) || row.models.length > 12) throw new ValidationError("\u041D\u0435\u0432\u0435\u0440\u043D\u044B\u0435 \u043F\u0440\u0430\u0432\u0438\u043B\u0430 \u0443\u0447\u0430\u0441\u0442\u0438\u044F.");
-  return {
-    accepts_others: row.accepts_others,
-    trusted: [...new Set(row.trusted)],
-    operations: [...new Set(row.operations)],
-    start: Number(row.start),
-    end: Number(row.end),
-    slots: Number(row.slots),
-    own_first: row.own_first,
-    models: [...new Set(row.models.map((value) => textField(value, 80, "\u043C\u043E\u0434\u0435\u043B\u044C")))]
-  };
-}
-function withinHours(policy, hour) {
-  if (policy.start === policy.end) return true;
-  return policy.start < policy.end ? hour >= policy.start && hour < policy.end : hour >= policy.start || hour < policy.end;
-}
-function reportResult(raw) {
-  const info = object(raw, ["count", "landscape", "portrait", "square", "bytes"]);
-  if (!Object.values(info).every((n) => Number.isSafeInteger(n) && Number(n) >= 0) || Number(info.count) < 1 || Number(info.count) > 4 || Number(info.bytes) < 1 || Number(info.bytes) > MAX_IMAGE_BYTES || Number(info.landscape) + Number(info.portrait) + Number(info.square) !== info.count) {
-    throw new ValidationError("\u041D\u0435\u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u0430\u044F \u0441\u0432\u043E\u0434\u043A\u0430 \u0438\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u0439.");
-  }
-  return info;
-}
-function object(raw, keys) {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw) || Object.keys(raw).length !== keys.length || !keys.every((key) => Object.hasOwn(raw, key))) {
-    throw new ValidationError("\u041D\u0435\u0432\u0435\u0440\u043D\u044B\u0435 \u043F\u043E\u043B\u044F \u0441\u0435\u0442\u0435\u0432\u043E\u0433\u043E \u0437\u0430\u043F\u0440\u043E\u0441\u0430.");
-  }
-  return raw;
-}
-function textField(raw, max, label) {
-  if (typeof raw !== "string" || !raw.trim() || raw.length > max || /[\u0000-\u001f\u007f]/.test(raw)) {
-    throw new ValidationError("\u041D\u0435\u0432\u0435\u0440\u043D\u043E\u0435 \u043F\u043E\u043B\u0435: " + label);
-  }
-  return raw.trim();
-}
-function imageInput(raw) {
-  if (typeof raw !== "string" || !raw || raw.length > Math.ceil(MAX_IMAGE_BYTES / 3) * 4) {
-    throw new ValidationError("\u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0438\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u0435 \u0440\u0430\u0437\u043C\u0435\u0440\u043E\u043C \u0434\u043E 256 \u041A\u0411.");
-  }
-  const bytes = Buffer.from(raw, "base64");
-  if (bytes.length === 0 || bytes.length > MAX_IMAGE_BYTES || bytes.toString("base64") !== raw) {
-    throw new ValidationError("\u041D\u0435\u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u044B\u0435 \u0434\u0430\u043D\u043D\u044B\u0435 \u0438\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u044F.");
-  }
-  return raw;
-}
-function imageResult(raw) {
-  const info = object(raw, ["format", "width", "height", "bytes"]);
-  if (typeof info.format !== "string" || !["png", "jpeg", "gif", "webp"].includes(info.format) || ![info.width, info.height, info.bytes].every((n) => Number.isSafeInteger(n) && Number(n) > 0) || Number(info.bytes) > MAX_IMAGE_BYTES) throw new ValidationError("\u041D\u0435\u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u044B\u0439 \u0440\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442 \u043E\u043F\u0435\u0440\u0430\u0446\u0438\u0438.");
-  return info;
-}
+// team-host-api:src/domain/team-room/protocol.ts
+var host2 = globalThis["__teamPlatformHostApi"] ?? {};
+var ID = host2["ID"];
+var IMAGE_MODULE = host2["IMAGE_MODULE"];
+var IMAGE_OPERATION = host2["IMAGE_OPERATION"];
+var MAX_IMAGE_BYTES = host2["MAX_IMAGE_BYTES"];
+var OPERATIONS = host2["OPERATIONS"];
+var REPORT_MODULE = host2["REPORT_MODULE"];
+var REPORT_OPERATION = host2["REPORT_OPERATION"];
+var TEXT_MODULE = host2["TEXT_MODULE"];
+var TEXT_OPERATION = host2["TEXT_OPERATION"];
+var TOKEN = host2["TOKEN"];
+var UUID = host2["UUID"];
+var defaultParticipation = host2["defaultParticipation"];
+var imageInput = host2["imageInput"];
+var imageResult = host2["imageResult"];
+var localModel = host2["localModel"];
+var object = host2["object"];
+var participation = host2["participation"];
+var reportResult = host2["reportResult"];
+var requirements = host2["requirements"];
+var textField = host2["textField"];
+var textInput = host2["textInput"];
+var textResult = host2["textResult"];
+var withinHours = host2["withinHours"];
 
 // modules/team-room/page.ts
 var PAGE = `<!doctype html>
@@ -784,51 +720,10 @@ setInterval(refresh, 2500);
 refresh();
 </script></body></html>`;
 
-// src/domain/team-room/plan.ts
-function readPlan(raw, imageCount = 4) {
-  const value = object(raw, ["steps", "budget"]);
-  const b = object(value.budget, ["max_cost_cents", "time_minutes", "max_parallel"]);
-  const number = (n, min, max) => Number.isSafeInteger(n) && Number(n) >= min && Number(n) <= max;
-  if (!number(b.max_cost_cents, 0, 1e5) || !number(b.time_minutes, 1, 1440) || !number(b.max_parallel, 1, 4) || !Array.isArray(value.steps) || value.steps.length < 1 || value.steps.length > 12) {
-    throw new ValidationError("\u041D\u0443\u0436\u043D\u044B 1\u201312 \u044D\u0442\u0430\u043F\u043E\u0432 \u0438 \u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u044B\u0435 \u043F\u0440\u0435\u0434\u0435\u043B\u044B \u0431\u044E\u0434\u0436\u0435\u0442\u0430, \u0432\u0440\u0435\u043C\u0435\u043D\u0438 \u0438 \u043F\u0430\u0440\u0430\u043B\u043B\u0435\u043B\u044C\u043D\u043E\u0441\u0442\u0438.");
-  }
-  const outputs = /* @__PURE__ */ new Map();
-  const steps = [];
-  const variants = /* @__PURE__ */ new Set();
-  for (const input of value.steps) {
-    const row = object(input, ["key", "title", "kind", "deps", "image"]);
-    const key = textField(row.key, 40, "\u043A\u043E\u0434 \u044D\u0442\u0430\u043F\u0430");
-    const kind = row.kind;
-    if (!ID.test(key) || outputs.has(key) || ![IMAGE_OPERATION, REPORT_OPERATION, "review", "choice"].includes(kind) || !Array.isArray(row.deps) || row.deps.length > 4 || new Set(row.deps).size !== row.deps.length || !row.deps.every((dep) => typeof dep === "string" && outputs.has(dep))) {
-      throw new ValidationError("\u0421\u0432\u044F\u0437\u044B\u0432\u0430\u0439\u0442\u0435 \u044D\u0442\u0430\u043F \u0442\u043E\u043B\u044C\u043A\u043E \u0441 \u0443\u0436\u0435 \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u043D\u044B\u043C\u0438 \u044D\u0442\u0430\u043F\u0430\u043C\u0438 \u0431\u0435\u0437 \u043F\u043E\u0432\u0442\u043E\u0440\u043E\u0432.");
-    }
-    const deps = row.deps;
-    let output;
-    if (kind === IMAGE_OPERATION) {
-      if (deps.length || !number(row.image, 1, imageCount)) throw new ValidationError("\u041C\u0435\u0442\u0430\u0434\u0430\u043D\u043D\u044B\u0435 \u0442\u0440\u0435\u0431\u0443\u044E\u0442 \u043D\u043E\u043C\u0435\u0440 \u0432\u0445\u043E\u0434\u043D\u043E\u0433\u043E \u0438\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u044F.");
-      output = IMAGE_OPERATION;
-    } else {
-      if (row.image !== null) throw new ValidationError("\u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0432\u0445\u043E\u0434\u044B \u0438\u0437 \u043F\u0440\u0435\u0434\u044B\u0434\u0443\u0449\u0438\u0445 \u044D\u0442\u0430\u043F\u043E\u0432.");
-      if (kind === REPORT_OPERATION) {
-        if (!deps.length || deps.some((dep) => outputs.get(dep) !== IMAGE_OPERATION)) throw new ValidationError("\u0421\u0432\u043E\u0434\u043A\u0430 \u043F\u0440\u0438\u043D\u0438\u043C\u0430\u0435\u0442 \u0442\u043E\u043B\u044C\u043A\u043E \u043C\u0435\u0442\u0430\u0434\u0430\u043D\u043D\u044B\u0435.");
-        output = REPORT_OPERATION;
-      } else if (kind === "review") {
-        if (deps.length !== 1) throw new ValidationError("\u041F\u0440\u0438\u0451\u043C\u043A\u0430 \u0442\u0440\u0435\u0431\u0443\u0435\u0442 \u043E\u0434\u0438\u043D \u0440\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442.");
-        output = outputs.get(deps[0]);
-      } else {
-        const pair = deps.map((dep) => steps.find((step) => step.key === dep));
-        if (pair.length !== 2 || pair.some((step) => step.kind !== REPORT_OPERATION || variants.has(step.key)) || JSON.stringify([...pair[0].deps].sort()) !== JSON.stringify([...pair[1].deps].sort())) {
-          throw new ValidationError("\u0414\u043B\u044F \u0441\u0440\u0430\u0432\u043D\u0435\u043D\u0438\u044F \u0432\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0434\u0432\u0435 \u0441\u0432\u043E\u0434\u043A\u0438 \u0441 \u043E\u0434\u0438\u043D\u0430\u043A\u043E\u0432\u044B\u043C\u0438 \u0432\u0445\u043E\u0434\u0430\u043C\u0438, \u0435\u0449\u0451 \u043D\u0435 \u0432\u043A\u043B\u044E\u0447\u0451\u043D\u043D\u044B\u0435 \u0432 \u0434\u0440\u0443\u0433\u043E\u0435 \u0441\u0440\u0430\u0432\u043D\u0435\u043D\u0438\u0435.");
-        }
-        pair.forEach((step) => variants.add(step.key));
-        output = REPORT_OPERATION;
-      }
-    }
-    outputs.set(key, output);
-    steps.push({ key, kind, title: textField(row.title, 100, "\u043D\u0430\u0437\u0432\u0430\u043D\u0438\u0435 \u044D\u0442\u0430\u043F\u0430"), deps, image: row.image });
-  }
-  return { steps, budget: { max_cost_cents: Number(b.max_cost_cents), time_minutes: Number(b.time_minutes), max_parallel: Number(b.max_parallel) } };
-}
+// team-host-api:src/domain/team-room/plan.ts
+var host3 = globalThis["__teamPlatformHostApi"] ?? {};
+var isExecutable = host3["isExecutable"];
+var readPlan = host3["readPlan"];
 
 // modules/team-room/index.ts
 function gpuNames() {
@@ -863,9 +758,9 @@ function originOf(raw) {
 function local(ctx, mutation = false) {
   const { req } = ctx;
   const socket = req.socket;
-  const host2 = req.headers.host?.toLowerCase();
+  const host4 = req.headers.host?.toLowerCase();
   const authorities = ["127.0.0.1", "localhost", "[::1]"].map((name) => name + ":" + socket.localPort);
-  if (!["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(socket.remoteAddress ?? "") || !host2 || !authorities.includes(host2) || req.headers.origin !== void 0 && req.headers.origin !== "http://" + host2 || req.headers["sec-fetch-site"] !== void 0 && !["same-origin", "none"].includes(req.headers["sec-fetch-site"])) {
+  if (!["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(socket.remoteAddress ?? "") || !host4 || !authorities.includes(host4) || req.headers.origin !== void 0 && req.headers.origin !== "http://" + host4 || req.headers["sec-fetch-site"] !== void 0 && !["same-origin", "none"].includes(req.headers["sec-fetch-site"])) {
     throw new ForbiddenError("\u041D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438 \u043A\u043E\u043C\u043D\u0430\u0442\u044B \u0434\u043E\u0441\u0442\u0443\u043F\u043D\u044B \u0442\u043E\u043B\u044C\u043A\u043E \u0438\u0437 \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u043E\u0433\u043E \u043F\u0440\u0438\u043B\u043E\u0436\u0435\u043D\u0438\u044F.");
   }
   if (mutation && req.headers["content-type"]?.split(";")[0]?.trim() !== "application/json") {

@@ -395,45 +395,31 @@ import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, lstatSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-// team-host-api:src/kernel/errors.ts
+// team-host-api:src/domain/team-room/protocol.ts
 var host2 = globalThis["__teamPlatformHostApi"] ?? {};
-var AppError = host2["AppError"];
-var ConflictError = host2["ConflictError"];
-var ForbiddenError = host2["ForbiddenError"];
-var NotFoundError = host2["NotFoundError"];
-var UpstreamError = host2["UpstreamError"];
-var ValidationError = host2["ValidationError"];
-var isAppError = host2["isAppError"];
-
-// src/domain/team-room/protocol.ts
-var IMAGE_MODULE = { id: "image-info", version: "1.1.0" };
-var IMAGE_OPERATION = "image.metadata@1";
-var REPORT_MODULE = { id: "image-report", version: "1.0.0" };
-var REPORT_OPERATION = "image.report@1";
-var TEXT_MODULE = { id: "ollama-local", version: "1.13.0" };
-var TEXT_OPERATION = "text.summary@1";
-var operationModules = { [IMAGE_OPERATION]: IMAGE_MODULE, [REPORT_OPERATION]: REPORT_MODULE, [TEXT_OPERATION]: TEXT_MODULE };
-var MAX_IMAGE_BYTES = 256 * 1024;
-function localModel(raw) {
-  return typeof raw === "string" && /^[a-z0-9][a-z0-9._:/-]{0,79}$/i.test(raw) && !/(?:[:/-]|^)cloud(?:[:/._-]|$)/i.test(raw);
-}
-function multiline(raw, max, label) {
-  if (typeof raw !== "string" || !raw.trim() || raw.length > max || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(raw)) {
-    throw new ValidationError("\u041D\u0435\u0432\u0435\u0440\u043D\u043E\u0435 \u043F\u043E\u043B\u0435: " + label);
-  }
-  return raw.trim();
-}
-function textResult(raw) {
-  const { model, summary } = object(raw, ["model", "summary"]);
-  if (!localModel(model)) throw new ValidationError("\u0420\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442 \u0434\u043E\u043B\u0436\u0435\u043D \u0441\u043E\u0434\u0435\u0440\u0436\u0430\u0442\u044C \u0438\u043C\u044F \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u043E\u0439 \u043C\u043E\u0434\u0435\u043B\u0438.");
-  return { model, summary: multiline(summary, 4e3, "\u0441\u0432\u043E\u0434\u043A\u0430") };
-}
-function object(raw, keys) {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw) || Object.keys(raw).length !== keys.length || !keys.every((key) => Object.hasOwn(raw, key))) {
-    throw new ValidationError("\u041D\u0435\u0432\u0435\u0440\u043D\u044B\u0435 \u043F\u043E\u043B\u044F \u0441\u0435\u0442\u0435\u0432\u043E\u0433\u043E \u0437\u0430\u043F\u0440\u043E\u0441\u0430.");
-  }
-  return raw;
-}
+var ID = host2["ID"];
+var IMAGE_MODULE = host2["IMAGE_MODULE"];
+var IMAGE_OPERATION = host2["IMAGE_OPERATION"];
+var MAX_IMAGE_BYTES = host2["MAX_IMAGE_BYTES"];
+var OPERATIONS = host2["OPERATIONS"];
+var REPORT_MODULE = host2["REPORT_MODULE"];
+var REPORT_OPERATION = host2["REPORT_OPERATION"];
+var TEXT_MODULE = host2["TEXT_MODULE"];
+var TEXT_OPERATION = host2["TEXT_OPERATION"];
+var TOKEN = host2["TOKEN"];
+var UUID = host2["UUID"];
+var defaultParticipation = host2["defaultParticipation"];
+var imageInput = host2["imageInput"];
+var imageResult = host2["imageResult"];
+var localModel = host2["localModel"];
+var object = host2["object"];
+var participation = host2["participation"];
+var reportResult = host2["reportResult"];
+var requirements = host2["requirements"];
+var textField = host2["textField"];
+var textInput = host2["textInput"];
+var textResult = host2["textResult"];
+var withinHours = host2["withinHours"];
 
 // modules/ollama-local/index.ts
 function ollamaUrl(path) {
