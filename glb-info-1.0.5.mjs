@@ -31,7 +31,6 @@ function countOf(value) {
 }
 function readChunks(buffer) {
   let offset = 12;
-  let jsonSeen = false;
   let jsonBytes = 0;
   let binBytes = 0;
   let jsonText = null;
@@ -49,10 +48,9 @@ function readChunks(buffer) {
       fail("glb_chunk_truncated", "\u0427\u0430\u043D\u043A \u0432\u044B\u0445\u043E\u0434\u0438\u0442 \u0437\u0430 \u043F\u0440\u0435\u0434\u0435\u043B\u044B \u0444\u0430\u0439\u043B\u0430", { offset, length, bytes: buffer.length });
     }
     if (type === CHUNK_JSON) {
-      if (jsonSeen) {
+      if (jsonText !== null) {
         fail("glb_duplicate_json", "\u0412 GLB \u0431\u043E\u043B\u044C\u0448\u0435 \u043E\u0434\u043D\u043E\u0433\u043E JSON-\u0447\u0430\u043D\u043A\u0430", { offset });
       }
-      jsonSeen = true;
       jsonBytes = length;
       jsonText = buffer.toString("utf8", start, start + length);
     } else if (type === CHUNK_BIN) {
@@ -196,6 +194,11 @@ var module = {
         needs: { network: false, keys: false, process: false }
       }
     }));
+    ctx.publish?.({
+      parse: (buffer) => parseGlb(buffer),
+      parseGlb: (buffer) => parseGlb(buffer),
+      inspectBuffer: (buffer) => parseGlb(buffer)
+    });
     ctx.api.add("POST", "/api/tools/glb-info/inspect", (request) => {
       const body = bodyOf(request.body);
       const raw = String(body.content_base64 ?? "").trim();
@@ -218,8 +221,21 @@ var module = {
       }
       const glb = parseGlb(buffer);
       const sha256 = createHash("sha256").update(buffer).digest("hex");
-      const license = ctx.require("asset-license").findBySha256(sha256);
-      return { status: 200, headers: NO_STORE, body: { ok: true, glb, sha256, license } };
+      const found = ctx.require("asset-license").findBySha256(sha256);
+      const licenses = Array.isArray(found) ? found : found ? [found] : [];
+      const license = licenses.length === 1 ? licenses[0] : null;
+      return {
+        status: 200,
+        headers: NO_STORE,
+        body: {
+          ok: true,
+          glb,
+          sha256,
+          license,
+          licenses,
+          license_ambiguous: licenses.length > 1
+        }
+      };
     });
   }
 };

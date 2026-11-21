@@ -225,6 +225,15 @@ function blockersOf(subject) {
       sha256: subject.sha256
     }];
   }
+  if (subject.ambiguous) {
+    return [{
+      record_id: null,
+      license: "",
+      reason: "ambiguous_license",
+      asset_id: subject.asset_id,
+      sha256: subject.sha256
+    }];
+  }
   const blockers = [];
   if (!subject.known) blockers.push({ record_id: subject.record_id, license: subject.license, reason: "unknown_license" });
   if (!subject.commercial_use) blockers.push({ record_id: subject.record_id, license: subject.license, reason: "non_commercial" });
@@ -290,7 +299,8 @@ var AssetLicenseService = class {
     return Number(row?.c ?? 0);
   }
   list(options = {}) {
-    const limit = Math.min(Math.max(Math.trunc(options.limit ?? 100), 1), MAX_RECORDS);
+    const rawLimit = Number.isFinite(options.limit) ? options.limit : 100;
+    const limit = Math.min(Math.max(Math.trunc(rawLimit), 1), MAX_RECORDS);
     const clauses = [];
     const params = [];
     if (options.license) {
@@ -368,12 +378,16 @@ var AssetLicenseService = class {
     this.#db.raw.prepare("DELETE FROM asset_licenses WHERE id = ?").run(id);
     return { removed: true, id };
   }
-  /** Последняя запись лицензии для файла с этим sha256; имени файла не доверяем. */
+  /**
+   * Все записи лицензии для файла с этим sha256; имени файла не доверяем.
+   * Несколько записей не сводятся к одной: вызывающий код должен показать
+   * неоднозначность, а не выбирать победителя.
+   */
   findBySha256(value) {
     const sha256 = shaOf(value);
-    if (!sha256) return null;
-    const row = this.#db.raw.prepare("SELECT * FROM asset_licenses WHERE sha256 = ? ORDER BY updated_at DESC, id DESC LIMIT 1").get(sha256);
-    return row ? toRecord(row) : null;
+    if (!sha256) return [];
+    const rows = this.#db.raw.prepare("SELECT * FROM asset_licenses WHERE sha256 = ? ORDER BY updated_at DESC, id DESC").all(sha256);
+    return rows.map(toRecord);
   }
   /**
    * `{ assets }` — набор конкретных файлов с sha256; `{ ids }` — записи
@@ -395,8 +409,24 @@ var AssetLicenseService = class {
         });
       }
       subjects = input.assets.map(assetOf).map((asset) => {
-        const record = this.findBySha256(asset.sha256);
-        return record ? subjectFromRecord(record, asset.asset_id, asset.sha256) : missingSubject(asset);
+        const records = this.findBySha256(asset.sha256);
+        if (records.length === 0) return missingSubject(asset);
+        if (records.length > 1) {
+          return {
+            record_id: null,
+            license: "",
+            known: false,
+            attribution_required: false,
+            commercial_use: false,
+            share_alike: false,
+            derivatives_allowed: false,
+            asset_id: asset.asset_id,
+            sha256: asset.sha256,
+            candidates: records,
+            ambiguous: true
+          };
+        }
+        return subjectFromRecord(records[0], asset.asset_id, asset.sha256);
       });
     } else if (input.license !== void 0) {
       const license = normalizeLicenseId(requiredText(input.license, "license", MAX_LICENSE, "asset_license_license_required"));
@@ -425,7 +455,9 @@ var AssetLicenseService = class {
       sha256: subject.sha256,
       record_id: subject.record_id,
       license: subject.license || null,
-      blockers: blockersOf(subject)
+      blockers: blockersOf(subject),
+      candidates: subject.candidates,
+      ambiguous: subject.ambiguous
     }));
     return {
       shippable: blockers.length === 0,

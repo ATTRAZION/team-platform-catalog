@@ -131,7 +131,9 @@ function inspectDirectory(dir, names) {
   if (cargo) {
     const source = readText(cargo);
     const version = cargoVersion(source);
-    if (version) found.push({ engine: "bevy", version, path: "", markers: ["Cargo.toml"], platforms: [] });
+    if (version || /(^|\n)\s*bevy\s*=/.test(source)) {
+      found.push({ engine: "bevy", version, path: "", markers: ["Cargo.toml"], platforms: [] });
+    }
   }
   const packageFile = fileIn(dir, "package.json");
   if (packageFile) {
@@ -208,6 +210,10 @@ var module = {
   id: "engine-detect",
   apiVersion: 1,
   register(ctx) {
+    ctx.publish?.({
+      detect: (path) => detectEngines(path),
+      detectEngines: (path) => detectEngines(path)
+    });
     ctx.router.add("GET", "/", () => ({
       raw: PAGE,
       headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" }

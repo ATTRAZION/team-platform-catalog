@@ -10,6 +10,9 @@ var UpstreamError = host["UpstreamError"];
 var ValidationError = host["ValidationError"];
 var isAppError = host["isAppError"];
 
+// modules/preview-kind/service.ts
+import { createHash } from "node:crypto";
+
 // team-host-api:src/kernel/validate.ts
 var host2 = globalThis["__teamPlatformHostApi"] ?? {};
 var integer = host2["integer"];
@@ -108,11 +111,50 @@ function dimsFor(kind, buf) {
   return parsePngDims(buf) ?? parseGifDims(buf) ?? parseJpegDims(buf);
 }
 var PreviewKindService = class {
+  #audioInfo;
+  #licenseInfo;
+  constructor(options = {}) {
+    this.#audioInfo = options.audioInfo ?? null;
+    this.#licenseInfo = options.licenseInfo ?? null;
+  }
+  #resolveLicense(sha256) {
+    if (!sha256) return null;
+    const service = this.#licenseInfo;
+    if (!service) return null;
+    const fn = typeof service === "function" ? service : service.findBySha256 ?? null;
+    if (typeof fn !== "function") return null;
+    try {
+      const found = fn(sha256);
+      const records = Array.isArray(found) ? found : found ? [found] : [];
+      if (records.length === 1) return records[0];
+      if (records.length > 1) return { ambiguous: true, candidates: records };
+      return null;
+    } catch {
+      return null;
+    }
+  }
+  #parseAudio(buffer) {
+    const service = this.#audioInfo;
+    if (!service) return null;
+    const fn = typeof service === "function" ? service : service.parse ?? service.parseAudio ?? service.inspect ?? service.inspectBuffer ?? service.read ?? null;
+    if (typeof fn !== "function") return null;
+    try {
+      const result = fn(buffer);
+      if (result && typeof result === "object" && "audio" in result) {
+        return result.audio ?? null;
+      }
+      return result ?? null;
+    } catch {
+      return null;
+    }
+  }
   inspect(raw) {
     const input = record(raw, "\u041F\u0440\u0435\u0432\u044C\u044E");
     const filename = input.filename === void 0 || input.filename === null || input.filename === "" ? null : text(input.filename, "filename", 500, true);
     const mime = input.mime === void 0 || input.mime === null || input.mime === "" ? null : text(input.mime, "mime", 120, true);
     const b64 = input.content_base64 === void 0 || input.content_base64 === null || input.content_base64 === "" ? null : String(input.content_base64);
+    const shaInput = input.sha256 === void 0 || input.sha256 === null || input.sha256 === "" ? null : String(input.sha256);
+    const licenseInput = input.license === void 0 ? void 0 : input.license;
     let buf = null;
     if (b64) {
       try {
@@ -121,8 +163,11 @@ var PreviewKindService = class {
         throw new ValidationError("\u041D\u0435\u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u044B\u0439 base64", { reason: "preview_base64_invalid" });
       }
     }
+    const sha256 = shaInput ?? (buf ? createHash("sha256").update(buf).digest("hex") : null);
     const ext = extOf(filename);
     const kind = detectKind(ext, mime);
+    const audio = kind === "audio" && buf ? this.#parseAudio(buf) : null;
+    const license = licenseInput !== void 0 ? licenseInput : this.#resolveLicense(sha256);
     const size = buf ? buf.length : typeof input.size_bytes === "number" ? Number(input.size_bytes) : 0;
     const dims = dimsFor(kind, buf);
     const inline = kind === "image" || kind === "text" || kind === "code" || kind === "pdf";
@@ -134,7 +179,9 @@ var PreviewKindService = class {
       size_bytes: size,
       can_preview_inline: inline,
       renderer_hint: hint,
-      dimensions: dims
+      dimensions: dims,
+      audio,
+      license
     };
   }
   summary() {
@@ -159,7 +206,19 @@ var module = {
   id: "preview-kind",
   apiVersion: 1,
   register(ctx) {
-    const svc = new PreviewKindService();
+    let audioInfo = null;
+    try {
+      audioInfo = ctx.require("audio-info");
+    } catch {
+      audioInfo = null;
+    }
+    let licenseInfo = null;
+    try {
+      licenseInfo = ctx.require("asset-license");
+    } catch {
+      licenseInfo = null;
+    }
+    const svc = new PreviewKindService({ audioInfo, licenseInfo });
     ctx.router.add("GET", "/", () => ({ raw: PAGE, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } }));
     ctx.api.add("POST", "/api/tools/preview-kind/inspect", (request) => {
       const result = svc.inspect(bodyOf(request.body));

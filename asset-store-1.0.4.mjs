@@ -43,7 +43,7 @@ function parseMetadata(raw) {
   }
   return {};
 }
-function toFile(row) {
+function toFile(row, glb = null, audio = null, license = null) {
   return {
     id: row.id,
     name: row.name,
@@ -51,16 +51,70 @@ function toFile(row) {
     size: Number(row.size),
     sha256: row.sha256,
     metadata: parseMetadata(row.metadata),
-    created_at: row.created_at
+    created_at: row.created_at,
+    glb,
+    audio,
+    license
   };
 }
 var AssetStoreService = class {
   #db;
   #dataDir;
+  #glbInfo;
+  #audioInfo;
+  #licenseInfo;
   constructor(options) {
     this.#db = options.db;
     this.#dataDir = options.dataDir;
+    this.#glbInfo = options.glbInfo ?? null;
+    this.#audioInfo = options.audioInfo ?? null;
+    this.#licenseInfo = options.licenseInfo ?? null;
     mkdirSync(this.#dataDir, { recursive: true });
+  }
+  #parseGlb(buffer) {
+    const service = this.#glbInfo;
+    if (!service) return null;
+    const fn = typeof service === "function" ? service : service.parse ?? service.parseGlb ?? service.inspect ?? service.inspectBuffer ?? service.read ?? null;
+    if (typeof fn !== "function") return null;
+    try {
+      const result = fn(buffer);
+      if (result && typeof result === "object" && "glb" in result) {
+        return result.glb ?? null;
+      }
+      return result ?? null;
+    } catch {
+      return null;
+    }
+  }
+  #resolveLicense(sha256) {
+    const service = this.#licenseInfo;
+    if (!service) return null;
+    const fn = typeof service === "function" ? service : service.findBySha256 ?? service.find ?? null;
+    if (typeof fn !== "function") return null;
+    try {
+      const found = fn(sha256);
+      const records = Array.isArray(found) ? found : found ? [found] : [];
+      if (records.length === 1) return records[0];
+      if (records.length > 1) return { ambiguous: true, candidates: records };
+      return null;
+    } catch {
+      return null;
+    }
+  }
+  #parseAudio(buffer) {
+    const service = this.#audioInfo;
+    if (!service) return null;
+    const fn = typeof service === "function" ? service : service.parse ?? service.parseAudio ?? service.inspect ?? service.inspectBuffer ?? service.read ?? null;
+    if (typeof fn !== "function") return null;
+    try {
+      const result = fn(buffer);
+      if (result && typeof result === "object" && "audio" in result) {
+        return result.audio ?? null;
+      }
+      return result ?? null;
+    } catch {
+      return null;
+    }
   }
   #totalBytes() {
     const row = this.#db.raw.prepare("SELECT COALESCE(SUM(size),0) AS s FROM asset_store_files").get();
@@ -73,19 +127,42 @@ var AssetStoreService = class {
   list(limit = 50) {
     const safe = Math.min(Math.max(limit, 1), 200);
     const rows = this.#db.raw.prepare("SELECT * FROM asset_store_files ORDER BY created_at DESC LIMIT ?").all(safe);
-    return rows.map(toFile);
+    return rows.map((row) => {
+      let glb = null;
+      let audio = null;
+      try {
+        const buf = readFileSync(join(this.#dataDir, row.storage_path));
+        glb = this.#parseGlb(buf);
+        audio = this.#parseAudio(buf);
+      } catch {
+        glb = null;
+        audio = null;
+      }
+      return toFile(row, glb, audio, this.#resolveLicense(row.sha256));
+    });
+  }
+  /** Лёгкие метаданные ассета из БД, без чтения содержимого с диска. */
+  getMetadata(id) {
+    const row = this.#db.raw.prepare("SELECT * FROM asset_store_files WHERE id = ?").get(id);
+    if (!row) throw new NotFoundError("\u0424\u0430\u0439\u043B \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D");
+    return toFile(row, null, null, this.#resolveLicense(row.sha256));
   }
   get(id) {
     const row = this.#db.raw.prepare("SELECT * FROM asset_store_files WHERE id = ?").get(id);
     if (!row) throw new NotFoundError("\u0424\u0430\u0439\u043B \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D");
     const file = toFile(row);
     let content = "";
+    let buf = null;
     try {
-      content = readFileSync(join(this.#dataDir, row.storage_path)).toString("base64");
+      buf = readFileSync(join(this.#dataDir, row.storage_path));
+      content = buf.toString("base64");
     } catch {
       throw new NotFoundError("\u0424\u0430\u0439\u043B \u043D\u0430 \u0434\u0438\u0441\u043A\u0435 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D");
     }
-    return { ...file, content_base64: content };
+    const glb = buf ? this.#parseGlb(buf) : null;
+    const audio = buf ? this.#parseAudio(buf) : null;
+    const license = this.#resolveLicense(row.sha256);
+    return { ...file, content_base64: content, glb, audio, license };
   }
   upload(raw) {
     const input = record(raw, "\u0417\u0430\u0433\u0440\u0443\u0437\u043A\u0430 \u0444\u0430\u0439\u043B\u0430");
@@ -133,6 +210,9 @@ var AssetStoreService = class {
       }
       throw e;
     }
+    const glb = this.#parseGlb(buf);
+    const audio = this.#parseAudio(buf);
+    const license = this.#resolveLicense(sha256);
     return {
       id,
       name,
@@ -140,7 +220,10 @@ var AssetStoreService = class {
       size: buf.length,
       sha256,
       metadata,
-      created_at: now
+      created_at: now,
+      glb,
+      audio,
+      license
     };
   }
   remove(id) {
@@ -220,7 +303,25 @@ var module = {
   apiVersion: 1,
   migrations: assetStoreMigrations,
   register(ctx) {
-    const store = new AssetStoreService({ db: ctx.storage, dataDir: ctx.paths.data });
+    let glbInfo = null;
+    try {
+      glbInfo = ctx.require("glb-info");
+    } catch {
+      glbInfo = null;
+    }
+    let audioInfo = null;
+    try {
+      audioInfo = ctx.require("audio-info");
+    } catch {
+      audioInfo = null;
+    }
+    let licenseInfo = null;
+    try {
+      licenseInfo = ctx.require("asset-license");
+    } catch {
+      licenseInfo = null;
+    }
+    const store = new AssetStoreService({ db: ctx.storage, dataDir: ctx.paths.data, glbInfo, audioInfo, licenseInfo });
     ctx.router.add("GET", "/", () => ({ raw: PAGE, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } }));
     ctx.api.add("GET", "/api/tools/asset-store/files", (request) => ({
       headers: NO_STORE,
@@ -250,7 +351,7 @@ var module = {
           code: "asset_store_asset_ids_too_many"
         });
       }
-      const files = body.asset_ids.map((id) => store.get(String(id)));
+      const files = body.asset_ids.map((id) => store.getMetadata(String(id)));
       const result = ctx.require("asset-license").shipCheck({
         assets: files.map((file) => ({ asset_id: file.id, sha256: file.sha256 }))
       });

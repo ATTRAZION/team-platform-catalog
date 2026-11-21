@@ -259,6 +259,11 @@ var module = {
   id: "audio-info",
   apiVersion: 1,
   register(ctx) {
+    ctx.publish?.({
+      parse: (buffer) => inspectAudio(buffer),
+      parseAudio: (buffer) => inspectAudio(buffer),
+      inspectBuffer: (buffer) => inspectAudio(buffer)
+    });
     ctx.router.add("GET", "/", () => ({
       raw: PAGE,
       headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" }

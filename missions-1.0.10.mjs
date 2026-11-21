@@ -242,7 +242,7 @@ function assertNotPaused(mission) {
 function event(missionId, type, actor, payload, at) {
   return { mission_id: missionId, type, actor, payload, created_at: at };
 }
-function startStage(mission, stages, stage, actor, now, execution) {
+function assertStageStartable(mission, stages, stage) {
   assertOpen(mission);
   assertNotPaused(mission);
   if (stage.status === "pending") {
@@ -273,6 +273,9 @@ function startStage(mission, stages, stage, actor, now, execution) {
   if (stage.status !== "ready" && stage.status !== "failed") {
     throw new ConflictError(`\u042D\u0442\u0430\u043F ${stage.key} \u043D\u0435\u043B\u044C\u0437\u044F \u0437\u0430\u043F\u0443\u0441\u0442\u0438\u0442\u044C \u0438\u0437 \u0441\u0442\u0430\u0442\u0443\u0441\u0430 ${stage.status}`, { status: stage.status });
   }
+}
+function startStage(mission, stages, stage, actor, now, execution) {
+  assertStageStartable(mission, stages, stage);
   const at = now.toISOString();
   stage.status = "running";
   stage.started_at = at;
@@ -332,6 +335,32 @@ function recordRunReport(mission, stages, stage, report, actor, now, source = "r
       run_id: stage.run_id,
       task_id: stage.task_id,
       source
+    }, at)
+  };
+}
+function cancelStage(mission, stages, stage, reason, actor, now) {
+  if (stage.status !== "running") {
+    throw new ConflictError(`\u041E\u0442\u043C\u0435\u043D\u0430 \u043F\u0440\u0438\u043C\u0435\u043D\u044F\u0435\u0442\u0441\u044F \u0442\u043E\u043B\u044C\u043A\u043E \u043A \u0432\u044B\u043F\u043E\u043B\u043D\u044F\u044E\u0449\u0435\u043C\u0443\u0441\u044F \u044D\u0442\u0430\u043F\u0443; ${stage.key} \u0432 \u0441\u0442\u0430\u0442\u0443\u0441\u0435 ${stage.status}`, {
+      status: stage.status
+    });
+  }
+  const at = now.toISOString();
+  stage.status = "cancelled";
+  stage.error = reason.trim().slice(0, 2e3) || "\u0417\u0430\u043F\u0443\u0441\u043A \u043E\u0442\u043C\u0435\u043D\u0451\u043D";
+  stage.finished_at = at;
+  stage.revision += 1;
+  mission.current_stage_id = null;
+  if (mission.status !== "paused") mission.status = "ready";
+  mission.revision += 1;
+  mission.updated_at = nextTimestamp(mission.updated_at, now);
+  return {
+    mission,
+    stages,
+    event: event(mission.id, "mission.stage.cancelled", actor, {
+      stage: stage.key,
+      run_id: stage.run_id,
+      task_id: stage.task_id,
+      reason: stage.error
     }, at)
   };
 }
@@ -561,6 +590,7 @@ function completeMission(mission, stages, summary, actor, now) {
 }
 
 // modules/missions/gate.ts
+import { createHash } from "node:crypto";
 function normalizeGateDecision(raw) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     throw new ValidationError("\u0420\u0435\u0448\u0435\u043D\u0438\u0435 \u0432\u043E\u0440\u043E\u0442: \u043E\u0436\u0438\u0434\u0430\u043B\u0441\u044F \u043E\u0431\u044A\u0435\u043A\u0442");
@@ -577,12 +607,94 @@ function normalizeGateDecision(raw) {
   }
   return { decision, actor, reason };
 }
+var DIFF_LIST_LIMIT = 200;
+var DIFF_CELL_LIMIT = 25e4;
+function gateDigest(result) {
+  return createHash("sha256").update(result, "utf8").digest("hex");
+}
+function diffGateRounds(baseline, current) {
+  const before = baseline.result.split("\n");
+  const after = current.result.split("\n");
+  let head = 0;
+  while (head < before.length && head < after.length && before[head] === after[head]) head += 1;
+  let tail = 0;
+  while (tail < before.length - head && tail < after.length - head && before[before.length - 1 - tail] === after[after.length - 1 - tail]) tail += 1;
+  const beforeMiddle = before.slice(head, before.length - tail);
+  const afterMiddle = after.slice(head, after.length - tail);
+  const removed = [];
+  const added = [];
+  let removedLines = 0;
+  let addedLines = 0;
+  let unchanged = head + tail;
+  let truncated = false;
+  const remember = (list, line) => {
+    if (list.length < DIFF_LIST_LIMIT) list.push(line);
+    else truncated = true;
+  };
+  const remove = (line) => {
+    removedLines += 1;
+    remember(removed, line);
+  };
+  const add = (line) => {
+    addedLines += 1;
+    remember(added, line);
+  };
+  if (beforeMiddle.length * afterMiddle.length > DIFF_CELL_LIMIT) {
+    truncated = true;
+    for (const line of beforeMiddle) remove(line);
+    for (const line of afterMiddle) add(line);
+  } else {
+    const width = afterMiddle.length + 1;
+    const table = new Uint32Array((beforeMiddle.length + 1) * width);
+    for (let i2 = beforeMiddle.length - 1; i2 >= 0; i2 -= 1) {
+      for (let j2 = afterMiddle.length - 1; j2 >= 0; j2 -= 1) {
+        table[i2 * width + j2] = beforeMiddle[i2] === afterMiddle[j2] ? (table[(i2 + 1) * width + j2 + 1] ?? 0) + 1 : Math.max(table[(i2 + 1) * width + j2] ?? 0, table[i2 * width + j2 + 1] ?? 0);
+      }
+    }
+    let i = 0;
+    let j = 0;
+    while (i < beforeMiddle.length && j < afterMiddle.length) {
+      if (beforeMiddle[i] === afterMiddle[j]) {
+        unchanged += 1;
+        i += 1;
+        j += 1;
+      } else if ((table[(i + 1) * width + j] ?? 0) >= (table[i * width + j + 1] ?? 0)) {
+        remove(beforeMiddle[i]);
+        i += 1;
+      } else {
+        add(afterMiddle[j]);
+        j += 1;
+      }
+    }
+    while (i < beforeMiddle.length) {
+      remove(beforeMiddle[i]);
+      i += 1;
+    }
+    while (j < afterMiddle.length) {
+      add(afterMiddle[j]);
+      j += 1;
+    }
+  }
+  return {
+    baseline_gate_id: baseline.id,
+    baseline_round: baseline.round,
+    baseline_sha256: gateDigest(baseline.result),
+    result_sha256: gateDigest(current.result),
+    added,
+    removed,
+    added_lines: addedLines,
+    removed_lines: removedLines,
+    unchanged_lines: unchanged,
+    identical: baseline.result === current.result,
+    truncated
+  };
+}
 
 // modules/missions/service.ts
 import { join as join2, resolve as resolve3 } from "node:path";
 
 // modules/missions/artifact-store.ts
-import { createHash as createHash2 } from "node:crypto";
+import { createHash as createHash3 } from "node:crypto";
 import {
   existsSync as existsSync2,
   lstatSync as lstatSync2,
@@ -595,7 +707,7 @@ import {
 import { dirname, isAbsolute as isAbsolute2, join, relative as relative2, resolve as resolve2, sep } from "node:path";
 
 // modules/missions/artifact-receipts.ts
-import { createHash } from "node:crypto";
+import { createHash as createHash2 } from "node:crypto";
 import { accessSync, constants, existsSync, lstatSync, readFileSync, realpathSync, statSync, unlinkSync } from "node:fs";
 import { isAbsolute, relative, resolve } from "node:path";
 
@@ -659,7 +771,7 @@ function fingerprintArtifact(root, rawPath) {
   }
   const bytes = readFileSync(target);
   return {
-    sha256: createHash("sha256").update(bytes).digest("hex"),
+    sha256: createHash2("sha256").update(bytes).digest("hex"),
     size: bytes.byteLength
   };
 }
@@ -839,7 +951,7 @@ var ImmutableArtifactStore = class {
       throw new ValidationError(`\u0410\u0440\u0442\u0435\u0444\u0430\u043A\u0442 \xAB${name}\xBB \u0431\u043E\u043B\u044C\u0448\u0435 ${MAX_ARTIFACT_BYTES} \u0431\u0430\u0439\u0442`);
     }
     const bytes = readFileSync2(source);
-    const sha256 = createHash2("sha256").update(bytes).digest("hex");
+    const sha256 = createHash3("sha256").update(bytes).digest("hex");
     if (input.expected_sha256 && input.expected_sha256 !== sha256) {
       throw new ConflictError("\u0410\u0440\u0442\u0435\u0444\u0430\u043A\u0442 \u0438\u0437\u043C\u0435\u043D\u0438\u043B\u0441\u044F \u0432\u043E \u0432\u0440\u0435\u043C\u044F \u043F\u0443\u0431\u043B\u0438\u043A\u0430\u0446\u0438\u0438: \u0437\u0430\u043F\u0438\u0441\u0430\u043D \u043D\u0435 \u0442\u043E\u0442 \u0444\u0430\u0439\u043B", {
         reason: "artifact_changed_during_publish",
@@ -965,7 +1077,7 @@ var ImmutableArtifactStore = class {
     } catch {
       throw new NotFoundError(`\u0410\u0440\u0442\u0435\u0444\u0430\u043A\u0442 \xAB${key}\xBB \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D`);
     }
-    const sha256 = createHash2("sha256").update(bytes).digest("hex");
+    const sha256 = createHash3("sha256").update(bytes).digest("hex");
     if (sha256 !== metadata.sha256 || bytes.byteLength !== metadata.size) {
       throw new ConflictError(`\u0411\u0430\u0439\u0442\u044B \u0430\u0440\u0442\u0435\u0444\u0430\u043A\u0442\u0430 \xAB${key}\xBB \u043D\u0435 \u0441\u043E\u0432\u043F\u0430\u0434\u0430\u044E\u0442 \u0441 \u043C\u0435\u0442\u0430\u0434\u0430\u043D\u043D\u044B\u043C\u0438`, {
         reason: "artifact_corrupt",
@@ -1035,6 +1147,13 @@ function gateActor(raw) {
     throw new ValidationError("\u0420\u0435\u0448\u0435\u043D\u0438\u0435 \u0432\u043E\u0440\u043E\u0442 \u0442\u0440\u0435\u0431\u0443\u0435\u0442 \u0430\u0432\u0442\u043E\u0440\u0430");
   }
   return value.trim().slice(0, 100);
+}
+function withGateDiffs(gates) {
+  const byId = new Map(gates.map((gate) => [gate.id, gate]));
+  return gates.map((gate) => {
+    const baseline = gate.previous_gate_id ? byId.get(gate.previous_gate_id) ?? null : null;
+    return { ...gate, diff: baseline ? diffGateRounds(baseline, gate) : null };
+  });
 }
 var MissionService = class {
   #repo;
@@ -1227,9 +1346,9 @@ ${mission.goal}`.toLowerCase().includes(query)).map((mission) => missionSummary(
   }
   gates(id, ref = "") {
     this.#load(id);
-    if (!ref.trim()) return this.#repo.gates(id);
+    if (!ref.trim()) return withGateDiffs(this.#repo.gates(id));
     const stage = findStage(this.#repo.stages(id), ref);
-    return this.#repo.gates(id, stage.id);
+    return withGateDiffs(this.#repo.gates(id, stage.id));
   }
   /** Записать квитанцию объявленного артефакта; путь проверяется по workspace. */
   receipt(id, ref, raw) {
@@ -1431,6 +1550,51 @@ ${mission.goal}`.toLowerCase().includes(query)).map((mission) => missionSummary(
     this.#log.info("\u041C\u0438\u0441\u0441\u0438\u044F \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0430", { mission_id: id });
     return { ...this.#detail(id), transitioned: true };
   }
+  assertExternalRunStart(id, ref) {
+    const { mission, stages } = this.#load(id);
+    assertStageStartable(mission, stages, findStage(stages, ref));
+    if (!this.#execution?.runs) throw new ConflictError("\u041E\u0447\u0435\u0440\u0435\u0434\u044C \u0437\u0430\u043F\u0443\u0441\u043A\u043E\u0432 \u0434\u043B\u044F \u043C\u0438\u0441\u0441\u0438\u0438 \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u043D\u0430");
+  }
+  /**
+   * Привязывает уже созданный арендованный запуск (G21, внешнее исполнение) к
+   * этапу миссии: этап переходит в running с run_id, при наличии исполнителя
+   * создаётся карточка задачи. Возвращает MissionDetail.
+   */
+  bindExternalRun(id, ref, runId, actor = "system") {
+    const { mission, stages } = this.#load(id);
+    const stage = findStage(stages, ref);
+    if (stage.status === "running" && stage.run_id === runId) {
+      return this.#detail(id);
+    }
+    const transition = startStage(mission, stages, stage, actor, this.#clock.now());
+    const execution = this.#execution;
+    if (!execution?.runs) throw new ConflictError("\u041E\u0447\u0435\u0440\u0435\u0434\u044C \u0437\u0430\u043F\u0443\u0441\u043A\u043E\u0432 \u0434\u043B\u044F \u043C\u0438\u0441\u0441\u0438\u0438 \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u043D\u0430");
+    execution.runs.get(runId);
+    stage.run_id = runId;
+    let cardId = stage.task_id ?? null;
+    if (!cardId && execution) {
+      const card = execution.tasks.create({
+        title: `\u041C\u0438\u0441\u0441\u0438\u044F \xAB${mission.title}\xBB: ${stage.key}. ${stage.title}`.slice(0, 200),
+        description: `\u0412\u043D\u0435\u0448\u043D\u0438\u0439 \u0430\u0440\u0435\u043D\u0434\u043E\u0432\u0430\u043D\u043D\u044B\u0439 \u0437\u0430\u043F\u0443\u0441\u043A ${runId}`,
+        type: "work",
+        priority: 2,
+        created_by: "mission",
+        assignee: null,
+        tags: ["mission", mission.id, stage.key]
+      });
+      cardId = card.id;
+      stage.task_id = card.id;
+    }
+    transition.event.payload = { stage: stage.key, title: stage.title, run_id: runId, task_id: cardId, external: true };
+    this.#save(transition, stage.key);
+    this.#log.info("\u042D\u0442\u0430\u043F \u043F\u0440\u0438\u0432\u044F\u0437\u0430\u043D \u043A \u0432\u043D\u0435\u0448\u043D\u0435\u043C\u0443 \u0437\u0430\u043F\u0443\u0441\u043A\u0443", {
+      mission_id: mission.id,
+      stage: stage.key,
+      run_id: runId,
+      task_id: cardId
+    });
+    return this.#detail(id);
+  }
   /**
    * Сверяет выполняющиеся этапы с их запусками. Вызывается по событиям run.*
    * и по таймеру, поэтому переживает перезапуск и пропущенное событие.
@@ -1477,10 +1641,14 @@ ${mission.goal}`.toLowerCase().includes(query)).map((mission) => missionSummary(
             stage: stage.key,
             run_id: run.id
           });
-        } else {
-          const detail = run.error_message || (run.status === "cancelled" ? "\u0417\u0430\u043F\u0443\u0441\u043A \u043E\u0442\u043C\u0435\u043D\u0451\u043D" : `\u0417\u0430\u043F\u0443\u0441\u043A \u0437\u0430\u0432\u0435\u0440\u0448\u0438\u043B\u0441\u044F \u0441\u043E \u0441\u0442\u0430\u0442\u0443\u0441\u043E\u043C ${run.status}`);
+        } else if (run.status === "cancelled") {
+          const detail = run.error_message || "\u0417\u0430\u043F\u0443\u0441\u043A \u043E\u0442\u043C\u0435\u043D\u0451\u043D";
           const reason = run.error_class ? `${detail} (${run.error_class})` : detail;
-          this.#applyFailure(mission, stages, stage, reason, run.status !== "cancelled");
+          this.#applyCancel(mission, stages, stage, reason);
+        } else {
+          const detail = run.error_message || `\u0417\u0430\u043F\u0443\u0441\u043A \u0437\u0430\u0432\u0435\u0440\u0448\u0438\u043B\u0441\u044F \u0441\u043E \u0441\u0442\u0430\u0442\u0443\u0441\u043E\u043C ${run.status}`;
+          const reason = run.error_class ? `${detail} (${run.error_class})` : detail;
+          this.#applyFailure(mission, stages, stage, reason);
         }
         result.updated += 1;
       }
@@ -1540,6 +1708,18 @@ ${mission.goal}`.toLowerCase().includes(query)).map((mission) => missionSummary(
       running: running ? running.title : null,
       paused: missions.filter((mission) => mission.status === "paused").length
     };
+  }
+  /** Отмена запуска закрывает этап как cancelled: без повтора и без blocked. */
+  #applyCancel(mission, stages, stage, reason) {
+    const transition = cancelStage(mission, stages, stage, reason, "mission", this.#clock.now());
+    this.#repo.update(transition.mission, transition.stages, transition.event);
+    this.#publish(transition.event);
+    this.#moveCard(stage.task_id, "cancelled", "mission", stage.error || reason);
+    this.#log.info("\u042D\u0442\u0430\u043F \u0437\u0430\u043A\u0440\u044B\u0442 \u043E\u0442\u043C\u0435\u043D\u043E\u0439 \u0437\u0430\u043F\u0443\u0441\u043A\u0430", {
+      mission_id: mission.id,
+      stage: stage.key,
+      reason: stage.error
+    });
   }
   #applyFailure(mission, stages, stage, reason, allowAutoRetry = true) {
     const transition = failStage(mission, stages, stage, reason, "mission", this.#clock.now());
@@ -1675,7 +1855,7 @@ ${mission.goal}`.toLowerCase().includes(query)).map((mission) => missionSummary(
       execution.tasks.changeStatus(taskId, {
         to,
         agent: actor,
-        reason: to === "blocked" ? reason || "\u0421\u0431\u043E\u0439 \u0437\u0430\u043F\u0443\u0441\u043A\u0430 \u0430\u0433\u0435\u043D\u0442\u0430" : null,
+        reason: to === "blocked" ? reason || "\u0421\u0431\u043E\u0439 \u0437\u0430\u043F\u0443\u0441\u043A\u0430 \u0430\u0433\u0435\u043D\u0442\u0430" : to === "cancelled" ? reason || "\u0417\u0430\u043F\u0443\u0441\u043A \u043E\u0442\u043C\u0435\u043D\u0451\u043D" : null,
         assignee: to === "claimed" ? assignee : void 0,
         expected: { status: card.status, revision: card.revision, updated_at: card.updated_at }
       }, { system: actor === "mission" || actor === "system" });
@@ -1720,7 +1900,7 @@ ${mission.goal}`.toLowerCase().includes(query)).map((mission) => missionSummary(
       stages,
       progress: missionProgress(mission, stages),
       events: this.#repo.events(id, 100),
-      gates: this.#repo.gates(id),
+      gates: withGateDiffs(this.#repo.gates(id)),
       receipts: this.#agedReceipts(id),
       max_attempts: this.#maxAttempts
     };

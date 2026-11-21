@@ -1348,6 +1348,19 @@ var PAGE = `<!doctype html>
   article h2 { margin: 24px 0 8px; font-size: 16px; }
   article ul { margin: 0; padding-left: 20px; }
   .empty { color: #57606a; padding: 16px 0; }
+  .verdicts { margin-top: 24px; border: 1px solid #d0d7de; border-radius: 12px; padding: 20px 24px; }
+  .verdicts h2 { margin: 0 0 12px; font-size: 18px; }
+  .verdict { border-top: 1px solid #d0d7de; padding: 12px 0; }
+  .verdict:first-of-type { border-top: 0; padding-top: 0; }
+  .verdict-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .verdict-source { font-weight: 600; }
+  .badge { border: 1px solid currentColor; border-radius: 999px; padding: 2px 9px; font-size: 12px; }
+  .badge.exact { color: #1a7f37; }
+  .badge.metadata_mismatch { color: #9a6700; }
+  .badge.ambiguous { color: #8250df; }
+  .badge.not_found { color: #57606a; }
+  .badge.unknown { color: #cf222e; }
+  .verdict-reason { margin-top: 4px; color: #57606a; font-size: 13px; }
 </style>
 </head>
 <body>
@@ -1368,6 +1381,10 @@ var PAGE = `<!doctype html>
   </div>
   <div class="status" id="status"></div>
   <div id="view"></div>
+  <section class="verdicts" id="verdicts" aria-live="polite">
+    <h2>\u0421\u0432\u0435\u0440\u043A\u0430 \u0446\u0438\u0442\u0430\u0442</h2>
+    <div id="verdict-list"></div>
+  </section>
 </main>
 <script>
 const API = '/api/author-studio';
@@ -1376,6 +1393,7 @@ const draftsEl = document.getElementById('drafts');
 const versionsEl = document.getElementById('versions');
 const showButton = document.getElementById('show');
 const viewEl = document.getElementById('view');
+const verdictListEl = document.getElementById('verdict-list');
 
 function say(message, error) {
   statusEl.textContent = message;
@@ -1383,8 +1401,9 @@ function say(message, error) {
 }
 
 /** \u0422\u043E\u043B\u044C\u043A\u043E \u0447\u0442\u0435\u043D\u0438\u0435: \u0441\u0442\u0440\u0430\u043D\u0438\u0446\u0430 \u043D\u0435 \u0443\u043C\u0435\u0435\u0442 \u043E\u0442\u043F\u0440\u0430\u0432\u043B\u044F\u0442\u044C \u043D\u0438\u0447\u0435\u0433\u043E, \u043A\u0440\u043E\u043C\u0435 GET. */
-async function get(path) {
-  const response = await fetch(API + path, { cache: 'no-store' });
+async function fetchJson(url, init) {
+  const headers = Object.assign({ 'content-type': 'application/json' }, (init && init.headers) || {});
+  const response = await fetch(url, Object.assign({ cache: 'no-store' }, init || {}, { headers }));
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
     const error = body.error || {};
@@ -1393,6 +1412,10 @@ async function get(path) {
     throw new Error(reason ? message + ' (' + reason + ')' : message);
   }
   return body;
+}
+
+function get(path) {
+  return fetchJson(API + path);
 }
 
 function option(value, text) {
@@ -1408,6 +1431,194 @@ function empty(text) {
   note.className = 'empty';
   note.textContent = text;
   viewEl.append(note);
+}
+
+const VERDICT_LABELS = {
+  exact: '\u0441\u043E\u0432\u043F\u0430\u0434\u0430\u0435\u0442',
+  metadata_mismatch: '\u0440\u0430\u0441\u0445\u043E\u0436\u0434\u0435\u043D\u0438\u0435',
+  ambiguous: '\u043D\u0435\u043E\u0434\u043D\u043E\u0437\u043D\u0430\u0447\u043D\u043E',
+  not_found: '\u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u043E',
+};
+const FIELD_LABELS = {
+  doi: 'DOI',
+  title: '\u043D\u0430\u0437\u0432\u0430\u043D\u0438\u0435',
+  authors: '\u0430\u0432\u0442\u043E\u0440\u044B',
+  author: '\u0430\u0432\u0442\u043E\u0440',
+  year: '\u0433\u043E\u0434',
+};
+
+function fieldLabel(field) {
+  return FIELD_LABELS[field] || field;
+}
+
+function verdictReason(item) {
+  const mismatches = Array.isArray(item.mismatches) ? item.mismatches : [];
+  if (item.verdict === 'exact') return '\u0432\u0441\u0435 \u043F\u0435\u0440\u0435\u0434\u0430\u043D\u043D\u044B\u0435 \u043F\u043E\u043B\u044F \u0441\u043E\u0432\u043F\u0430\u043B\u0438';
+  if (item.verdict === 'metadata_mismatch') {
+    return mismatches.length
+      ? '\u0440\u0430\u0441\u0445\u043E\u0436\u0434\u0435\u043D\u0438\u044F: ' + mismatches.map(fieldLabel).join(', ')
+      : '\u0435\u0441\u0442\u044C \u0440\u0430\u0441\u0445\u043E\u0436\u0434\u0435\u043D\u0438\u044F';
+  }
+  if (item.verdict === 'ambiguous') {
+    if (item.reason === 'multiple_candidates') return '\u043D\u0435\u0441\u043A\u043E\u043B\u044C\u043A\u043E \u0440\u0430\u0432\u043D\u044B\u0445 \u043A\u0430\u043D\u0434\u0438\u0434\u0430\u0442\u043E\u0432; \u043F\u043E\u0431\u0435\u0434\u0438\u0442\u0435\u043B\u044C \u043D\u0435 \u0432\u044B\u0431\u0440\u0430\u043D (multiple_candidates)';
+    if (item.reason === 'insufficient_fields') return '\u043D\u0435\u0434\u043E\u0441\u0442\u0430\u0442\u043E\u0447\u043D\u043E \u043F\u043E\u043B\u0435\u0439 DOI/\u043D\u0430\u0437\u0432\u0430\u043D\u0438\u044F (insufficient_fields)';
+    return item.reason ? '\u043D\u0443\u0436\u043D\u043E \u0443\u0442\u043E\u0447\u043D\u0435\u043D\u0438\u0435 (' + item.reason + ')' : '\u043D\u0443\u0436\u043D\u043E \u0443\u0442\u043E\u0447\u043D\u0435\u043D\u0438\u0435';
+  }
+  const failure = mismatches[0];
+  if (item.verdict === 'not_found') {
+    const reasons = {
+      invalid_candidates: '\u043A\u0430\u043D\u0434\u0438\u0434\u0430\u0442\u044B \u043F\u043E\u0432\u0440\u0435\u0436\u0434\u0435\u043D\u044B',
+      invalid_doi: '\u043D\u0435\u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u044B\u0439 DOI',
+      doi_not_found: 'DOI \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D \u0432 Crossref',
+    };
+    return (reasons[failure] || '\u0437\u0430\u043F\u0438\u0441\u044C \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u0430') + (failure ? ' (' + failure + ')' : '');
+  }
+  if (failure === 'rate_limited') return 'Crossref \u043E\u0433\u0440\u0430\u043D\u0438\u0447\u0438\u043B \u0447\u0430\u0441\u0442\u043E\u0442\u0443 \u0437\u0430\u043F\u0440\u043E\u0441\u043E\u0432 (rate_limited)';
+  if (failure === 'source_unavailable') return '\u0438\u0441\u0442\u043E\u0447\u043D\u0438\u043A \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u0435\u043D (source_unavailable)';
+  return '\u043F\u0440\u043E\u0432\u0435\u0440\u043A\u0430 \u043D\u0435 \u0432\u044B\u043F\u043E\u043B\u043D\u0435\u043D\u0430' + (failure ? ' (' + failure + ')' : '');
+}
+
+function note(text, error) {
+  const node = document.createElement('p');
+  node.className = error ? 'empty status error' : 'empty';
+  node.textContent = text;
+  return node;
+}
+
+function renderVerdicts(data) {
+  verdictListEl.innerHTML = '';
+  const results = Array.isArray(data.results) ? data.results : [];
+  if (!results.length) {
+    verdictListEl.append(note('\u0423 \u0447\u0435\u0440\u043D\u043E\u0432\u0438\u043A\u0430 \u043D\u0435\u0442 \u0446\u0438\u0442\u0430\u0442 \u0434\u043B\u044F \u0441\u0432\u0435\u0440\u043A\u0438.'));
+    return;
+  }
+  for (const item of results) {
+    const row = document.createElement('div');
+    row.className = 'verdict';
+    const head = document.createElement('div');
+    head.className = 'verdict-head';
+    const badge = document.createElement('span');
+    badge.className = 'badge ' + (item.verdict || 'unknown');
+    badge.textContent = VERDICT_LABELS[item.verdict] || '\u043D\u0435 \u043F\u0440\u043E\u0432\u0435\u0440\u0435\u043D\u043E';
+    const source = item.source || {};
+    const label = document.createElement('span');
+    label.className = 'verdict-source';
+    label.textContent = item.source_id || source.doi || source.title || item.citation_id;
+    head.append(badge, label);
+    const reason = document.createElement('div');
+    reason.className = 'verdict-reason';
+    reason.textContent = verdictReason(item);
+    row.append(head, reason);
+    verdictListEl.append(row);
+  }
+}
+
+let verdictToken = 0;
+function doiLike(value) {
+  return typeof value === 'string' && value.trim().startsWith('10.') && value.trim().indexOf('/') > 3;
+}
+
+async function verifyLocally(draftId) {
+  await fetchJson('/api/tools/citation-match/summary');
+  const itemsResponse = await fetchJson('/api/author-studio/items?kind=citation');
+  const cards = (Array.isArray(itemsResponse.items) ? itemsResponse.items : [])
+    .filter((item) => item && item.metadata && item.metadata.draft_id === draftId);
+  if (!cards.length) {
+    return { total: 0, verified: 0, results: [] };
+  }
+  const results = [];
+  let verified = 0;
+  for (const card of cards) {
+    const meta = card.metadata || {};
+    const sourceId = typeof meta.source_id === 'string' ? meta.source_id : '';
+    const authors = Array.isArray(meta.authors)
+      ? meta.authors
+      : (typeof meta.author === 'string' && meta.author.trim() ? [meta.author] : []);
+    const citation = {
+      doi: doiLike(sourceId) ? sourceId.trim() : null,
+      title: typeof meta.title === 'string' ? meta.title : (typeof card.title === 'string' ? card.title : null),
+      authors,
+      year: Number.isInteger(meta.year) ? meta.year : null,
+    };
+    const candidates = meta.candidates;
+    if (!Array.isArray(candidates)) {
+      results.push({
+        citation_id: card.id,
+        source_id: sourceId,
+        verified: false,
+        verdict: 'not_found',
+        reason: null,
+        matched_by: null,
+        checks: null,
+        mismatches: ['source_unavailable'],
+        candidates: [],
+        source: null,
+      });
+      continue;
+    }
+    try {
+      const data = await fetchJson('/api/tools/citation-match/compare', {
+        method: 'POST',
+        body: JSON.stringify({ citation, records: candidates }),
+      });
+      const match = data || {};
+      const isVerified = match.verdict === 'exact';
+      if (isVerified) verified += 1;
+      results.push({
+        citation_id: card.id,
+        source_id: sourceId,
+        verified: isVerified,
+        verdict: match.verdict,
+        reason: match.reason,
+        matched_by: match.matched_by,
+        checks: match.checks,
+        mismatches: Array.isArray(match.mismatches) ? match.mismatches : [],
+        candidates: Array.isArray(match.candidates) ? match.candidates : [],
+        source: match.record || null,
+      });
+    } catch (error) {
+      results.push({
+        citation_id: card.id,
+        source_id: sourceId,
+        verified: false,
+        verdict: 'not_found',
+        reason: null,
+        matched_by: null,
+        checks: null,
+        mismatches: ['source_unavailable'],
+        candidates: [],
+        source: null,
+      });
+    }
+  }
+  return { total: results.length, verified, results };
+}
+
+async function loadVerdicts(draftId) {
+  const token = ++verdictToken;
+  verdictListEl.innerHTML = '';
+  if (!draftId) {
+    verdictListEl.append(note('\u0427\u0435\u0440\u043D\u043E\u0432\u0438\u043A \u043D\u0435 \u0432\u044B\u0431\u0440\u0430\u043D \u2014 \u0441\u0432\u0435\u0440\u044F\u0442\u044C \u043D\u0435\u0447\u0435\u0433\u043E.'));
+    return;
+  }
+  verdictListEl.append(note('\u041F\u0440\u043E\u0432\u0435\u0440\u044F\u044E \u0446\u0438\u0442\u0430\u0442\u044B\u2026'));
+  try {
+    const data = await fetchJson('/api/tools/citation-verify/draft?draft_id=' + encodeURIComponent(draftId));
+    if (token !== verdictToken || draftsEl.value !== draftId) return;
+    renderVerdicts(data);
+    return;
+  } catch (firstError) {
+    if (token !== verdictToken || draftsEl.value !== draftId) return;
+  }
+  try {
+    const data = await verifyLocally(draftId);
+    if (token !== verdictToken || draftsEl.value !== draftId) return;
+    renderVerdicts(data);
+  } catch (error) {
+    if (token !== verdictToken || draftsEl.value !== draftId) return;
+    verdictListEl.innerHTML = '';
+    verdictListEl.append(note('\u0421\u0432\u0435\u0440\u043A\u0430 \u0446\u0438\u0442\u0430\u0442 \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u043D\u0430: ' + error.message, true));
+  }
 }
 
 function render(view) {
@@ -1482,6 +1693,7 @@ async function show(versionId) {
 async function loadVersions() {
   const draftId = draftsEl.value;
   versionsEl.innerHTML = '';
+  void loadVerdicts(draftId);
   if (!draftId) {
     versionsEl.append(option('', '\u043D\u0435\u0442 \u0441\u043D\u0438\u043C\u043A\u043E\u0432'));
     versionsEl.disabled = true;
@@ -1523,6 +1735,7 @@ async function loadDrafts() {
       versionsEl.innerHTML = '';
       versionsEl.append(option('', '\u043D\u0435\u0442 \u0441\u043D\u0438\u043C\u043A\u043E\u0432'));
       versionsEl.disabled = true;
+      void loadVerdicts('');
       empty('\u0427\u0435\u0440\u043D\u043E\u0432\u0438\u043A\u043E\u0432 \u043F\u043E\u043A\u0430 \u043D\u0435\u0442: \u0441\u043E\u0437\u0434\u0430\u0439\u0442\u0435 \u0447\u0435\u0440\u043D\u043E\u0432\u0438\u043A \u0438 \u0441\u043D\u0438\u043C\u043E\u043A \u0432\u0435\u0440\u0441\u0438\u0438 \u0432 API \u0441\u0442\u0443\u0434\u0438\u0438.');
       say('\u0421\u0442\u0443\u0434\u0438\u044F \u043F\u0443\u0441\u0442\u0430');
       return;

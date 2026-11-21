@@ -88,6 +88,7 @@ var module = {
   id: "image-info",
   apiVersion: 1,
   register(ctx) {
+    ctx.publish({ version: "1.1.0", inspectImage: (bytes) => inspect(bytes) });
     ctx.router.add("GET", "/", () => ({ raw: PAGE, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } }));
     ctx.api.add("POST", "/api/tools/image-info/inspect", (request) => {
       const body = bodyOf(request.body);

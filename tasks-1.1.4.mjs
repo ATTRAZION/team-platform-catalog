@@ -1168,6 +1168,9 @@ var PAGE = `<!doctype html>
   .status-cancelled { background: #3a2426; color: #ffb3b3; }
   .error { color: #ff9a9a; font-size: 13px; min-height: 18px; }
   .empty { color: var(--muted); }
+  .run-results { margin-top: 10px; }
+  .run-results summary { cursor: pointer; }
+  .run-result { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 20em; overflow: auto; }
 </style>
 </head>
 <body>
@@ -1226,8 +1229,46 @@ var PAGE = `<!doctype html>
     });
   }
 
+  function showRuns(taskId) {
+    var details = el('details', 'run-results');
+    details.appendChild(el('summary', '', '\u0417\u0430\u043F\u0443\u0441\u043A\u0438 \u0438 \u0440\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442\u044B'));
+    var content = el('div', 'run-results-content');
+    var reload = el('button', 'ghost', '\u041E\u0431\u043D\u043E\u0432\u0438\u0442\u044C');
+    reload.type = 'button';
+    var openRuns = el('a', 'meta', '\u041E\u0442\u043A\u0440\u044B\u0442\u044C \xAB\u0417\u0430\u043F\u0443\u0441\u043A\u0438\xBB');
+    openRuns.href = '/m/runs/';
+    var actions = el('div', 'row');
+    actions.append(reload, openRuns);
+    details.append(actions, content);
+
+    function refresh() {
+      if (reload.disabled) return;
+      reload.disabled = true;
+      content.textContent = '\u0417\u0430\u0433\u0440\u0443\u0437\u043A\u0430\u2026';
+      request('/api/runs?limit=10&task_id=' + encodeURIComponent(taskId)).then(function (page) {
+        var runs = page.items || [];
+        content.textContent = runs.length ? '' : '\u0414\u043B\u044F \u044D\u0442\u043E\u0439 \u043A\u0430\u0440\u0442\u043E\u0447\u043A\u0438 \u043F\u043E\u043A\u0430 \u043D\u0435\u0442 \u0437\u0430\u043F\u0443\u0441\u043A\u043E\u0432.';
+        runs.forEach(function (run) {
+          var result = el('div');
+          result.appendChild(el('div', 'meta', [run.agent, run.model, run.status].filter(Boolean).join(' \xB7 ')));
+          if (run.result) result.appendChild(el('pre', 'run-result', run.result));
+          else if (run.error_message) result.appendChild(el('p', 'error', run.error_message));
+          content.appendChild(result);
+        });
+      }).catch(function (error) {
+        content.textContent = '\u0417\u0430\u043F\u0443\u0441\u043A\u0438 \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u043D\u044B. ' + error.message;
+      }).finally(function () {
+        reload.disabled = false;
+      });
+    }
+    details.addEventListener('toggle', function () { if (details.open) refresh(); });
+    reload.addEventListener('click', refresh);
+    return details;
+  }
+
   function show(task) {
     var item = el('li');
+    item.dataset.taskId = task.id;
     var row = el('div', 'row');
     row.appendChild(el('span', 'title', task.title));
     row.appendChild(el('span', 'status status-' + task.status, task.status));
@@ -1421,6 +1462,7 @@ var PAGE = `<!doctype html>
       }
     }
     if (sla.childNodes.length) item.appendChild(sla);
+    item.appendChild(showRuns(task.id));
     return item;
   }
 

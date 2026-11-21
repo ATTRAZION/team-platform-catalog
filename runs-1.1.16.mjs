@@ -110,6 +110,9 @@ function explainFailure(text2) {
   }
   return { infrastructure: reasons.length > 0, reasons };
 }
+function primaryFailure(explanation) {
+  return explanation.reasons[0] ?? null;
+}
 var FAILURE_CATEGORIES = RULES.map(({ kind, label }) => ({ kind, label }));
 
 // modules/runs/retry.ts
@@ -213,13 +216,18 @@ function normalizeAgent(raw, index) {
     if (typeof value !== "string") throw new ValidationError(`\u0410\u0433\u0435\u043D\u0442 \xAB${id}\xBB: env.${key} \u0434\u043E\u043B\u0436\u0435\u043D \u0431\u044B\u0442\u044C \u0441\u0442\u0440\u043E\u043A\u043E\u0439`);
     env[key] = value;
   }
+  const requiresProviderKeys = input.requires_provider_keys;
+  if (requiresProviderKeys !== void 0 && typeof requiresProviderKeys !== "boolean") {
+    throw new ValidationError(`\u0410\u0433\u0435\u043D\u0442 \xAB${id}\xBB: requires_provider_keys \u0434\u043E\u043B\u0436\u0435\u043D \u0431\u044B\u0442\u044C \u043B\u043E\u0433\u0438\u0447\u0435\u0441\u043A\u0438\u043C \u0437\u043D\u0430\u0447\u0435\u043D\u0438\u0435\u043C`);
+  }
   return {
     id,
     command: text(input.command, "command", 500, true),
     args: argsRaw.map((arg, argIndex) => text(arg, `args[${argIndex}]`, 500, true)),
     cwd: text(input.cwd, "cwd", 500) || null,
     env,
-    timeout_ms: input.timeout_ms === void 0 || input.timeout_ms === null ? null : integer(input.timeout_ms, "timeout_ms", 1e3, 36e5, 6e4)
+    timeout_ms: input.timeout_ms === void 0 || input.timeout_ms === null ? null : integer(input.timeout_ms, "timeout_ms", 1e3, 36e5, 6e4),
+    ...requiresProviderKeys === void 0 ? {} : { requires_provider_keys: requiresProviderKeys }
   };
 }
 function serialize(agent) {
@@ -229,7 +237,8 @@ function serialize(agent) {
     args: [...agent.args],
     ...agent.cwd ? { cwd: agent.cwd } : {},
     ...Object.keys(agent.env).length ? { env: agent.env } : {},
-    ...agent.timeout_ms ? { timeout_ms: agent.timeout_ms } : {}
+    ...agent.timeout_ms ? { timeout_ms: agent.timeout_ms } : {},
+    ...agent.requires_provider_keys === void 0 ? {} : { requires_provider_keys: agent.requires_provider_keys }
   };
 }
 function loadAgentRegistry(file, log) {
@@ -495,12 +504,12 @@ var AgentExecutor = class {
     const run = this.#service.claimNext({
       owner: this.#options.owner,
       lease_ms: this.#options.leaseMs
-    }, this.#autoStartTaskFilter(), providerFilter);
+    }, this.#autoStartTaskFilter(), providerFilter ? "without_model" : "any", providerFilter && [...providerFilter.keys()]);
     if (!run) return;
     this.#runningRunId = run.id;
     this.#log.info("\u0412\u0437\u044F\u0442 \u0437\u0430\u043F\u0443\u0441\u043A", { run_id: run.id, agent: run.agent, attempt: run.attempt });
     try {
-      await this.#execute(run);
+      await this.#execute(run, providerFilter?.get(run.agent));
     } catch (error) {
       this.#log.error("\u0417\u0430\u043F\u0443\u0441\u043A \u0437\u0430\u0432\u0435\u0440\u0448\u0438\u043B\u0441\u044F \u043E\u0448\u0438\u0431\u043A\u043E\u0439 \u0438\u0441\u043F\u043E\u043B\u043D\u0438\u0442\u0435\u043B\u044F", {
         run_id: run.id,
@@ -557,13 +566,12 @@ var AgentExecutor = class {
     }
   }
   /**
-   * Проверка провайдеров. `null` — автозапуск заблокирован полностью,
-   * `without_model` — ждут только запуски с моделью. Ошибка безопасно
-   * блокирует автозапуск без спама логов.
+   * `null` блокирует автозапуск, `undefined` разрешает все запуски.
+   * Без ключей запуски с моделью разрешаются для явно настроенных агентов.
    */
   #providerGuardFilter() {
     const guard = this.#options.providerGuard;
-    if (!guard) return "any";
+    if (!guard) return void 0;
     let state;
     try {
       state = guard();
@@ -593,13 +601,18 @@ var AgentExecutor = class {
     if (!state.auto_start_allowed) {
       if (!this.#providerGuardBlocked) {
         this.#providerGuardBlocked = true;
-        this.#log.info("\u0410\u0432\u0442\u043E\u0437\u0430\u043F\u0443\u0441\u043A \u0437\u0430\u043F\u0443\u0441\u043A\u043E\u0432 \u0441 \u043C\u043E\u0434\u0435\u043B\u044C\u044E \u043F\u0440\u0438\u043E\u0441\u0442\u0430\u043D\u043E\u0432\u043B\u0435\u043D \u043F\u0440\u043E\u0432\u0435\u0440\u043A\u043E\u0439 \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440\u043E\u0432", {
+        this.#log.info("\u0411\u0435\u0437 \u043A\u043B\u044E\u0447\u0435\u0439 \u0437\u0430\u043F\u0443\u0441\u043A\u0438 \u0441 \u043C\u043E\u0434\u0435\u043B\u044C\u044E \u0434\u043E\u0441\u0442\u0443\u043F\u043D\u044B \u0430\u0433\u0435\u043D\u0442\u0430\u043C \u0441 \u0441\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0443\u044E\u0449\u0435\u0439 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u043E\u0439", {
           reason: state.reason,
           configured: state.configured,
           total: state.total
         });
       }
-      return "without_model";
+      const agents = /* @__PURE__ */ new Map();
+      for (const id of this.#registry.ids()) {
+        const agent = this.#registry.get(id);
+        if (agent?.requires_provider_keys === false) agents.set(id, agent);
+      }
+      return agents;
     }
     if (this.#providerGuardBlocked) {
       this.#providerGuardBlocked = false;
@@ -608,10 +621,10 @@ var AgentExecutor = class {
         total: state.total
       });
     }
-    return "any";
+    return void 0;
   }
-  async #execute(run) {
-    const definition = this.#registry.get(run.agent);
+  async #execute(run, eligibleAgent) {
+    const definition = eligibleAgent ?? this.#registry.get(run.agent);
     if (!definition) {
       this.#complete(run, {
         outcome: "failed",
@@ -975,92 +988,6 @@ var AgentExecutor = class {
         error: error instanceof Error ? error.message : String(error)
       });
     }
-  }
-};
-
-// modules/runs/availability.ts
-function toPause(row) {
-  return {
-    agent: row.agent,
-    until: row.until,
-    reason: row.reason,
-    kind: row.kind,
-    strikes: row.strikes,
-    updated_at: row.updated_at
-  };
-}
-function timeLabel(iso) {
-  const at = new Date(iso);
-  if (Number.isNaN(at.getTime())) return iso;
-  return at.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
-}
-var AgentAvailability = class {
-  #db;
-  #log;
-  constructor(db, log) {
-    this.#db = db;
-    this.#log = log.child({ module: "agents" });
-  }
-  /** Пауза до `until`; повторный сбой не сокращает уже назначенный срок. */
-  pause(agent, until, info) {
-    const id = String(agent ?? "").trim();
-    if (!id) throw new Error("\u041D\u0435 \u0443\u043A\u0430\u0437\u0430\u043D \u0443\u0447\u0430\u0441\u0442\u043D\u0438\u043A \u043F\u0430\u0443\u0437\u044B");
-    if (Number.isNaN(until.getTime())) throw new Error("\u041D\u0435\u0432\u0435\u0440\u043D\u043E\u0435 \u0432\u0440\u0435\u043C\u044F \u043E\u043A\u043E\u043D\u0447\u0430\u043D\u0438\u044F \u043F\u0430\u0443\u0437\u044B");
-    const previous = this.#row(id);
-    const target = previous && Date.parse(previous.until) > until.getTime() ? previous.until : until.toISOString();
-    const record2 = {
-      agent: id,
-      until: target,
-      reason: String(info.reason ?? "").slice(0, 500),
-      kind: String(info.kind ?? "").slice(0, 40),
-      strikes: (previous?.strikes ?? 0) + 1,
-      updated_at: (/* @__PURE__ */ new Date()).toISOString()
-    };
-    this.#db.raw.prepare(`INSERT INTO agent_availability (agent, until, reason, kind, strikes, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?)
-        ON CONFLICT(agent) DO UPDATE SET
-          until = excluded.until, reason = excluded.reason, kind = excluded.kind,
-          strikes = excluded.strikes, updated_at = excluded.updated_at`).run(record2.agent, record2.until, record2.reason, record2.kind, record2.strikes, record2.updated_at);
-    this.#log.warn("\u0423\u0447\u0430\u0441\u0442\u043D\u0438\u043A \u043D\u0430 \u043F\u0430\u0443\u0437\u0435 \u043F\u043E\u0441\u043B\u0435 \u0438\u043D\u0444\u0440\u0430\u0441\u0442\u0440\u0443\u043A\u0442\u0443\u0440\u043D\u043E\u0433\u043E \u0441\u0431\u043E\u044F", {
-      agent: record2.agent,
-      until: record2.until,
-      kind: record2.kind,
-      strikes: record2.strikes
-    });
-    return record2;
-  }
-  clear(agent) {
-    const result = this.#db.raw.prepare("DELETE FROM agent_availability WHERE agent = ?").run(String(agent ?? "").trim());
-    return Number(result.changes) > 0;
-  }
-  active(agent, now = /* @__PURE__ */ new Date()) {
-    const row = this.#row(String(agent ?? "").trim());
-    if (!row) return null;
-    const until = Date.parse(row.until);
-    if (!Number.isFinite(until) || until <= now.getTime()) return null;
-    return toPause(row);
-  }
-  list(now = /* @__PURE__ */ new Date()) {
-    const rows = this.#db.raw.prepare("SELECT agent, until, reason, kind, strikes, updated_at FROM agent_availability ORDER BY until ASC, agent ASC").all();
-    return rows.map((row) => {
-      const until = Date.parse(row.until);
-      return {
-        ...toPause(row),
-        active: Number.isFinite(until) && until > now.getTime(),
-        remaining_ms: Number.isFinite(until) ? Math.max(0, until - now.getTime()) : 0
-      };
-    });
-  }
-  /** Причина пропуска для меню и статуса; `null` — участник доступен. */
-  skipReason(agent, now = /* @__PURE__ */ new Date()) {
-    const pause = this.active(agent, now);
-    if (!pause) return null;
-    return `\u043D\u0430 \u043F\u0430\u0443\u0437\u0435 \u0434\u043E ${timeLabel(pause.until)}${pause.reason ? ` (${pause.reason})` : ""}`;
-  }
-  #row(agent) {
-    if (!agent) return null;
-    const row = this.#db.raw.prepare("SELECT agent, until, reason, kind, strikes, updated_at FROM agent_availability WHERE agent = ?").get(agent);
-    return row ?? null;
   }
 };
 
@@ -1559,6 +1486,110 @@ function expireRun(run, now) {
   };
 }
 
+// modules/runs/retry-hint.ts
+var UNCLASSIFIED_PLATFORM_ERRORS = /* @__PURE__ */ new Set(["lease_expired", "spawn_failed", "unknown_agent"]);
+var CONTENT_ERROR_CLASSES = /* @__PURE__ */ new Set(["tests_failed"]);
+function retryHint(run) {
+  if (run.status !== "failed") return null;
+  if (run.error_class && UNCLASSIFIED_PLATFORM_ERRORS.has(run.error_class)) return null;
+  const text2 = [run.error_class, run.error_message].map((part) => typeof part === "string" ? part.trim() : "").filter((part) => part.length > 0).join(": ");
+  if (!text2) return null;
+  const explanation = explainFailure(text2);
+  if (explanation.infrastructure) {
+    return { kind: "infrastructure", label: primaryFailure(explanation)?.label ?? null };
+  }
+  if (run.error_class && CONTENT_ERROR_CLASSES.has(run.error_class)) {
+    return { kind: "content", label: null };
+  }
+  return null;
+}
+
+// modules/runs/availability.ts
+function toPause(row) {
+  return {
+    agent: row.agent,
+    until: row.until,
+    reason: row.reason,
+    kind: row.kind,
+    strikes: row.strikes,
+    updated_at: row.updated_at
+  };
+}
+function timeLabel(iso) {
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return iso;
+  return at.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+}
+var AgentAvailability = class {
+  #db;
+  #log;
+  constructor(db, log) {
+    this.#db = db;
+    this.#log = log.child({ module: "agents" });
+  }
+  /** Пауза до `until`; повторный сбой не сокращает уже назначенный срок. */
+  pause(agent, until, info) {
+    const id = String(agent ?? "").trim();
+    if (!id) throw new Error("\u041D\u0435 \u0443\u043A\u0430\u0437\u0430\u043D \u0443\u0447\u0430\u0441\u0442\u043D\u0438\u043A \u043F\u0430\u0443\u0437\u044B");
+    if (Number.isNaN(until.getTime())) throw new Error("\u041D\u0435\u0432\u0435\u0440\u043D\u043E\u0435 \u0432\u0440\u0435\u043C\u044F \u043E\u043A\u043E\u043D\u0447\u0430\u043D\u0438\u044F \u043F\u0430\u0443\u0437\u044B");
+    const previous = this.#row(id);
+    const target = previous && Date.parse(previous.until) > until.getTime() ? previous.until : until.toISOString();
+    const record2 = {
+      agent: id,
+      until: target,
+      reason: String(info.reason ?? "").slice(0, 500),
+      kind: String(info.kind ?? "").slice(0, 40),
+      strikes: (previous?.strikes ?? 0) + 1,
+      updated_at: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    this.#db.raw.prepare(`INSERT INTO agent_availability (agent, until, reason, kind, strikes, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(agent) DO UPDATE SET
+          until = excluded.until, reason = excluded.reason, kind = excluded.kind,
+          strikes = excluded.strikes, updated_at = excluded.updated_at`).run(record2.agent, record2.until, record2.reason, record2.kind, record2.strikes, record2.updated_at);
+    this.#log.warn("\u0423\u0447\u0430\u0441\u0442\u043D\u0438\u043A \u043D\u0430 \u043F\u0430\u0443\u0437\u0435 \u043F\u043E\u0441\u043B\u0435 \u0438\u043D\u0444\u0440\u0430\u0441\u0442\u0440\u0443\u043A\u0442\u0443\u0440\u043D\u043E\u0433\u043E \u0441\u0431\u043E\u044F", {
+      agent: record2.agent,
+      until: record2.until,
+      kind: record2.kind,
+      strikes: record2.strikes
+    });
+    return record2;
+  }
+  clear(agent) {
+    const result = this.#db.raw.prepare("DELETE FROM agent_availability WHERE agent = ?").run(String(agent ?? "").trim());
+    return Number(result.changes) > 0;
+  }
+  active(agent, now = /* @__PURE__ */ new Date()) {
+    const row = this.#row(String(agent ?? "").trim());
+    if (!row) return null;
+    const until = Date.parse(row.until);
+    if (!Number.isFinite(until) || until <= now.getTime()) return null;
+    return toPause(row);
+  }
+  list(now = /* @__PURE__ */ new Date()) {
+    const rows = this.#db.raw.prepare("SELECT agent, until, reason, kind, strikes, updated_at FROM agent_availability ORDER BY until ASC, agent ASC").all();
+    return rows.map((row) => {
+      const until = Date.parse(row.until);
+      return {
+        ...toPause(row),
+        active: Number.isFinite(until) && until > now.getTime(),
+        remaining_ms: Number.isFinite(until) ? Math.max(0, until - now.getTime()) : 0
+      };
+    });
+  }
+  /** Причина пропуска для меню и статуса; `null` — участник доступен. */
+  skipReason(agent, now = /* @__PURE__ */ new Date()) {
+    const pause = this.active(agent, now);
+    if (!pause) return null;
+    return `\u043D\u0430 \u043F\u0430\u0443\u0437\u0435 \u0434\u043E ${timeLabel(pause.until)}${pause.reason ? ` (${pause.reason})` : ""}`;
+  }
+  #row(agent) {
+    if (!agent) return null;
+    const row = this.#db.raw.prepare("SELECT agent, until, reason, kind, strikes, updated_at FROM agent_availability WHERE agent = ?").get(agent);
+    return row ?? null;
+  }
+};
+
 // modules/runs/service.ts
 var SWEEP_BATCH = 200;
 var SWEEP_MAX_BATCHES = 10;
@@ -1686,7 +1717,7 @@ var RunService = class {
    * `allowedTaskIds` ограничивает выбор карточками из резерва; без аргумента
    * выбор не фильтруется, поэтому ручной claim остаётся свободным.
    */
-  claimNext(raw, allowedTaskIds, modelFilter = "any") {
+  claimNext(raw, allowedTaskIds, modelFilter = "any", keyFreeModelAgents) {
     const claim = normalizeClaim(raw, this.#defaultLeaseMs);
     const now = this.#clock.now();
     this.expireOverdue(now);
@@ -1696,7 +1727,8 @@ var RunService = class {
         decision = this.#repo.claimNext(
           (queued) => claimRun(queued, claim, now, { ceiling_ms: this.#leaseCeilingMs }),
           allowedTaskIds,
-          modelFilter
+          modelFilter,
+          keyFreeModelAgents
         );
         break;
       } catch (error) {
@@ -2235,14 +2267,16 @@ var SqliteRunRepository = class {
   appendEvent(event) {
     this.#appendEvent(event);
   }
-  claimNext(decide, allowedTaskIds, modelFilter = "any") {
+  claimNext(decide, allowedTaskIds, modelFilter = "any", keyFreeModelAgents = []) {
     return this.#db.transaction(() => {
       const filter = allowedTaskIds === void 0 ? "" : allowedTaskIds.length === 0 ? " AND 1 = 0" : ` AND task_id IN (${allowedTaskIds.map(() => "?").join(", ")})`;
-      const modelFilterSql = modelFilter === "without_model" ? " AND (model IS NULL OR model = '')" : "";
+      const modelFilterSql = modelFilter === "without_model" ? " AND (model IS NULL OR model = '' OR agent IN (SELECT value FROM json_each(?)))" : "";
+      const params = [...allowedTaskIds ?? []];
+      if (modelFilter === "without_model") params.push(JSON.stringify(keyFreeModelAgents));
       const row = this.#db.raw.prepare(`SELECT ${COLUMNS} FROM runs
           WHERE status = 'queued'
             AND (not_before IS NULL OR not_before <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))${filter}${modelFilterSql}
-          ORDER BY created_at ASC, rowid ASC LIMIT 1`).all(...allowedTaskIds ?? []).at(0);
+          ORDER BY created_at ASC, rowid ASC LIMIT 1`).all(...params).at(0);
       if (!row) return null;
       const current = toRun(row);
       const decision = decide(current);
@@ -2326,6 +2360,7 @@ var SqliteRunRepository = class {
         success_rate: terminal ? Math.round(succeeded / terminal * 1e3) / 1e3 : null
       },
       duration_ms: {
+        samples: durations.length,
         average,
         p50: at(0.5),
         p90: at(0.9),
@@ -2636,10 +2671,18 @@ var PAGE = `<!doctype html>
   .status-demo { background: #3b3324; color: #ffcf70; }
   .status-failed { background: #3a2426; color: #ff9a9a; }
   .error { color: #ff9a9a; font-size: 13px; min-height: 18px; }
+  .retry-content { color: #ff9a9a; }
+  .retry-infrastructure { color: #ffcf70; }
   .empty { color: var(--muted); }
   .result { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 30em; overflow: auto; font: inherit; }
   details { margin-top: 10px; }
   .choices { margin: -4px 0 10px; }
+  .metrics-section { grid-column: 1 / -1; }
+  .metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+  .metrics.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  @media (max-width: 700px) { .metrics, .metrics.three { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .metric { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+  .metric strong { display: block; font-size: 18px; font-variant-numeric: tabular-nums; margin-top: 2px; }
 </style>
 </head>
 <body>
@@ -2665,6 +2708,24 @@ var PAGE = `<!doctype html>
       <button type="submit">\u0417\u0430\u043F\u0443\u0441\u0442\u0438\u0442\u044C</button>
       <p class="error" id="create-error"></p>
     </form>
+  </section>
+  <section class="metrics-section">
+    <h2>\u0414\u043B\u0438\u0442\u0435\u043B\u044C\u043D\u043E\u0441\u0442\u044C <span class="meta" id="metrics-note"></span></h2>
+    <div class="metrics">
+      <div class="metric"><span class="meta">\u0421\u0440\u0435\u0434\u043D\u0435\u0435</span><strong id="metric-average">\u2014</strong></div>
+      <div class="metric"><span class="meta">p50</span><strong id="metric-p50">\u2014</strong></div>
+      <div class="metric"><span class="meta">p90</span><strong id="metric-p90">\u2014</strong></div>
+      <div class="metric"><span class="meta">\u041C\u0430\u043A\u0441\u0438\u043C\u0443\u043C</span><strong id="metric-max">\u2014</strong></div>
+    </div>
+  </section>
+  <section class="metrics-section">
+    <h2>\u0418\u0442\u043E\u0433\u0438</h2>
+    <div class="metrics three">
+      <div class="metric"><span class="meta">\u0414\u043E\u043B\u044F \u0443\u0441\u043F\u0435\u0448\u043D\u044B\u0445</span><strong id="metric-success-rate">\u2014</strong></div>
+      <div class="metric"><span class="meta">\u0420\u0443\u0447\u043D\u044B\u0445 \u043F\u043E\u0432\u0442\u043E\u0440\u043E\u0432</span><strong id="metric-manual-retries">\u2014</strong></div>
+      <div class="metric"><span class="meta">\u0421\u0442\u0430\u0440\u0435\u0439\u0448\u0438\u0439 \u0432 \u043E\u0447\u0435\u0440\u0435\u0434\u0438 (UTC)</span><strong id="metric-oldest-queued">\u2014</strong></div>
+    </div>
+    <p class="meta">\u041E\u0448\u0438\u0431\u043A\u0438: <span id="metrics-errors">\u2014</span></p>
   </section>
   <section>
     <h2>\u041E\u0447\u0435\u0440\u0435\u0434\u044C <span class="meta" id="count"></span></h2>
@@ -2748,6 +2809,56 @@ var PAGE = `<!doctype html>
     }).then(load);
   }
 
+  // \u041C\u0435\u0442\u0440\u0438\u043A\u0438 \u0441\u0447\u0438\u0442\u0430\u0435\u0442 \u0441\u0435\u0440\u0432\u0435\u0440 (/api/runs/metrics); \u0441\u0442\u0440\u0430\u043D\u0438\u0446\u0430 \u0442\u043E\u043B\u044C\u043A\u043E \u043F\u043E\u043A\u0430\u0437\u044B\u0432\u0430\u0435\u0442
+  // \u0447\u0435\u0442\u044B\u0440\u0435 \u0447\u0438\u0441\u043B\u0430 \u0438 \u043D\u0435 \u043F\u0435\u0440\u0435\u0441\u0447\u0438\u0442\u044B\u0432\u0430\u0435\u0442 \u0438\u0445 \u0438\u0437 \u0432\u0438\u0434\u0438\u043C\u043E\u0439 \u0441\u0442\u0440\u0430\u043D\u0438\u0446\u044B \u043E\u0447\u0435\u0440\u0435\u0434\u0438.
+  function duration(value) {
+    if (value === null || value === undefined || !isFinite(value)) return '\u2014';
+    if (value < 1000) return Math.round(value) + ' \u043C\u0441';
+    return (value / 1000).toFixed(1).replace('.', ',') + ' \u0441';
+  }
+
+  // \u0421\u0442\u0430\u0440\u0435\u0439\u0448\u0438\u0439 \u0432 \u043E\u0447\u0435\u0440\u0435\u0434\u0438 \u043F\u043E\u043A\u0430\u0437\u044B\u0432\u0430\u0435\u043C \u0432 UTC: \u0441\u0442\u0440\u0430\u043D\u0438\u0446\u0430 \u043D\u0435 \u0434\u043E\u043B\u0436\u043D\u0430 \u0437\u0430\u0432\u0438\u0441\u0435\u0442\u044C \u043E\u0442
+  // \u0447\u0430\u0441\u043E\u0432\u043E\u0433\u043E \u043F\u043E\u044F\u0441\u0430 \u0431\u0440\u0430\u0443\u0437\u0435\u0440\u0430, \u0438\u043D\u0430\u0447\u0435 \u043E\u0434\u0438\u043D \u0438 \u0442\u043E\u0442 \u0436\u0435 \u0437\u0430\u043F\u0443\u0441\u043A \u0432\u044B\u0433\u043B\u044F\u0434\u0438\u0442 \u0438\u043D\u0430\u0447\u0435 \u043D\u0430
+  // \u0440\u0430\u0437\u043D\u044B\u0445 \u043C\u0430\u0448\u0438\u043D\u0430\u0445. \u041F\u043E\u043B\u043D\u0430\u044F \u043C\u0435\u0442\u043A\u0430 \u043E\u0441\u0442\u0430\u0451\u0442\u0441\u044F \u0432 title.
+  function stamp(value) {
+    if (!value) return '\u2014';
+    var at = new Date(value);
+    if (isNaN(at.getTime())) return String(value);
+    function pad(number) { return number < 10 ? '0' + number : String(number); }
+    return pad(at.getUTCDate()) + '.' + pad(at.getUTCMonth() + 1)
+      + ' ' + pad(at.getUTCHours()) + ':' + pad(at.getUTCMinutes());
+  }
+
+  function loadMetrics() {
+    var note = document.getElementById('metrics-note');
+    return request('/api/runs/metrics').then(function (body) {
+      var d = body.duration_ms || {};
+      var outcomes = body.outcomes || {};
+      var rate = outcomes.success_rate;
+      document.getElementById('metric-success-rate').textContent =
+        typeof rate === 'number' && isFinite(rate) ? Math.round(rate * 100) + ' %' : '\u2014';
+      var manual = body.retries ? body.retries.manual : null;
+      document.getElementById('metric-manual-retries').textContent =
+        typeof manual === 'number' && isFinite(manual) ? String(manual) : '\u2014';
+      var oldest = document.getElementById('metric-oldest-queued');
+      oldest.textContent = stamp(body.oldest_queued_at);
+      oldest.title = body.oldest_queued_at || '';
+      var errors = body.errors || [];
+      document.getElementById('metrics-errors').textContent = errors.length
+        ? errors.map(function (item) { return item.error_class + ' \u2014 ' + item.count; }).join(' \xB7 ')
+        : '\u043D\u0435\u0442';
+      document.getElementById('metric-average').textContent = duration(d.average);
+      document.getElementById('metric-p50').textContent = duration(d.p50);
+      document.getElementById('metric-p90').textContent = duration(d.p90);
+      document.getElementById('metric-max').textContent = duration(d.maximum);
+      // \u0414\u043B\u0438\u0442\u0435\u043B\u044C\u043D\u043E\u0441\u0442\u044C \u0441\u0447\u0438\u0442\u0430\u0435\u0442\u0441\u044F \u0442\u043E\u043B\u044C\u043A\u043E \u043F\u043E \u0437\u0430\u043F\u0443\u0441\u043A\u0430\u043C \u0441 started_at \u0438 finished_at:
+      // \u043F\u043E\u0434\u043F\u0438\u0441\u044C \u043D\u0430\u0437\u044B\u0432\u0430\u0435\u0442 \u0438\u043C\u0435\u043D\u043D\u043E \u0438\u0445 \u0447\u0438\u0441\u043B\u043E, \u0430 \u043D\u0435 \u043E\u0431\u0449\u0438\u0439 total \u043E\u0447\u0435\u0440\u0435\u0434\u0438.
+      note.textContent = d.samples ? '\xB7 \u043F\u043E ' + d.samples + ' \u0437\u0430\u0432\u0435\u0440\u0448\u0451\u043D\u043D\u044B\u043C' : '\xB7 \u043D\u0435\u0442 \u0437\u0430\u0432\u0435\u0440\u0448\u0451\u043D\u043D\u044B\u0445 \u0437\u0430\u043F\u0443\u0441\u043A\u043E\u0432';
+    }).catch(function (error) {
+      note.textContent = '\xB7 \u043C\u0435\u0442\u0440\u0438\u043A\u0438 \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u043D\u044B: ' + error.message;
+    });
+  }
+
   function show(run) {
     var item = el('li');
     var row = el('div', 'row');
@@ -2786,8 +2897,23 @@ var PAGE = `<!doctype html>
       actions.appendChild(cancel);
     }
     if (run.status === 'failed' || run.status === 'cancelled') {
-      var retry = el('button', 'ghost', '\u041F\u043E\u0432\u0442\u043E\u0440\u0438\u0442\u044C');
+      // retry_hint \u043F\u0440\u0438\u0445\u043E\u0434\u0438\u0442 \u0441 \u0441\u0435\u0440\u0432\u0435\u0440\u0430 \u0438 \u043F\u043E\u0441\u0447\u0438\u0442\u0430\u043D explainFailure: \u0438\u043D\u0444\u0440\u0430\u0441\u0442\u0440\u0443\u043A\u0442\u0443\u0440\u0430
+      // \u043B\u0435\u0447\u0438\u0442\u0441\u044F \u043F\u043E\u0432\u0442\u043E\u0440\u043E\u043C, \u043A\u043E\u043D\u0442\u0435\u043D\u0442\u043D\u044B\u0439 \u043E\u0442\u043A\u0430\u0437 \u2014 \u043D\u0435\u0442, \u0438 \u044D\u0442\u043E \u0432\u0438\u0434\u043D\u043E \u043D\u0430 \u0441\u0430\u043C\u043E\u0439 \u043A\u043D\u043E\u043F\u043A\u0435.
+      var hint = run.retry_hint;
+      var retryText = '\u041F\u043E\u0432\u0442\u043E\u0440\u0438\u0442\u044C';
+      var retryClass = 'ghost';
+      if (hint && hint.kind === 'infrastructure') {
+        retryText = '\u041F\u043E\u0432\u0442\u043E\u0440\u0438\u0442\u044C (\u0438\u043D\u0444\u0440\u0430\u0441\u0442\u0440\u0443\u043A\u0442\u0443\u0440\u0430: ' + (hint.label || '\u043E\u0442\u043A\u0430\u0437 \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440\u0430') + ')';
+        retryClass = 'ghost retry-infrastructure';
+      } else if (hint && hint.kind === 'content') {
+        retryText = '\u041F\u043E\u0432\u0442\u043E\u0440\u0438\u0442\u044C \u2014 \u043F\u043E\u0432\u0442\u043E\u0440 \u043D\u0435 \u043F\u043E\u043C\u043E\u0436\u0435\u0442';
+        retryClass = 'ghost retry-content';
+      }
+      var retry = el('button', retryClass, retryText);
       retry.type = 'button';
+      if (hint && hint.kind === 'content') {
+        retry.title = '\u041E\u0442\u043A\u0430\u0437 \u043F\u043E \u0441\u043E\u0434\u0435\u0440\u0436\u0438\u043C\u043E\u043C\u0443: \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440 \u0438 \u0441\u0435\u0442\u044C \u0434\u043E\u0441\u0442\u0443\u043F\u043D\u044B \u2014 \u0442\u0430 \u0436\u0435 \u0440\u0430\u0431\u043E\u0442\u0430 \u0441\u043D\u043E\u0432\u0430 \u043D\u0435 \u043F\u0440\u043E\u0439\u0434\u0451\u0442 \u0431\u0435\u0437 \u0438\u0437\u043C\u0435\u043D\u0435\u043D\u0438\u044F \u0437\u0430\u0434\u0430\u0447\u0438 \u0438\u043B\u0438 \u0434\u0430\u043D\u043D\u044B\u0445';
+      }
       retry.addEventListener('click', function () {
         retry.disabled = true;
         action(run, 'retry').catch(function (error) {
@@ -2812,6 +2938,7 @@ var PAGE = `<!doctype html>
   function load() {
     if (inFlight) { queued = true; return; }
     inFlight = true;
+    loadMetrics();
     agentsReady.then(function () { return request('/api/runs?limit=50'); }).then(function (page) {
       list.textContent = '';
       var items = page.items || [];
@@ -2894,8 +3021,11 @@ var PAGE = `<!doctype html>
 var module = {
   id: "runs",
   apiVersion: 1,
+  permissions: ["storage", "events", "process"],
+  requiresKernel: [{ name: "idempotency", contractVersion: 1 }],
   migrations: [...runsMigrations, ...agentsMigrations],
   register(ctx) {
+    const idempotency = () => ctx.kernelServices.require("idempotency");
     const availability = new AgentAvailability(ctx.storage, ctx.log);
     const processTrees = new SystemProcessTree();
     const runs = new RunService(new SqliteRunRepository(ctx.storage), ctx.bus, systemClock, ctx.log, {
@@ -2939,13 +3069,53 @@ var module = {
         agents: availability.list()
       }
     }));
-    ctx.api.add("POST", "/api/runs", (request) => {
-      const result = runs.create(request.body);
-      return { status: result.deduplicated ? 200 : 201, body: result };
+    ctx.api.add("POST", "/api/runs", async (request) => {
+      const body = request.body && typeof request.body === "object" ? request.body : null;
+      const key = typeof body?.idempotency_key === "string" ? body.idempotency_key.trim() : "";
+      if (!key) {
+        const result = runs.create(request.body);
+        return { status: result.deduplicated ? 200 : 201, body: result };
+      }
+      const normalized = normalizeNewRun(request.body);
+      const fingerprint = normalized.idempotency_fingerprint;
+      if (!fingerprint) {
+        const result = runs.create(request.body);
+        return { status: result.deduplicated ? 200 : 201, body: result };
+      }
+      const cached = await idempotency().execute({
+        method: "POST",
+        path: "/api/runs",
+        key,
+        fingerprint,
+        handler: () => {
+          const result = runs.create(request.body);
+          return { status: result.deduplicated ? 200 : 201, body: result };
+        }
+      });
+      return { status: cached.status, body: cached.body };
     });
+    ctx.api.add("GET", "/api/idempotency/status", (request) => ({
+      body: {
+        ok: true,
+        ...idempotency().inspect(
+          request.query.get("method") ?? "POST",
+          request.query.get("path") ?? "",
+          request.query.get("key") ?? ""
+        )
+      }
+    }));
+    ctx.api.add("POST", "/api/idempotency/sweep", () => ({
+      body: { ok: true, ...idempotency().sweep() }
+    }));
     ctx.api.add("GET", "/api/runs", (request) => {
       const query = Object.fromEntries(request.query.entries());
-      return { body: runs.list(query) };
+      const page = runs.list(query);
+      return {
+        body: {
+          ...page,
+          items: page.items.map((run) => ({ ...run, retry_hint: retryHint(run) }))
+        }
+      };
     });
     ctx.api.add("GET", "/api/runs/export", (request) => {
       const format = request.query.get("format") === "csv" ? "csv" : "json";
@@ -2971,6 +3141,7 @@ var module = {
         headers: downloadHeaders("team-runs", format)
       };
     });
+    ctx.api.add("GET", "/api/runs/metrics", () => ({ body: runs.metrics() }));
     ctx.api.add("POST", "/api/runs/claim", (request) => ({
       body: { run: runs.claimNext(request.body) }
     }));
@@ -2985,6 +3156,9 @@ var module = {
     }));
     ctx.api.add("POST", "/api/runs/:id/cancel", (request) => ({
       body: runs.cancel(request.params.id ?? "", request.body)
+    }));
+    ctx.api.add("GET", "/api/runs/:id/process-tree", (request) => ({
+      body: { ok: true, ...runs.treeJournal(request.params.id ?? "") }
     }));
     ctx.api.add("POST", "/api/runs/:id/retry", (request) => ({
       status: 201,

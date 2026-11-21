@@ -29,9 +29,9 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
   mod
 ));
 
-// modules/arxiv-search/node_modules/@xmldom/xmldom/lib/conventions.js
+// node_modules/@xmldom/xmldom/lib/conventions.js
 var require_conventions = __commonJS({
-  "modules/arxiv-search/node_modules/@xmldom/xmldom/lib/conventions.js"(exports) {
+  "node_modules/@xmldom/xmldom/lib/conventions.js"(exports) {
     "use strict";
     function find(list, predicate, ac) {
       if (ac === void 0) {
@@ -174,9 +174,9 @@ var require_conventions = __commonJS({
   }
 });
 
-// modules/arxiv-search/node_modules/@xmldom/xmldom/lib/dom.js
+// node_modules/@xmldom/xmldom/lib/dom.js
 var require_dom = __commonJS({
-  "modules/arxiv-search/node_modules/@xmldom/xmldom/lib/dom.js"(exports) {
+  "node_modules/@xmldom/xmldom/lib/dom.js"(exports) {
     var conventions = require_conventions();
     var find = conventions.find;
     var NAMESPACE = conventions.NAMESPACE;
@@ -1804,9 +1804,9 @@ var require_dom = __commonJS({
   }
 });
 
-// modules/arxiv-search/node_modules/@xmldom/xmldom/lib/entities.js
+// node_modules/@xmldom/xmldom/lib/entities.js
 var require_entities = __commonJS({
-  "modules/arxiv-search/node_modules/@xmldom/xmldom/lib/entities.js"(exports) {
+  "node_modules/@xmldom/xmldom/lib/entities.js"(exports) {
     "use strict";
     var freeze = require_conventions().freeze;
     exports.XML_ENTITIES = freeze({
@@ -3947,9 +3947,9 @@ var require_entities = __commonJS({
   }
 });
 
-// modules/arxiv-search/node_modules/@xmldom/xmldom/lib/sax.js
+// node_modules/@xmldom/xmldom/lib/sax.js
 var require_sax = __commonJS({
-  "modules/arxiv-search/node_modules/@xmldom/xmldom/lib/sax.js"(exports) {
+  "node_modules/@xmldom/xmldom/lib/sax.js"(exports) {
     var NAMESPACE = require_conventions().NAMESPACE;
     var tagNamePattern = require_conventions().tagNamePattern;
     var S_TAG = 0;
@@ -4539,9 +4539,9 @@ var require_sax = __commonJS({
   }
 });
 
-// modules/arxiv-search/node_modules/@xmldom/xmldom/lib/dom-parser.js
+// node_modules/@xmldom/xmldom/lib/dom-parser.js
 var require_dom_parser = __commonJS({
-  "modules/arxiv-search/node_modules/@xmldom/xmldom/lib/dom-parser.js"(exports) {
+  "node_modules/@xmldom/xmldom/lib/dom-parser.js"(exports) {
     var conventions = require_conventions();
     var dom = require_dom();
     var entities = require_entities();
@@ -4755,9 +4755,9 @@ var require_dom_parser = __commonJS({
   }
 });
 
-// modules/arxiv-search/node_modules/@xmldom/xmldom/lib/index.js
+// node_modules/@xmldom/xmldom/lib/index.js
 var require_lib = __commonJS({
-  "modules/arxiv-search/node_modules/@xmldom/xmldom/lib/index.js"(exports) {
+  "node_modules/@xmldom/xmldom/lib/index.js"(exports) {
     var dom = require_dom();
     exports.DOMImplementation = dom.DOMImplementation;
     exports.XMLSerializer = dom.XMLSerializer;
