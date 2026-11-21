@@ -1,12 +1,7 @@
 import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);
 
 // modules/three-d-studio/index.ts
-import { readFileSync as readFileSync2 } from "node:fs";
-
-// src/app/game-builder.ts
-import { createHash, randomBytes } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
-import { join, relative, resolve } from "node:path";
+import { readFileSync } from "node:fs";
 
 // team-host-api:src/kernel/errors.ts
 var host = globalThis["__teamPlatformHostApi"] ?? {};
@@ -17,295 +12,6 @@ var NotFoundError = host["NotFoundError"];
 var UpstreamError = host["UpstreamError"];
 var ValidationError = host["ValidationError"];
 var isAppError = host["isAppError"];
-
-// team-host-api:src/domain/three-d/game-level.ts
-var host2 = globalThis["__teamPlatformHostApi"] ?? {};
-var GAME_LEVEL_FORMAT = host2["GAME_LEVEL_FORMAT"];
-var parseGameLevel = host2["parseGameLevel"];
-
-// team-host-api:src/domain/three-d/game-html.ts
-var host3 = globalThis["__teamPlatformHostApi"] ?? {};
-var GAME_STYLE = host3["GAME_STYLE"];
-var renderGameHtml = host3["renderGameHtml"];
-var renderGameScript = host3["renderGameScript"];
-
-// team-host-api:src/domain/three-d/glb.ts
-var host4 = globalThis["__teamPlatformHostApi"] ?? {};
-var parseGlb = host4["parseGlb"];
-
-// team-host-api:src/domain/three-d/scene-script.ts
-var host5 = globalThis["__teamPlatformHostApi"] ?? {};
-var buildSceneScript = host5["buildSceneScript"];
-var verifySceneScript = host5["verifySceneScript"];
-
-// src/app/game-builder.ts
-var ID_PATTERN = /^game-[a-z0-9][a-z0-9-]{3,63}$/;
-var BUILD_TIMEOUT_MS = 18e4;
-var VERIFY_TIMEOUT_MS = 6e4;
-function sha256File(path) {
-  return createHash("sha256").update(readFileSync(path)).digest("hex");
-}
-function artifact(root, path) {
-  const stats = statSync(path);
-  if (!stats.isFile() || stats.size === 0) {
-    throw new UpstreamError(`\u0424\u0430\u0439\u043B \u0438\u0433\u0440\u044B \u043F\u0443\u0441\u0442 \u0438\u043B\u0438 \u043D\u0435 \u044F\u0432\u043B\u044F\u0435\u0442\u0441\u044F \u0444\u0430\u0439\u043B\u043E\u043C: ${path}`, { path });
-  }
-  return {
-    path,
-    relative_path: relative(root, path).split("\\").join("/"),
-    bytes: stats.size,
-    sha256: sha256File(path)
-  };
-}
-function markerObject(raw) {
-  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
-    throw new UpstreamError("Blender \u043D\u0435 \u0432\u0435\u0440\u043D\u0443\u043B \u043A\u0432\u0438\u0442\u0430\u043D\u0446\u0438\u044E \u0441\u0431\u043E\u0440\u043A\u0438 \u0438\u0433\u0440\u044B", { kind: "blender_contract" });
-  }
-  return raw;
-}
-function count(value) {
-  return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : 0;
-}
-function reason(stdout, stderr) {
-  const lines = `${stderr}
-${stdout}`.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-  return (lines.at(-1) ?? "Blender \u0437\u0430\u0432\u0435\u0440\u0448\u0438\u043B\u0441\u044F \u0441 \u043E\u0448\u0438\u0431\u043A\u043E\u0439 \u0431\u0435\u0437 \u043F\u043E\u044F\u0441\u043D\u0435\u043D\u0438\u044F").slice(0, 500);
-}
-var ThreeDGameBuilder = class {
-  #root;
-  #blender;
-  #now;
-  #idFactory;
-  constructor(options) {
-    this.#root = resolve(options.root);
-    this.#blender = options.blender;
-    this.#now = options.now ?? (() => /* @__PURE__ */ new Date());
-    this.#idFactory = options.idFactory ?? (() => `game-${Date.now().toString(36)}-${randomBytes(3).toString("hex")}`);
-  }
-  /** Собирает игру по карточке; возвращает запись только после проверки сцены. */
-  async build(input) {
-    const taskId = typeof input.task_id === "string" ? input.task_id.trim() : "";
-    if (!taskId) throw new ValidationError("\u0421\u0431\u043E\u0440\u043A\u0430 \u0438\u0433\u0440\u044B \u0442\u0440\u0435\u0431\u0443\u0435\u0442 \u0437\u0430\u0434\u0430\u0447\u0443 \u0441 \u0434\u043E\u0441\u043A\u0438", { reason: "task_id_missing" });
-    const title = typeof input.title === "string" ? input.title.trim() : "";
-    if (!title) throw new ValidationError("\u0423 \u0437\u0430\u0434\u0430\u0447\u0438 \u043D\u0435\u0442 \u043D\u0430\u0437\u0432\u0430\u043D\u0438\u044F: \u0438\u0433\u0440\u0443 \u043D\u0435 \u0438\u0437 \u0447\u0435\u0433\u043E \u0441\u0442\u0440\u043E\u0438\u0442\u044C", { reason: "title_missing" });
-    const id = this.#idFactory();
-    if (!ID_PATTERN.test(id)) {
-      throw new ValidationError(`\u041D\u0435\u0434\u043E\u043F\u0443\u0441\u0442\u0438\u043C\u044B\u0439 id \u0441\u0431\u043E\u0440\u043A\u0438 \xAB${id}\xBB`);
-    }
-    const dir = this.#gameDir(id);
-    mkdirSync(dir, { recursive: true });
-    const created = await this.#blender.runPython(
-      buildSceneScript({ title, outDir: dir }),
-      { timeoutMs: BUILD_TIMEOUT_MS }
-    );
-    if (!created.ok) {
-      throw new UpstreamError(`Blender \u043D\u0435 \u0441\u043E\u0431\u0440\u0430\u043B \u0438\u0433\u0440\u0443: ${reason(created.stdout, created.stderr)}`, {
-        kind: "blender_failed",
-        game_id: id,
-        stderr_tail: created.stderr.slice(-1200)
-      });
-    }
-    const receipt = markerObject(created.data);
-    if (receipt.ok !== true) {
-      throw new UpstreamError("Blender \u0432\u0435\u0440\u043D\u0443\u043B \u043A\u0432\u0438\u0442\u0430\u043D\u0446\u0438\u044E \u0431\u0435\u0437 \u0443\u0441\u043F\u0435\u0448\u043D\u043E\u0439 \u0441\u0446\u0435\u043D\u044B", {
-        kind: "blender_failed",
-        game_id: id
-      });
-    }
-    const levelPath = join(dir, "level.json");
-    const blendPath = join(dir, "scene.blend");
-    const meshPath = join(dir, "scene.glb");
-    const previewPath = join(dir, "preview.png");
-    let level;
-    try {
-      level = parseGameLevel(JSON.parse(readFileSync(levelPath, "utf8")));
-    } catch (error) {
-      if (error instanceof UpstreamError || error instanceof ValidationError) throw error;
-      throw new UpstreamError(`\u0423\u0440\u043E\u0432\u0435\u043D\u044C \u0438\u0433\u0440\u044B \u043D\u0435 \u043F\u0440\u043E\u0447\u0438\u0442\u0430\u043D: ${String(error)}`, {
-        kind: "level_invalid",
-        game_id: id
-      });
-    }
-    if (!existsSync(blendPath)) {
-      throw new UpstreamError("Blender \u043D\u0435 \u0441\u043E\u0445\u0440\u0430\u043D\u0438\u043B \u0441\u0446\u0435\u043D\u0443 `.blend`", { kind: "artifact_missing", game_id: id });
-    }
-    if (!existsSync(previewPath) || statSync(previewPath).size === 0) {
-      throw new UpstreamError("Blender \u043D\u0435 \u043E\u0442\u0440\u0435\u043D\u0434\u0435\u0440\u0438\u043B \u043F\u0440\u0435\u0432\u044C\u044E \u0443\u0440\u043E\u0432\u043D\u044F", {
-        kind: "preview_missing",
-        preview_error: String(receipt.preview_error ?? ""),
-        game_id: id
-      });
-    }
-    if (level.coins.length !== count(receipt.coins)) {
-      throw new UpstreamError("\u0423\u0440\u043E\u0432\u0435\u043D\u044C \u0438 \u0441\u0446\u0435\u043D\u0430 Blender \u0440\u0430\u0441\u0445\u043E\u0434\u044F\u0442\u0441\u044F \u043F\u043E \u0447\u0438\u0441\u043B\u0443 \u043C\u043E\u043D\u0435\u0442", {
-        kind: "level_invalid",
-        level_coins: level.coins.length,
-        scene_coins: count(receipt.coins),
-        game_id: id
-      });
-    }
-    const mesh = this.#readMesh(meshPath, level, id);
-    const evidence = await this.#verifyScene(blendPath, level, id, mesh);
-    const gamePath = join(dir, "game.html");
-    const scriptPath = join(dir, "game.js");
-    const stylePath = join(dir, "game.css");
-    const gameLevel = { ...level, title };
-    writeFileSync(gamePath, renderGameHtml(gameLevel), "utf8");
-    writeFileSync(scriptPath, renderGameScript(), "utf8");
-    writeFileSync(stylePath, GAME_STYLE, "utf8");
-    const record = {
-      id,
-      task_id: taskId,
-      title,
-      built_at: this.#now().toISOString(),
-      level,
-      artifacts: {
-        blend: artifact(this.#root, blendPath),
-        mesh: artifact(this.#root, meshPath),
-        level: artifact(this.#root, levelPath),
-        preview: artifact(this.#root, previewPath),
-        game: artifact(this.#root, gamePath),
-        script: artifact(this.#root, scriptPath),
-        style: artifact(this.#root, stylePath)
-      },
-      evidence
-    };
-    writeFileSync(join(dir, "manifest.json"), `${JSON.stringify(record, null, 2)}
-`, "utf8");
-    return record;
-  }
-  /** Повторная проверка уже собранного `.blend`: сцена и её сетка должны быть на месте. */
-  async verify(id) {
-    const record = this.get(id);
-    const mesh = this.#readMesh(record.artifacts.mesh.path, record.level, id);
-    return this.#verifyScene(record.artifacts.blend.path, record.level, id, mesh);
-  }
-  /**
-   * Сетка — то, что рисует игра, поэтому проверяется до записи игры: настоящий
-   * GLB и в нём каждый узел, который называет уровень.
-   */
-  #readMesh(path, level, id) {
-    if (!existsSync(path)) {
-      throw new UpstreamError("Blender \u043D\u0435 \u044D\u043A\u0441\u043F\u043E\u0440\u0442\u0438\u0440\u043E\u0432\u0430\u043B \u0441\u0435\u0442\u043A\u0443 \u0443\u0440\u043E\u0432\u043D\u044F `scene.glb`", {
-        kind: "artifact_missing",
-        game_id: id
-      });
-    }
-    let scene;
-    try {
-      scene = parseGlb(new Uint8Array(readFileSync(path)));
-    } catch (error) {
-      throw new UpstreamError(
-        `\u0421\u0435\u0442\u043A\u0430 \u0438\u0433\u0440\u044B \u043D\u0435 \u043F\u0440\u043E\u0447\u0438\u0442\u0430\u043D\u0430: ${error instanceof Error ? error.message : String(error)}`,
-        { kind: "mesh_invalid", game_id: id }
-      );
-    }
-    const meshed = new Set(scene.nodes.filter((node) => node.has_mesh).map((node) => node.name));
-    const missing = [.../* @__PURE__ */ new Set([...level.coins.map((coin) => coin.node), level.goal.node])].filter((name) => !meshed.has(name));
-    if (missing.length) {
-      throw new UpstreamError(`\u0412 \u0441\u0435\u0442\u043A\u0435 Blender \u043D\u0435\u0442 \u0443\u0437\u043B\u043E\u0432 \u0443\u0440\u043E\u0432\u043D\u044F: ${missing.join(", ")}`, {
-        kind: "mesh_invalid",
-        game_id: id,
-        missing
-      });
-    }
-    return scene;
-  }
-  get(id) {
-    if (!ID_PATTERN.test(id)) throw new ValidationError(`\u041D\u0435\u0434\u043E\u043F\u0443\u0441\u0442\u0438\u043C\u044B\u0439 id \u0441\u0431\u043E\u0440\u043A\u0438 \xAB${id}\xBB`);
-    const file = join(this.#gameDir(id), "manifest.json");
-    if (!existsSync(file)) throw new NotFoundError(`\u0421\u0431\u043E\u0440\u043A\u0430 \u0438\u0433\u0440\u044B \xAB${id}\xBB \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u0430`);
-    try {
-      return JSON.parse(readFileSync(file, "utf8"));
-    } catch (error) {
-      throw new UpstreamError(`\u041C\u0430\u043D\u0438\u0444\u0435\u0441\u0442 \u0438\u0433\u0440\u044B \xAB${id}\xBB \u043D\u0435 \u043F\u0440\u043E\u0447\u0438\u0442\u0430\u043D: ${String(error)}`, { game_id: id });
-    }
-  }
-  list() {
-    const gamesRoot = join(this.#root, "games");
-    if (!existsSync(gamesRoot)) return [];
-    const records = [];
-    for (const entry of readdirSync(gamesRoot, { withFileTypes: true })) {
-      if (!entry.isDirectory() || !ID_PATTERN.test(entry.name)) continue;
-      const file = join(gamesRoot, entry.name, "manifest.json");
-      if (!existsSync(file)) continue;
-      try {
-        records.push(JSON.parse(readFileSync(file, "utf8")));
-      } catch {
-      }
-    }
-    return records.sort((left, right) => right.built_at.localeCompare(left.built_at));
-  }
-  async #verifyScene(blendPath, level, id, mesh) {
-    const reopened = await this.#blender.runPython(verifySceneScript(), {
-      openFile: blendPath,
-      timeoutMs: VERIFY_TIMEOUT_MS
-    });
-    if (!reopened.ok) {
-      throw new UpstreamError(`\u0421\u0446\u0435\u043D\u0430 \u0438\u0433\u0440\u044B \u043D\u0435 \u043E\u0442\u043A\u0440\u044B\u043B\u0430\u0441\u044C \u043F\u043E\u0432\u0442\u043E\u0440\u043D\u043E: ${reason(reopened.stdout, reopened.stderr)}`, {
-        kind: "game_verification_failed",
-        game_id: id
-      });
-    }
-    const data = markerObject(reopened.data);
-    const kinds = data.kinds ?? {};
-    const coins = count(kinds.coin);
-    const goal = count(kinds.goal) > 0;
-    const spawn = count(kinds.spawn) > 0;
-    const floor = count(kinds.floor) > 0;
-    const walls = count(kinds.wall);
-    const checks = [];
-    if (coins !== level.coins.length) {
-      throw new UpstreamError(
-        `\u0412 \u0441\u043E\u0445\u0440\u0430\u043D\u0451\u043D\u043D\u043E\u0439 \u0441\u0446\u0435\u043D\u0435 ${coins} \u043C\u043E\u043D\u0435\u0442, \u0430 \u0443\u0440\u043E\u0432\u0435\u043D\u044C \u043E\u0431\u0435\u0449\u0430\u0435\u0442 ${level.coins.length}`,
-        { kind: "game_verification_failed", game_id: id, coins, level_coins: level.coins.length }
-      );
-    }
-    checks.push(`\u043C\u043E\u043D\u0435\u0442\u044B: ${coins}`);
-    if (!goal) {
-      throw new UpstreamError("\u0412 \u0441\u043E\u0445\u0440\u0430\u043D\u0451\u043D\u043D\u043E\u0439 \u0441\u0446\u0435\u043D\u0435 \u043D\u0435\u0442 \u0446\u0435\u043B\u0438", { kind: "game_verification_failed", game_id: id });
-    }
-    checks.push("\u0446\u0435\u043B\u044C \u043D\u0430 \u043C\u0435\u0441\u0442\u0435");
-    if (!spawn) {
-      throw new UpstreamError("\u0412 \u0441\u043E\u0445\u0440\u0430\u043D\u0451\u043D\u043D\u043E\u0439 \u0441\u0446\u0435\u043D\u0435 \u043D\u0435\u0442 \u0442\u043E\u0447\u043A\u0438 \u0441\u0442\u0430\u0440\u0442\u0430 \u0438\u0433\u0440\u043E\u043A\u0430", {
-        kind: "game_verification_failed",
-        game_id: id
-      });
-    }
-    checks.push("\u0441\u0442\u0430\u0440\u0442 \u0438\u0433\u0440\u043E\u043A\u0430 \u043D\u0430 \u043C\u0435\u0441\u0442\u0435");
-    if (!floor || !walls) {
-      throw new UpstreamError("\u0412 \u0441\u043E\u0445\u0440\u0430\u043D\u0451\u043D\u043D\u043E\u0439 \u0441\u0446\u0435\u043D\u0435 \u043D\u0435\u0442 \u043F\u043E\u043B\u0430 \u0438\u043B\u0438 \u0433\u0440\u0430\u043D\u0438\u0446 \u0430\u0440\u0435\u043D\u044B", {
-        kind: "game_verification_failed",
-        game_id: id
-      });
-    }
-    checks.push(`\u0441\u0442\u0435\u043D\u044B: ${walls}`);
-    const version = String(data.version ?? "").trim();
-    if (!version.startsWith(level.engine.version.split(" ")[0] ?? "")) {
-      throw new UpstreamError("\u0421\u0446\u0435\u043D\u0443 \u043E\u0442\u043A\u0440\u044B\u043B \u0434\u0440\u0443\u0433\u043E\u0439 Blender, \u0447\u0435\u043C \u0442\u043E\u0442, \u0447\u0442\u043E \u0435\u0451 \u0441\u043E\u0431\u0440\u0430\u043B", {
-        kind: "game_verification_failed",
-        built_with: level.engine.version,
-        reopened_with: version || null,
-        game_id: id
-      });
-    }
-    checks.push(`\u0434\u0432\u0438\u0436\u043E\u043A: ${version}`);
-    checks.push(`\u0441\u0435\u0442\u043A\u0430: ${mesh.triangles} \u0442\u0440\u0435\u0443\u0433\u043E\u043B\u044C\u043D\u0438\u043A\u043E\u0432, ${mesh.nodes.length} \u0443\u0437\u043B\u043E\u0432`);
-    return {
-      engine: `${level.engine.name} ${version}`,
-      objects: count(data.objects),
-      coins,
-      player_spawn: spawn,
-      goal,
-      reopened: true,
-      mesh_triangles: mesh.triangles,
-      checks
-    };
-  }
-  #gameDir(id) {
-    return join(this.#root, "games", id);
-  }
-};
 
 // modules/three-d-studio/page.ts
 var PAGE = `<!doctype html>
@@ -527,14 +233,10 @@ var module = {
   id: "three-d-studio",
   apiVersion: 1,
   permissions: ["process", "storage"],
-  requiresKernel: [{ name: "blender-render", contractVersion: 1 }],
+  requiresKernel: [{ name: "three-d-builder", contractVersion: 1 }],
   register(ctx) {
     const { tasks } = ctx.require("tasks");
-    const blender = ctx.kernelServices.require("blender-render");
-    const builder = new ThreeDGameBuilder({
-      root: ctx.paths.data,
-      blender
-    });
+    const builder = ctx.kernelServices.require("three-d-builder");
     const view = (game) => ({
       ...game,
       play_url: `${BASE}/${game.id}/play`,
@@ -583,7 +285,7 @@ var module = {
     ctx.api.add("GET", `${BASE}/:id/play`, (request) => {
       const game = builder.get(request.params.id ?? "");
       return {
-        raw: readFileSync2(game.artifacts.game.path),
+        raw: readFileSync(game.artifacts.game.path),
         headers: {
           "content-type": "text/html; charset=utf-8",
           "cache-control": "no-store",
@@ -595,7 +297,7 @@ var module = {
     ctx.api.add("GET", `${BASE}/:id/game.js`, (request) => {
       const game = builder.get(request.params.id ?? "");
       return {
-        raw: readFileSync2(game.artifacts.script.path),
+        raw: readFileSync(game.artifacts.script.path),
         headers: {
           "content-type": "text/javascript; charset=utf-8",
           "cache-control": "no-store",
@@ -606,7 +308,7 @@ var module = {
     ctx.api.add("GET", `${BASE}/:id/game.css`, (request) => {
       const game = builder.get(request.params.id ?? "");
       return {
-        raw: readFileSync2(game.artifacts.style.path),
+        raw: readFileSync(game.artifacts.style.path),
         headers: {
           "content-type": "text/css; charset=utf-8",
           "cache-control": "no-store",
@@ -619,7 +321,7 @@ var module = {
       const mesh = game.artifacts.mesh;
       if (!mesh) throw new NotFoundError(`\u0423 \u0441\u0431\u043E\u0440\u043A\u0438 \xAB${game.id}\xBB \u043D\u0435\u0442 \u0441\u0435\u0442\u043A\u0438`);
       return {
-        raw: readFileSync2(mesh.path),
+        raw: readFileSync(mesh.path),
         headers: {
           "content-type": "model/gltf-binary",
           "cache-control": "no-store",
@@ -630,7 +332,7 @@ var module = {
     ctx.api.add("GET", `${BASE}/:id/preview`, (request) => {
       const game = builder.get(request.params.id ?? "");
       return {
-        raw: readFileSync2(game.artifacts.preview.path),
+        raw: readFileSync(game.artifacts.preview.path),
         headers: {
           "content-type": "image/png",
           "cache-control": "no-store",

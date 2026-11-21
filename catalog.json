@@ -1562,7 +1562,7 @@
     {
       "id": "three-d-studio",
       "name": "3D-студия",
-      "version": "1.0.6",
+      "version": "1.1.0",
       "summary": "Сборка играбельной 3D-сцены по задаче: Blender создаёт уровень, платформа переоткрывает сцену и отдаёт игру.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -1588,10 +1588,10 @@
           }
         ]
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/three-d-studio-1.0.6.mjs",
-      "size": 32554,
-      "integrity": "sha512-+XrERwRAGfRH0EBcxp6w6duLNcDF8lwbtQjK3wbEQyIS2gbQfS5QhBjhH1L6TiddqAhQDfsL8+Jl9yDF12umtw==",
-      "signature": "uA/z41fed5vjgs72LScrYov0n2jYXQb5yMU9qJd82KZAgGeaXa3QltNsy4YIPdV7Hi89jUQEqjnxi9GgAGbkDg=="
+      "url": "https://attrazion.github.io/team-platform-catalog/three-d-studio-1.1.0.mjs",
+      "size": 17570,
+      "integrity": "sha512-8tDAMX+6webR/NyoBAO8MqRvGW9lS+DGjMVz3HOh7/BOT6szM/QMHel7JSWGJltk7E8NU3/9MGOihjdrpgEV6w==",
+      "signature": "aFRNahYqJMfi0fAj3/+iyRg817dqFHyb75GdbFyuGA9UO5cQBX5JgAh9Wkm+gvcziY44mgn8VuoRQGF/6KsYCQ=="
     },
     {
       "id": "tool-installer",
