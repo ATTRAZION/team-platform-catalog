@@ -1614,7 +1614,7 @@
     {
       "id": "tools",
       "name": "Инструменты",
-      "version": "1.2.3",
+      "version": "1.3.0",
       "summary": "Интеграции, резерв задач, свободное время, пароли сайтов и провайдеры с кастомными base URL и моделями.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -1639,10 +1639,10 @@
           }
         ]
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/tools-1.2.3.mjs",
-      "size": 282088,
-      "integrity": "sha512-jXbIvMj6MvSw8CACt6ZG836CAVJdUwv2DtKxTIBITgNKPW/DvGIXWkz9T/HfD66aS6y/xewrsOPR59vZ1CsEFg==",
-      "signature": "ilF54q2xbiEV5xrayqSwLwqIGLsb/MiCBYTnhZOHJ10iejGwNpN8meYMcHhDxT1WLQBZ2B0H68ai3IG3/n/sBw=="
+      "url": "https://attrazion.github.io/team-platform-catalog/tools-1.3.0.mjs",
+      "size": 28924,
+      "integrity": "sha512-l5DhojPH3IKS+FELCIdgu80lK9T5JIk/FYDXAtNgiLMdSkkFXM2uIcNlUWaA+ZTiutnFTj5XUkN8y9s6900TjQ==",
+      "signature": "r7YhWZgYHP3lTGDIrExeXGtCStSKkLDExmxxlcNA7uDDfjnKtzDx1S3f63c1wUezBcvOJYaSxhzLHdCbJLanCQ=="
     },
     {
       "id": "transcript-tasks",
