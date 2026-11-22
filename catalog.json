@@ -801,6 +801,28 @@
       "signature": "mffDrPyUCKX1H3RGr5+rCc5QYlsYHlUnihl/QkAI5EYE9Q8c2UiZE7zYdKKhrP17e9O+c/RxE2vn3OYp4HMhAA=="
     },
     {
+      "id": "kev-local",
+      "name": "Локальный выбор вариантов — Kev",
+      "version": "1.0.0",
+      "summary": "Kev сравнивает заданные варианты локально; решение остаётся за человеком.",
+      "publisher": "Team Platform",
+      "trust": "official",
+      "category": "tools",
+      "permissions": [
+        "process",
+        "network",
+        "storage"
+      ],
+      "requires": {
+        "core": "^0.8.0",
+        "modules": []
+      },
+      "url": "https://attrazion.github.io/team-platform-catalog/kev-local-1.0.0.mjs",
+      "size": 17811,
+      "integrity": "sha512-NEaR+6avGbBiakkYZWJrSfvy+SeocQrGXmJvzBD2Cmpn0vrfX9yVQzZcwg4nY8SAS+b8fD03C9kwAB4qjUZ1sg==",
+      "signature": "gBgNpS+QM9HRNS6Y1A5HWoIiaYe9KEvy8my0eMHNGBt2KecHI1oWgP6Jeg/5zvyqOokBndyHf481JobhIVreBA=="
+    },
+    {
       "id": "layer-stack",
       "name": "Стеки слоёв",
       "version": "1.0.1",
@@ -1243,7 +1265,7 @@
     {
       "id": "providers",
       "name": "Провайдеры",
-      "version": "1.1.1",
+      "version": "1.1.2",
       "summary": "Встроенные и кастомные OpenAI-совместимые провайдеры, base URL, модели, проверка автозапуска и доступные агенты.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -1263,10 +1285,10 @@
           }
         ]
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/providers-1.1.1.mjs",
-      "size": 24931,
-      "integrity": "sha512-egLpDKIOnxDuY9SVU/HnVQMuR5gg0HA29KcRZbMmANyabSicmtvPP8bzrkb0c3vYhxHp4was7CWK83dEeEm0Sw==",
-      "signature": "dubLXphcA2V4pKEIGr8cOHZvtRQfQNZby8LYPdaz4F+HZupWR8E3ZZJHJg8TrWLNquIpOQkNd7eBHfIOQG6BAA=="
+      "url": "https://attrazion.github.io/team-platform-catalog/providers-1.1.2.mjs",
+      "size": 27471,
+      "integrity": "sha512-jTMNYe0kZFyFR+wOv90pm3ppMOF3WpJNprECxlbyo0kMRfmBCBSuPD3WH7oqpQgbOdjpIpf6/1+OrSN/RDlkBQ==",
+      "signature": "KAGEAcKv4LN+ItDOUprzzayXXl4m2b8kioiPeFOKGq3d8gt7k63FD+0lnYpPdGteC50omcfBQBr7KhmzgtyPAw=="
     },
     {
       "id": "reference-library",
@@ -1596,8 +1618,8 @@
     {
       "id": "tool-installer",
       "name": "Загрузки инструментов",
-      "version": "1.0.1",
-      "summary": "Что нужно установленным модулям из внешнего мира: обнаружение, установка через winget или прямая загрузка с официальной страницы вендора, согласия на объекты больше 1 ГиБ.",
+      "version": "1.0.3",
+      "summary": "Что нужно установленным модулям из внешнего мира: инструменты и локальные рантаймы (приложения) - обнаружение, установка через winget или прямую загрузку с официальной страницы вендора, повторная проверка после установки и согласия на объекты больше 1 ГиБ.",
       "publisher": "Team Platform",
       "trust": "official",
       "category": "automation",
@@ -1606,10 +1628,10 @@
         "core": "^0.8.0",
         "modules": []
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/tool-installer-1.0.1.mjs",
-      "size": 14787,
-      "integrity": "sha512-hVRfotUP08u3qUJuTvXQQivLMOY+xhC0AjZurv7urM1esWkjn30MCI161DwEf/0iAbtECI/dh9WFqYBtdJJ39w==",
-      "signature": "XPFSt9WzR7cnF18JMnEBNSv1aVDRHwKFPbME78FMhEBZhxEeM4ehGmEdvyzoaFQ63Vpxz7mMppoXt8lWRwh0Cg=="
+      "url": "https://attrazion.github.io/team-platform-catalog/tool-installer-1.0.3.mjs",
+      "size": 24706,
+      "integrity": "sha512-LTTpUiCLq65Hpzbkv097QGrRDjaXAldx5NGtg2wSgsZ0gD5cY802YfTdkRJLnvzUSbdO6vSYEVCRw7cCCuF+ow==",
+      "signature": "7ygx8RXFrExor2es/L0+SG4HQa9AhRY3j1HBt/Jml9FYl1cwNtydUgOaHaFIZWXpKzfKXR76qqMB4fxHAl0BDg=="
     },
     {
       "id": "tools",

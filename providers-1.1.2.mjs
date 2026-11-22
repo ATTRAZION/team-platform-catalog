@@ -36,6 +36,7 @@ var PAGE = `<!doctype html>
   .guard strong { display: block; }
   .guard small { color: var(--muted); }
   .guard-state { margin-left: auto; font-size: 12px; color: #e8ce8b; }
+  .refusal-instruction { color: #9ee6bd; font-size: 13px; margin: 6px 0 0; }
   .providers { display: grid; gap: 10px; }
   .provider { display: grid; grid-template-columns: minmax(170px, 1fr) minmax(220px, 1.4fr) auto; gap: 10px; align-items: start; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
   .provider-name { font-weight: 600; overflow-wrap: anywhere; }
@@ -89,6 +90,7 @@ var PAGE = `<!doctype html>
       <button id="guard-save" type="button" class="ghost">\u0421\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C</button>
     </div>
     <p class="meta">\u0412\u044B\u043A\u043B\u044E\u0447\u0435\u043D\u043D\u0430\u044F \u043F\u0440\u043E\u0432\u0435\u0440\u043A\u0430 \u043D\u0438\u0447\u0435\u0433\u043E \u043D\u0435 \u043E\u0433\u0440\u0430\u043D\u0438\u0447\u0438\u0432\u0430\u0435\u0442. \u0420\u0443\u0447\u043D\u043E\u0439 \u0437\u0430\u043F\u0443\u0441\u043A \u043D\u0435 \u0437\u0430\u0442\u0440\u0430\u0433\u0438\u0432\u0430\u0435\u0442\u0441\u044F.</p>
+    <p id="guard-instruction" class="refusal-instruction"></p>
   </section>
 
   <section>
@@ -138,6 +140,7 @@ var PAGE = `<!doctype html>
   var providersNode = document.getElementById('providers');
   var guardNode = document.getElementById('guard-enabled');
   var guardState = document.getElementById('guard-state');
+  var guardInstruction = document.getElementById('guard-instruction');
   var agentsNode = document.getElementById('agents');
   var result = document.getElementById('providers-result');
   var customForm = document.getElementById('custom-form');
@@ -171,11 +174,31 @@ var PAGE = `<!doctype html>
         var body = null;
         try { body = text ? JSON.parse(text) : null; } catch (ignore) { body = null; }
         if (!response.ok) {
-          throw new Error(body && body.error && body.error.message ? body.error.message : 'HTTP ' + response.status);
+          var failure = new Error(body && body.error && body.error.message ? body.error.message : 'HTTP ' + response.status);
+          // \u041E\u0442\u043A\u0430\u0437 \u044F\u0434\u0440\u0430 \u043D\u0435\u0441\u0451\u0442 \u0447\u0435\u043B\u043E\u0432\u0435\u0447\u0435\u0441\u043A\u0443\u044E \u0438\u043D\u0441\u0442\u0440\u0443\u043A\u0446\u0438\u044E (CAP-0153): \u0441\u0442\u0440\u0430\u043D\u0438\u0446\u0430 \u0431\u0435\u0440\u0451\u0442
+          // \u0435\u0451 \u0438\u0437 \u043E\u0442\u0432\u0435\u0442\u0430 \u0438 \u043F\u043E\u043A\u0430\u0437\u044B\u0432\u0430\u0435\u0442 \u0440\u044F\u0434\u043E\u043C \u0441 \u043F\u0440\u0438\u0447\u0438\u043D\u043E\u0439, \u0441\u0432\u043E\u0435\u0433\u043E \u0442\u0435\u043A\u0441\u0442\u0430 \u043D\u0435\u0442.
+          if (body && body.error) {
+            failure.instruction = body.error.instruction || '';
+            failure.where = body.error.where || '';
+          }
+          throw failure;
         }
         return body;
       });
     });
+  }
+
+  // \u041E\u0442\u043A\u0430\u0437 \u043E\u0431\u044F\u0437\u0430\u043D \u043D\u0435\u0441\u0442\u0438 \u0447\u0435\u043B\u043E\u0432\u0435\u0447\u0435\u0441\u043A\u0443\u044E \u0438\u043D\u0441\u0442\u0440\u0443\u043A\u0446\u0438\u044E (CAP-0153): \u0442\u0435\u043A\u0441\u0442 \u043F\u0440\u0438\u0445\u043E\u0434\u0438\u0442 \u0438\u0437
+  // \u0440\u0435\u0435\u0441\u0442\u0440\u0430 \u044F\u0434\u0440\u0430 \u0432 \u043F\u043E\u043B\u044F\u0445 instruction/where, \u0441\u0442\u0440\u0430\u043D\u0438\u0446\u0430 \u0442\u043E\u043B\u044C\u043A\u043E \u043F\u043E\u043A\u0430\u0437\u044B\u0432\u0430\u0435\u0442 \u0435\u0433\u043E.
+  function failureText(error) {
+    var message = error && error.message ? error.message : '\u0417\u0430\u043F\u0440\u043E\u0441 \u043D\u0435 \u0432\u044B\u043F\u043E\u043B\u043D\u0435\u043D';
+    if (!error || !error.instruction) return message;
+    return message + ' \u0427\u0442\u043E \u0434\u0435\u043B\u0430\u0442\u044C: ' + error.instruction + (error.where ? ' (\u0413\u0434\u0435: ' + error.where + ')' : '');
+  }
+
+  function showGuardInstruction(guard) {
+    if (!guard || !guard.instruction) { guardInstruction.textContent = ''; return; }
+    guardInstruction.textContent = '\u0427\u0442\u043E \u0434\u0435\u043B\u0430\u0442\u044C: ' + guard.instruction + (guard.where ? ' (\u0413\u0434\u0435: ' + guard.where + ')' : '');
   }
 
   function showResult(text, ok) {
@@ -273,11 +296,12 @@ var PAGE = `<!doctype html>
       guardState.textContent = guard.enabled
         ? (guard.auto_start_allowed ? '\u043A\u043B\u044E\u0447\u0435\u0439 \u0434\u043E\u0441\u0442\u0430\u0442\u043E\u0447\u043D\u043E' : '\u043D\u0443\u0436\u0435\u043D \u0445\u043E\u0442\u044F \u0431\u044B \u043E\u0434\u0438\u043D \u043A\u043B\u044E\u0447')
         : '\u043F\u0440\u043E\u0432\u0435\u0440\u043A\u0430 \u0432\u044B\u043A\u043B\u044E\u0447\u0435\u043D\u0430';
+      showGuardInstruction(guard);
       renderAgents(body.agents);
     }).catch(function (error) {
-      providersNode.innerHTML = '<p class="result-error">' + esc(error.message) + '</p>';
+      providersNode.innerHTML = '<p class="result-error">' + esc(failureText(error)) + '</p>';
       guardState.textContent = '\u043D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0437\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044C';
-      agentsNode.innerHTML = '<li class="result-error">' + esc(error.message) + '</li>';
+      agentsNode.innerHTML = '<li class="result-error">' + esc(failureText(error)) + '</li>';
     });
   }
 
@@ -300,7 +324,7 @@ var PAGE = `<!doctype html>
           renderProviders(body.providers || []);
           showResult('\u041F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440 \u0443\u0434\u0430\u043B\u0451\u043D.', true);
         })
-        .catch(function (error) { showResult(error.message, false); })
+        .catch(function (error) { showResult(failureText(error), false); })
         .then(function () { removeButton.disabled = false; });
       return;
     }
@@ -317,7 +341,7 @@ var PAGE = `<!doctype html>
         renderProviders(body.providers || []);
         showResult('\u041A\u043B\u044E\u0447 \u0441\u043E\u0445\u0440\u0430\u043D\u0451\u043D.', true);
       })
-      .catch(function (error) { showResult(error.message, false); })
+      .catch(function (error) { showResult(failureText(error), false); })
       .then(function () { saveButton.disabled = false; });
   });
 
@@ -345,7 +369,7 @@ var PAGE = `<!doctype html>
         resetCustom();
         showCustomResult('\u041F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440 \u0441\u043E\u0445\u0440\u0430\u043D\u0451\u043D. \u0415\u0433\u043E base URL \u0438 \u043C\u043E\u0434\u0435\u043B\u0438 \u0443\u0436\u0435 \u0432 \u0441\u043F\u0438\u0441\u043A\u0435.', true);
       })
-      .catch(function (error) { showCustomResult(error.message, false); })
+      .catch(function (error) { showCustomResult(failureText(error), false); })
       .then(function () { customSubmit.disabled = false; });
   });
 
@@ -360,9 +384,10 @@ var PAGE = `<!doctype html>
         guardState.textContent = guard.enabled
           ? (guard.auto_start_allowed ? '\u043A\u043B\u044E\u0447\u0435\u0439 \u0434\u043E\u0441\u0442\u0430\u0442\u043E\u0447\u043D\u043E' : '\u043D\u0443\u0436\u0435\u043D \u0445\u043E\u0442\u044F \u0431\u044B \u043E\u0434\u0438\u043D \u043A\u043B\u044E\u0447')
           : '\u043F\u0440\u043E\u0432\u0435\u0440\u043A\u0430 \u0432\u044B\u043A\u043B\u044E\u0447\u0435\u043D\u0430';
+        showGuardInstruction(guard);
         showResult('\u041F\u043E\u043B\u0438\u0442\u0438\u043A\u0430 \u0430\u0432\u0442\u043E\u0437\u0430\u043F\u0443\u0441\u043A\u0430 \u0441\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u0430.', true);
       })
-      .catch(function (error) { showResult(error.message, false); });
+      .catch(function (error) { showResult(failureText(error), false); });
   });
 
   load();
