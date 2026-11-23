@@ -154,6 +154,28 @@
       "signature": "o1qLAslhNKP+qXUZS0uIEN+1TMv0VmsCKoVV8rMYIErB5gSQZNlKsxK9KeyrHxCZNRLTABEQBmS5GVGVHxF2Cw=="
     },
     {
+      "id": "autonomy-local",
+      "name": "Автономный прогон агента",
+      "version": "1.1.0",
+      "summary": "Петля агента с бюджетами, чекпоинтами, инструментами в песочнице и проверяемыми утверждениями.",
+      "publisher": "Team Platform",
+      "trust": "official",
+      "category": "automation",
+      "permissions": [
+        "process",
+        "network",
+        "storage"
+      ],
+      "requires": {
+        "core": "^0.8.0",
+        "modules": []
+      },
+      "url": "https://attrazion.github.io/team-platform-catalog/autonomy-local-1.1.0.mjs",
+      "size": 64275,
+      "integrity": "sha512-bD5DVbCoxta1hirmI9qHw5LSZnlf2oIqZAUga7MDv0l51bdrJgLOU4CRAIP97CbQHcwwrZnhw8GXr9GVQiyTZw==",
+      "signature": "RmaOF3HNTC74oX2jZiZ2edHSGgpbglBPLwhY98kq+0zfwYUF/ktPjgOAYGz9FFJ6QkZ+L7q1nggDYgDXwyvrBA=="
+    },
+    {
       "id": "botpsy-local",
       "name": "BotPsy: локальный выбор поиска",
       "version": "0.4.0",
@@ -178,7 +200,7 @@
     {
       "id": "browser",
       "name": "Браузер",
-      "version": "1.0.5",
+      "version": "1.0.6",
       "summary": "Вкладки, снимки и действия агента в Chromium. Секреты сайтов подставляет модуль интеграций, если он установлен.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -192,10 +214,10 @@
         "core": "^0.8.0",
         "modules": []
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/browser-1.0.5.mjs",
-      "size": 66652,
-      "integrity": "sha512-OL3xqTigEYOlhbyC5RvA/Xkobuk3Mnku/aGJmbiPW6OGJUVOYY9dHu3HG8GVBlZo2DgpjgPle7wE+ApfUP/VAA==",
-      "signature": "jrSU4UbmJxp8BDAVmX39km8OtIijklksgemNRjVJtm8+KTMW7XFqd8pkA3woaqZZDhRdDINfMqBjADz4liLcCw=="
+      "url": "https://attrazion.github.io/team-platform-catalog/browser-1.0.6.mjs",
+      "size": 66651,
+      "integrity": "sha512-W/v2ToJ2o5hRJ74r+ui+8zd4Rae1wYtdSNo8J8ClX+EUYU+gj8wqwJPekC1Vn28AgrU8bjA2AU/yH9lv8cXd/w==",
+      "signature": "fbpu8Tt6FPRbeMTl7wA7H4Owpf4XbactQdmtd5JCiB886uO68KBX64/MvtJ3NonPUieTJvwBNrGx6yTRp1rcDA=="
     },
     {
       "id": "build-artifact",
@@ -501,6 +523,27 @@
       "size": 9303,
       "integrity": "sha512-kUcnHaaB2kFQFG7vNODwj0eDj92ZGPNtYSuxOFY87oEoSfW+FFWU7bIQ4bwdOJCQC8ovucs+ADNvcuIZNf/gDQ==",
       "signature": "MmnUsBiOdzFpoDlsHEriLdEtuI5KIW7zJl1uYzw7f9wTi/d4pRKzxab6x5ZPpkhFBgYTRhX9amRP3egcQTmZAg=="
+    },
+    {
+      "id": "external-apps",
+      "name": "Внешние приложения пользователя",
+      "version": "1.0.1",
+      "summary": "Реестр внешних приложений пользователя: запуск по явному пути с явным согласием, состояния, остановка и история.",
+      "publisher": "Team Platform",
+      "trust": "official",
+      "category": "tools",
+      "permissions": [
+        "process",
+        "storage"
+      ],
+      "requires": {
+        "core": "^0.8.0",
+        "modules": []
+      },
+      "url": "https://attrazion.github.io/team-platform-catalog/external-apps-1.0.1.mjs",
+      "size": 36946,
+      "integrity": "sha512-M/FP4vRITm2GT0eXQu0uO0S2UgpW99rr9jOO+pygRg9eEp9j0sUYiIymA2MzGf0e56JatcYgz0bK+JTW2LVgVA==",
+      "signature": "fbxBN9wiPVpAzj1K/4adl63lI7bgLedcgBPAisGpfACcHjYfuhaV0aBBxC8WbIEJ9hQ3pK2X4OAs2oIrsS1XAA=="
     },
     {
       "id": "free-model-catalog",

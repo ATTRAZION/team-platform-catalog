@@ -288,7 +288,7 @@ function spawnBrowser(options) {
   return spawn(options.executablePath, args, {
     detached: true,
     stdio: "ignore",
-    windowsHide: false
+    windowsHide: true
   });
 }
 async function processId(port, fallback) {
