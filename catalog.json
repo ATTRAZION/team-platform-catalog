@@ -936,6 +936,43 @@
       "signature": "PTIDyipVAnw1yLccsHT8T8XpDFLCQUb5Y64jAL7pQ0OItV4v6uyFlIZCg/CXHoI1Xyesdadqv+g9XtHtopuTBg=="
     },
     {
+      "id": "music-render-local",
+      "name": "Локальный рендер музыки",
+      "version": "1.0.0",
+      "summary": "Детерминированная сборка готового WAV из последовательности нот прямо на машине: без облака, без ключей и без весов. MP3 — по желанию, через локальный ffmpeg.",
+      "publisher": "Team Platform",
+      "trust": "official",
+      "category": "tools",
+      "permissions": [
+        "storage",
+        "process"
+      ],
+      "requires": {
+        "core": "^0.8.0",
+        "modules": [
+          {
+            "id": "tasks",
+            "range": "^1.0.0"
+          },
+          {
+            "id": "runs",
+            "range": "^1.0.0"
+          }
+        ],
+        "tools": [
+          {
+            "id": "ffmpeg",
+            "name": "ffmpeg",
+            "hint": "Нужен только для необязательного MP3: WAV этот модуль собирает без внешних бинарников."
+          }
+        ]
+      },
+      "url": "https://attrazion.github.io/team-platform-catalog/music-render-local-1.0.0.mjs",
+      "size": 37377,
+      "integrity": "sha512-rINaPG836Z3e9ObXLbGfuA9DUYsRM55QRj9fdH3oS2cHbECOlw334hWzxss5V778sHdXQ7GDrGJFaPqQE3rtoQ==",
+      "signature": "IJJKqtYz5zTn0qV/BuzMpHjWdUBNTASDJPRnWQ89eJ2w8gpgRHwqP15ugXlxKdMOuMhmhIR2HBD5j0Suc10VCQ=="
+    },
+    {
       "id": "ocr-local",
       "name": "Локальное распознавание текста",
       "version": "1.2.0",
@@ -1504,8 +1541,8 @@
     {
       "id": "tasks",
       "name": "Доска задач",
-      "version": "1.1.4",
-      "summary": "Карточки, статусы и журнал изменений. Прежние адреса /api/tasks сохраняются.",
+      "version": "1.1.5",
+      "summary": "Карточки, статусы, журнал изменений и история карточки (GET /api/tasks/:id/events). Прежние адреса /api/tasks сохраняются.",
       "publisher": "Team Platform",
       "trust": "official",
       "category": "work",
@@ -1517,10 +1554,10 @@
         "core": "^0.8.0",
         "modules": []
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/tasks-1.1.4.mjs",
-      "size": 77386,
-      "integrity": "sha512-2jY4p1KVt/gL4Cm1vScx7c/ao18CksRo9QV0tlUeRWNOGVcY/e+tRs99bsy6GSM+MB4Eg2JNqMZ/ZwYDVXcuWA==",
-      "signature": "hucfdP+fK1YHy5wBhIM69WBFYE5ESwmNB+Yyf3phoPDry0wAfXNimOFLT2R9ag1r9qY/NfXxLsLRCJJOpYCNDw=="
+      "url": "https://attrazion.github.io/team-platform-catalog/tasks-1.1.5.mjs",
+      "size": 94363,
+      "integrity": "sha512-p+ogHsnJgA9eU1EozIhpoKrFBil1JMMElDy/J273Y9wVayUhJnvvpbnJOn7tyy4qmEyrySP25kpaPnt8lHq7mw==",
+      "signature": "eGgcfhXVORELEva82Adx9cgGxV5Q07sP3DcQeCkFL6t+VVO6B3I/IpqGLoOOj7fHS+1AuxHOHajYlFCPssQYBQ=="
     },
     {
       "id": "team-room",

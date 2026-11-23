@@ -164,6 +164,18 @@ var SqliteTaskRepository = class {
     const rows = this.#db.raw.prepare("SELECT task_id, type, actor, payload, created_at FROM task_events WHERE task_id = ? ORDER BY seq DESC LIMIT ?").all(taskId, Math.min(Math.max(limit, 1), 500));
     return rows.reverse().map(toEvent);
   }
+  /**
+   * Страница истории карточки: общее число событий и `limit` записей,
+   * отсчитывая от свежих (`offset` — сколько свежих пропустить). Строки
+   * возвращаются в хронологическом порядке — старые сверху, так историю читает
+   * человек на карточке. Порядок `seq` — порядок записи, он устойчивее времени:
+   * события одной секунды не переставляются между запросами.
+   */
+  eventsPage(taskId, limit, offset) {
+    const counted = this.#db.raw.prepare("SELECT COUNT(*) AS count FROM task_events WHERE task_id = ?").get(taskId);
+    const rows = this.#db.raw.prepare("SELECT task_id, type, actor, payload, created_at FROM task_events WHERE task_id = ? ORDER BY seq DESC LIMIT ? OFFSET ?").all(taskId, limit, offset);
+    return { items: rows.reverse().map(toEvent), total: Number(counted?.count ?? 0) };
+  }
   /** Кандидаты автоматического тика: только незакрытые карточки со сроком. */
   dueCandidates() {
     const rows = this.#db.raw.prepare(`SELECT ${COLUMNS} FROM tasks
@@ -776,6 +788,14 @@ function enumParam(value, field, allowed) {
   }
   return value;
 }
+function intParam(value, field, fallback, min, max) {
+  if (value === void 0 || value === "") return fallback;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < min || parsed > max) {
+    throw new ValidationError(`\u041F\u0430\u0440\u0430\u043C\u0435\u0442\u0440 \xAB${field}\xBB: \u0446\u0435\u043B\u043E\u0435 \u043E\u0442 ${min} \u0434\u043E ${max}`, { value });
+  }
+  return parsed;
+}
 var TaskService = class {
   #repo;
   #bus;
@@ -813,6 +833,26 @@ var TaskService = class {
     const task = this.#repo.get(id);
     if (!task) throw new NotFoundError(`\u0417\u0430\u0434\u0430\u0447\u0430 ${id} \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u0430`);
     return { task: this.#view(task), events: this.#repo.events(id, 100) };
+  }
+  /**
+   * История карточки отдельной страницей: `limit` последних событий в
+   * хронологическом порядке (старые сверху) плюс общее число событий, чтобы
+   * интерфейс честно сказал «показаны последние 50 из 73», а не молчал.
+   * Чтение истории намеренно не запускает SLA-тик: просмотр карточки не имеет
+   * права её менять — тик делают list/get.
+   */
+  eventsPage(id, raw) {
+    if (!this.#repo.get(id)) throw new NotFoundError(`\u0417\u0430\u0434\u0430\u0447\u0430 ${id} \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u0430`);
+    const limit = intParam(raw.limit, "limit", 50, 1, 200);
+    const offset = intParam(raw.offset, "offset", 0, 0, 1e6);
+    const page = this.#repo.eventsPage(id, limit, offset);
+    return {
+      events: page.items,
+      total: page.total,
+      limit,
+      offset,
+      has_more: offset + page.items.length < page.total
+    };
   }
   /** Вся история для выгрузки: страницы по 200, пока есть курсор. */
   exportAll() {
@@ -1171,6 +1211,15 @@ var PAGE = `<!doctype html>
   .run-results { margin-top: 10px; }
   .run-results summary { cursor: pointer; }
   .run-result { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 20em; overflow: auto; }
+  .history { margin-top: 10px; }
+  .history summary { cursor: pointer; }
+  .history-count { color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+  .history-row { border-top: 1px solid var(--line); padding: 5px 0; display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; }
+  .history-when { color: var(--muted); font-size: 12px; white-space: nowrap; }
+  .history-actor { color: var(--muted); font-size: 12px; }
+  .history-what { font-size: 13px; }
+  .history-reason { color: var(--muted); font-size: 12px; }
+  .history-run { font-size: 12px; }
 </style>
 </head>
 <body>
@@ -1263,6 +1312,213 @@ var PAGE = `<!doctype html>
     }
     details.addEventListener('toggle', function () { if (details.open) refresh(); });
     reload.addEventListener('click', refresh);
+    return details;
+  }
+
+  var HISTORY_PAGE = 50;
+  var HISTORY_STEP = 200;
+  var HISTORY_MAX = 2000;
+
+  function when(iso) {
+    return typeof iso === 'string' ? iso.slice(0, 16).replace('T', ' ') : '?';
+  }
+
+  function plural(count, one, few, many) {
+    var mod10 = count % 10;
+    var mod100 = count % 100;
+    if (mod10 === 1 && mod100 !== 11) return one;
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return few;
+    return many;
+  }
+
+  function durationText(ms) {
+    if (typeof ms !== 'number' || !isFinite(ms) || ms < 0) return '';
+    if (ms < 1000) return ms + ' \u043C\u0441';
+    var minutes = Math.round(ms / 60000);
+    if (minutes < 60) return minutes + ' \u043C\u0438\u043D';
+    return Math.round(minutes / 60) + ' \u0447';
+  }
+
+  /** \u0427\u0442\u043E \u043F\u0440\u043E\u0438\u0437\u043E\u0448\u043B\u043E: \u0447\u0435\u043B\u043E\u0432\u0435\u043A\u043E\u0447\u0438\u0442\u0430\u0435\u043C\u0430\u044F \u0441\u0442\u0440\u043E\u043A\u0430 \u043F\u043E \u0442\u0438\u043F\u0443 \u0441\u043E\u0431\u044B\u0442\u0438\u044F \u0438\u0437 modules/tasks/task.ts. */
+  function historyWhat(event) {
+    var p = event.payload || {};
+    switch (event.type) {
+      case 'task.created':
+        return '\u043A\u0430\u0440\u0442\u043E\u0447\u043A\u0430 \u0437\u0430\u0432\u0435\u0434\u0435\u043D\u0430 \xB7 \u0442\u0438\u043F ' + (p.type || '?') + ' \xB7 \u043F\u0440\u0438\u043E\u0440\u0438\u0442\u0435\u0442 ' + (p.priority === undefined ? '?' : p.priority);
+      case 'task.status_changed':
+        return '\u0441\u0442\u0430\u0442\u0443\u0441: ' + p.from + ' \u2192 ' + p.to;
+      case 'task.due_proposed':
+        return '\u0441\u0440\u043E\u043A \u043F\u0440\u0435\u0434\u043B\u043E\u0436\u0435\u043D: ' + when(p.due_at);
+      case 'task.due_approved':
+        return '\u0441\u0440\u043E\u043A \u0443\u0442\u0432\u0435\u0440\u0436\u0434\u0451\u043D: ' + when(p.due_at);
+      case 'task.handover_requested':
+        return '\u043F\u0440\u0435\u0434\u043B\u043E\u0436\u0435\u043D\u0430 \u043F\u0435\u0440\u0435\u0434\u0430\u0447\u0430 \u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0435\u043D\u043D\u043E\u0441\u0442\u0438 \u2192 ' + p.to + ' \u0434\u043E ' + when(p.owner_until);
+      case 'task.handover_accepted':
+        return '\u043F\u0435\u0440\u0435\u0434\u0430\u0447\u0430 \u043F\u0440\u0438\u043D\u044F\u0442\u0430: ' + (p.from || '\u0431\u0435\u0437 \u0432\u043B\u0430\u0434\u0435\u043B\u044C\u0446\u0430') + ' \u2192 ' + p.to;
+      case 'task.handover_declined':
+        return '\u043F\u0435\u0440\u0435\u0434\u0430\u0447\u0430 \u043E\u0442\u043A\u043B\u043E\u043D\u0435\u043D\u0430: ' + (p.from || '\u0431\u0435\u0437 \u0432\u043B\u0430\u0434\u0435\u043B\u044C\u0446\u0430') + ' \u2192 ' + p.to;
+      case 'task.handover_expired':
+        return '\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0435\u043D\u043D\u043E\u0441\u0442\u044C \u0432\u0435\u0440\u043D\u0443\u043B\u0430\u0441\u044C: ' + p.from + ' \u2192 ' + p.to;
+      case 'task.sla_paused':
+        return 'SLA \u043F\u043E\u0441\u0442\u0430\u0432\u043B\u0435\u043D \u043D\u0430 \u043F\u0430\u0443\u0437\u0443';
+      case 'task.sla_resumed':
+        return 'SLA \u0432\u043E\u0437\u043E\u0431\u043D\u043E\u0432\u043B\u0451\u043D' + (p.paused_for_ms === undefined ? '' : ' \u043F\u043E\u0441\u043B\u0435 \u043F\u0430\u0443\u0437\u044B ' + durationText(p.paused_for_ms));
+      case 'task.sla_escalated':
+        return 'SLA \u044D\u0441\u043A\u0430\u043B\u0438\u0440\u043E\u0432\u0430\u043D \u2192 ' + p.to + (p.automatic ? ' (\u0430\u0432\u0442\u043E\u043C\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u0438, \u0441\u0440\u043E\u043A ' + when(p.due_at) + ')' : '');
+      case 'task.ownership_transferred':
+        return '\u0432\u043B\u0430\u0434\u0435\u043D\u0438\u0435 \u043F\u0435\u0440\u0435\u043D\u0435\u0441\u0435\u043D\u043E: ' + p.from + ' \u2192 ' + p.to + (Array.isArray(p.fields) ? ' \xB7 \u043F\u043E\u043B\u044F: ' + p.fields.join(', ') : '');
+      default:
+        return event.type;
+    }
+  }
+
+  function runsOfCard(taskId) {
+    return request('/api/runs?limit=20&task_id=' + encodeURIComponent(taskId))
+      .then(function (page) { return page.items || []; })
+      .catch(function () { return []; });
+  }
+
+  /**
+   * \u0421\u0441\u044B\u043B\u043A\u0430 \u043D\u0430 \u0437\u0430\u043F\u0443\u0441\u043A \u0443 \u0441\u043E\u0431\u044B\u0442\u0438\u044F. \u0417\u0430\u043C\u0435\u0440 2026-11-23: \u0441\u043E\u0431\u044B\u0442\u0438\u0435 \u043A\u0430\u0440\u0442\u043E\u0447\u043A\u0438 id \u0437\u0430\u043F\u0443\u0441\u043A\u0430
+   * \u043D\u0435 \u0445\u0440\u0430\u043D\u0438\u0442 (payload \u0443 task.status_changed \u2014 from/to/reason), \u0441\u0432\u044F\u0437\u044C \u0436\u0438\u0432\u0451\u0442 \u0432
+   * \u043F\u043E\u043B\u0435 runs.task_id \u0442\u0430\u0431\u043B\u0438\u0446\u044B \u0437\u0430\u043F\u0443\u0441\u043A\u043E\u0432. \u041F\u043E\u044D\u0442\u043E\u043C\u0443 \u0437\u0430\u043F\u0443\u0441\u043A \u043F\u043E\u0434\u043F\u0438\u0441\u044B\u0432\u0430\u0435\u0442\u0441\u044F \u0442\u043E\u043B\u044C\u043A\u043E \u043A\u043E\u0433\u0434\u0430 \u043A\u0430\u043D\u0434\u0438\u0434\u0430\u0442
+   * \u043E\u0434\u0438\u043D: \u0442\u0430 \u0436\u0435 \u043A\u0430\u0440\u0442\u043E\u0447\u043A\u0430, \u0438\u0441\u043F\u043E\u043B\u043D\u0438\u0442\u0435\u043B\u044C \u0441\u043E\u0432\u043F\u0430\u043B \u0441 \u0430\u043A\u0442\u043E\u0440\u043E\u043C \u0441\u043E\u0431\u044B\u0442\u0438\u044F, \u0432\u0440\u0435\u043C\u044F \u0441\u043E\u0431\u044B\u0442\u0438\u044F
+   * \u0432\u043D\u0443\u0442\u0440\u0438 \u043E\u043A\u043D\u0430 \u0437\u0430\u043F\u0443\u0441\u043A\u0430. \u0414\u0432\u0443\u0441\u043C\u044B\u0441\u043B\u0435\u043D\u043D\u043E\u0441\u0442\u044C \u043D\u0435 \u0432\u044B\u0434\u0443\u043C\u044B\u0432\u0430\u0435\u0442\u0441\u044F.
+   */
+  function relatedRun(event, runs) {
+    var fromPayload = event.payload && (event.payload.run_id || event.payload.run);
+    if (typeof fromPayload === 'string' && fromPayload) {
+      for (var i = 0; i < runs.length; i += 1) {
+        if (runs[i].id === fromPayload) return runs[i];
+      }
+      return { id: fromPayload };
+    }
+    var at = Date.parse(event.created_at);
+    var hits = [];
+    for (var j = 0; j < runs.length; j += 1) {
+      var run = runs[j];
+      if (!run.agent || run.agent !== event.actor) continue;
+      var start = Date.parse(run.started_at || run.created_at || '');
+      if (!isFinite(at) || !isFinite(start) || at < start) continue;
+      var end = run.finished_at ? Date.parse(run.finished_at) : NaN;
+      if (isFinite(end) && at > end) continue;
+      hits.push(run);
+    }
+    return hits.length === 1 ? hits[0] : null;
+  }
+
+  function showHistory(task) {
+    var details = el('details', 'history');
+    var summary = el('summary', '', '\u0418\u0441\u0442\u043E\u0440\u0438\u044F');
+    details.appendChild(summary);
+    var content = el('div', 'history-content');
+    var reload = el('button', 'ghost', '\u041E\u0431\u043D\u043E\u0432\u0438\u0442\u044C');
+    reload.type = 'button';
+    var more = el('button', 'ghost', '\u041F\u043E\u043A\u0430\u0437\u0430\u0442\u044C \u0432\u0441\u0435');
+    more.type = 'button';
+    more.hidden = true;
+    var actions = el('div', 'row');
+    actions.append(reload, more);
+    details.append(actions, content);
+
+    var shown = [];
+    var total = 0;
+    var runs = [];
+
+    function render() {
+      content.textContent = '';
+      if (total === 0) {
+        // \u041F\u0443\u0441\u0442\u043E\u0439 \u0431\u043B\u043E\u043A \u0431\u0435\u0437 \u043E\u0431\u044A\u044F\u0441\u043D\u0435\u043D\u0438\u044F \u2014 \u044D\u0442\u043E \u0431\u044B\u043B \u0437\u0430\u043C\u0435\u0447\u0435\u043D\u043D\u044B\u0439 \u0434\u0435\u0444\u0435\u043A\u0442 \u043D\u0430\u0431\u043B\u044E\u0434\u0430\u0435\u043C\u043E\u0441\u0442\u0438.
+        content.appendChild(el('div', 'history-count', task.revision > 1
+          ? '\u0438\u0437\u043C\u0435\u043D\u0435\u043D\u0438\u0439 \u043D\u0435 \u0437\u0430\u043F\u0438\u0441\u0430\u043D\u043E, \u0445\u043E\u0442\u044F \u043A\u0430\u0440\u0442\u043E\u0447\u043A\u0430 \u043C\u0435\u043D\u044F\u043B\u0430\u0441\u044C (\u0440\u0435\u0432\u0438\u0437\u0438\u044F ' + task.revision + '): \u0441\u0442\u0440\u043E\u043A\u0430 \u0441\u0442\u0430\u0440\u0448\u0435 \u0436\u0443\u0440\u043D\u0430\u043B\u0430 \u0441\u043E\u0431\u044B\u0442\u0438\u0439'
+          : '\u0438\u0437\u043C\u0435\u043D\u0435\u043D\u0438\u0439 \u043D\u0435 \u0431\u044B\u043B\u043E'));
+        return;
+      }
+      content.appendChild(el('div', 'history-count', '\u043F\u043E\u043A\u0430\u0437\u0430\u043D\u044B ' + shown.length + ' \u0438\u0437 ' + total + ' '
+        + plural(total, '\u0437\u0430\u043F\u0438\u0441\u044C', '\u0437\u0430\u043F\u0438\u0441\u0438', '\u0437\u0430\u043F\u0438\u0441\u0435\u0439') + ' \xB7 \u0432\u0440\u0435\u043C\u044F UTC'
+        + (shown.length < total ? ', \u0441\u0442\u0430\u0440\u0448\u0435 \u043D\u0435 \u043F\u043E\u043A\u0430\u0437\u0430\u043D\u043E' : '')));
+      var hasCreated = false;
+      for (var i = 0; i < shown.length; i += 1) {
+        if (shown[i].type === 'task.created') hasCreated = true;
+      }
+      if (!hasCreated) {
+        content.appendChild(el('div', 'history-reason',
+          '\u043F\u0435\u0440\u0432\u044B\u0435 \u043F\u0435\u0440\u0435\u0445\u043E\u0434\u044B \u043A\u0430\u0440\u0442\u043E\u0447\u043A\u0438 \u043F\u043E\u044F\u0432\u0438\u043B\u0438\u0441\u044C \u0440\u0430\u043D\u044C\u0448\u0435 \u0436\u0443\u0440\u043D\u0430\u043B\u0430 \u0441\u043E\u0431\u044B\u0442\u0438\u0439 \u2014 \u0438\u0445 \u0437\u0434\u0435\u0441\u044C \u043D\u0435\u0442'));
+      }
+      for (var k = 0; k < shown.length; k += 1) {
+        var event = shown[k];
+        var row = el('div', 'history-row');
+        var stamp = el('span', 'history-when', when(event.created_at));
+        stamp.title = event.created_at;
+        row.appendChild(stamp);
+        row.appendChild(el('span', 'history-actor', event.actor));
+        row.appendChild(el('div', 'history-what', historyWhat(event)));
+        var reason = event.payload && (event.payload.reason
+          ? '\u043F\u0440\u0438\u0447\u0438\u043D\u0430: ' + event.payload.reason
+          : event.payload.note ? '\u0437\u0430\u043C\u0435\u0442\u043A\u0430: ' + event.payload.note : '');
+        if (reason) row.appendChild(el('div', 'history-reason', reason));
+        var run = relatedRun(event, runs);
+        if (run) {
+          var link = el('a', 'history-run', '\u0437\u0430\u043F\u0443\u0441\u043A ' + run.id);
+          link.href = '/m/runs/';
+          row.appendChild(link);
+        }
+        content.appendChild(row);
+      }
+    }
+
+    function pageUrl(limit, offset) {
+      return '/api/tasks/' + encodeURIComponent(task.id) + '/events?limit=' + limit + '&offset=' + offset;
+    }
+
+    /** \u0421\u0442\u0440\u0430\u043D\u0438\u0446\u044B \u0441\u0442\u0430\u0440\u0448\u0435: offset \u043E\u0442\u0441\u0447\u0438\u0442\u044B\u0432\u0430\u0435\u0442\u0441\u044F \u043E\u0442 \u0441\u0432\u0435\u0436\u0438\u0445, \u043F\u043E\u044D\u0442\u043E\u043C\u0443 \u0441\u0442\u0430\u0440\u044B\u0435 \u0441\u0442\u0440\u0430\u043D\u0438\u0446\u044B \u0432\u0441\u0442\u0430\u044E\u0442 \u043F\u0435\u0440\u0435\u0434 \u0443\u0436\u0435 \u043F\u043E\u043A\u0430\u0437\u0430\u043D\u043D\u044B\u043C\u0438. */
+    function olderPages(offset, acc) {
+      return request(pageUrl(HISTORY_STEP, offset)).then(function (page) {
+        total = page.total;
+        var merged = page.events.concat(acc);
+        if (page.has_more && merged.length < HISTORY_MAX) return olderPages(offset + HISTORY_STEP, merged);
+        return merged;
+      });
+    }
+
+    function refresh() {
+      reload.disabled = true;
+      content.textContent = '\u0417\u0430\u0433\u0440\u0443\u0437\u043A\u0430\u2026';
+      Promise.all([
+        request(pageUrl(HISTORY_PAGE, 0)),
+        runsOfCard(task.id),
+      ]).then(function (result) {
+        total = result[0].total;
+        shown = result[0].events || [];
+        runs = result[1];
+        summary.textContent = '\u0418\u0441\u0442\u043E\u0440\u0438\u044F \xB7 ' + total + ' ' + plural(total, '\u0437\u0430\u043F\u0438\u0441\u044C', '\u0437\u0430\u043F\u0438\u0441\u0438', '\u0437\u0430\u043F\u0438\u0441\u0435\u0439');
+        more.hidden = shown.length >= total;
+        more.textContent = '\u041F\u043E\u043A\u0430\u0437\u0430\u0442\u044C \u0432\u0441\u0435';
+        render();
+      }).catch(function (error) {
+        content.textContent = '\u0418\u0441\u0442\u043E\u0440\u0438\u044F \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u043D\u0430. ' + error.message;
+      }).finally(function () {
+        reload.disabled = false;
+      });
+    }
+
+    function showAll() {
+      reload.disabled = true;
+      olderPages(shown.length, shown).then(function (merged) {
+        shown = merged;
+        more.hidden = shown.length >= total;
+        more.textContent = shown.length >= HISTORY_MAX ? '\u041F\u043E\u043A\u0430\u0437\u0430\u0442\u044C \u0435\u0449\u0451' : '\u041F\u043E\u043A\u0430\u0437\u0430\u0442\u044C \u0432\u0441\u0435';
+        render();
+      }).catch(function (error) {
+        content.textContent = '\u0418\u0441\u0442\u043E\u0440\u0438\u044F \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u043D\u0430. ' + error.message;
+      }).finally(function () {
+        reload.disabled = false;
+      });
+    }
+
+    details.addEventListener('toggle', function () { if (details.open) refresh(); });
+    reload.addEventListener('click', refresh);
+    more.addEventListener('click', showAll);
     return details;
   }
 
@@ -1463,6 +1719,7 @@ var PAGE = `<!doctype html>
     }
     if (sla.childNodes.length) item.appendChild(sla);
     item.appendChild(showRuns(task.id));
+    item.appendChild(showHistory(task));
     return item;
   }
 
@@ -1603,6 +1860,9 @@ data: ${JSON.stringify(event2)}
     ctx.api.add("POST", "/api/tasks/tick", () => ({ body: tasks.tick() }));
     ctx.api.add("GET", "/api/tasks/:id", (request) => ({
       body: tasks.get(request.params.id ?? "")
+    }));
+    ctx.api.add("GET", "/api/tasks/:id/events", (request) => ({
+      body: tasks.eventsPage(request.params.id ?? "", Object.fromEntries(request.query.entries()))
     }));
     ctx.api.add("POST", "/api/tasks/:id/status", (request) => ({
       body: { task: tasks.changeStatus(request.params.id ?? "", request.body) }
