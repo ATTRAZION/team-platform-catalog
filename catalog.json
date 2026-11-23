@@ -1584,8 +1584,8 @@
     {
       "id": "tasks",
       "name": "Доска задач",
-      "version": "1.1.5",
-      "summary": "Карточки, статусы, журнал изменений и история карточки (GET /api/tasks/:id/events). Прежние адреса /api/tasks сохраняются.",
+      "version": "1.2.1",
+      "summary": "Доска: статусные кнопки по машине переходов, снятие карточки с причиной, передача с выбором исполнителя из реестра, фильтр по статусу, журнал и история карточки.",
       "publisher": "Team Platform",
       "trust": "official",
       "category": "work",
@@ -1597,10 +1597,10 @@
         "core": "^0.8.0",
         "modules": []
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/tasks-1.1.5.mjs",
-      "size": 94363,
-      "integrity": "sha512-p+ogHsnJgA9eU1EozIhpoKrFBil1JMMElDy/J273Y9wVayUhJnvvpbnJOn7tyy4qmEyrySP25kpaPnt8lHq7mw==",
-      "signature": "eGgcfhXVORELEva82Adx9cgGxV5Q07sP3DcQeCkFL6t+VVO6B3I/IpqGLoOOj7fHS+1AuxHOHajYlFCPssQYBQ=="
+      "url": "https://attrazion.github.io/team-platform-catalog/tasks-1.2.1.mjs",
+      "size": 105853,
+      "integrity": "sha512-I/c+PdnXSFoeqfQG8IEuTjZKlHEHR0XTzwQC3cMAVstUlWGcVSa2aXH6Fn0uuLiVF8uG4uAOjASb9y1XS+a6Og==",
+      "signature": "oazpOAXTvWC/sxqwgvCpm9qRTRbpMF3m3iPcFcjcWZjYpalfjxNwY0L4XlhZe+0e04cCaAJvihGMAASecHInBw=="
     },
     {
       "id": "team-room",

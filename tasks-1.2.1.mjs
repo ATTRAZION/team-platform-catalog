@@ -1220,6 +1220,16 @@ var PAGE = `<!doctype html>
   .history-what { font-size: 13px; }
   .history-reason { color: var(--muted); font-size: 12px; }
   .history-run { font-size: 12px; }
+  header .actor { display: flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); margin-left: auto; }
+  header .actor input { padding: 6px 8px; font-size: 13px; max-width: 160px; }
+  .filters { margin-bottom: 12px; }
+  .filters button { padding: 4px 12px; font-size: 13px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel-soft); color: var(--text); cursor: pointer; }
+  .filters button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+  .filters .filter-count { opacity: .7; margin-left: 4px; }
+  button.warn { background: #6d2f33; color: #ffdada; }
+  .reason-row { display: flex; gap: 8px; align-items: center; margin-top: 6px; flex-basis: 100%; }
+  .reason-row input { flex: 1; }
+  .card-error { color: #ff9a9a; font-size: 13px; margin-top: 4px; min-height: 0; }
 </style>
 </head>
 <body>
@@ -1227,6 +1237,7 @@ var PAGE = `<!doctype html>
   <h1>\u0414\u043E\u0441\u043A\u0430 \u0437\u0430\u0434\u0430\u0447</h1>
   <a href="/">\u2190 \u043A \u043F\u043B\u0430\u0442\u0444\u043E\u0440\u043C\u0435</a>
   <a href="/api/tasks/export?format=json">\u044D\u043A\u0441\u043F\u043E\u0440\u0442</a>
+  <label class="actor">\u041E\u0442 \u0438\u043C\u0435\u043D\u0438<input id="actor" name="actor" maxlength="100" value="me" title="\u0418\u043C\u044F \u0434\u043B\u044F \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0439 \u0441 \u043A\u0430\u0440\u0442\u043E\u0447\u043A\u0430\u043C\u0438: \u0441\u0442\u0430\u0442\u0443\u0441 \u043C\u043E\u0436\u0435\u0442 \u043C\u0435\u043D\u044F\u0442\u044C \u0430\u0432\u0442\u043E\u0440 \u043A\u0430\u0440\u0442\u043E\u0447\u043A\u0438 \u0438\u043B\u0438 \u0435\u0451 \u0438\u0441\u043F\u043E\u043B\u043D\u0438\u0442\u0435\u043B\u044C"></label>
 </header>
 <main>
   <section>
@@ -1244,14 +1255,16 @@ var PAGE = `<!doctype html>
         </select>
       </label>
       <label>\u0410\u0432\u0442\u043E\u0440<input name="created_by" value="me" required></label>
-      <label>\u041F\u0440\u0438\u043E\u0440\u0438\u0442\u0435\u0442<input name="priority" type="number" value="0" min="0" max="100"></label>
+      <label>\u041F\u0440\u0438\u043E\u0440\u0438\u0442\u0435\u0442<input name="priority" type="number" value="0" min="0" max="3" title="\u0426\u0435\u043B\u043E\u0435 \u043E\u0442 0 \u0434\u043E 3"></label>
       <label>\u041F\u0440\u0435\u0434\u043B\u0430\u0433\u0430\u0435\u043C\u044B\u0439 \u0441\u0440\u043E\u043A<input name="proposed_due_at" type="date"></label>
       <button type="submit">\u0421\u043E\u0437\u0434\u0430\u0442\u044C</button>
       <p class="error" id="create-error"></p>
     </form>
   </section>
   <section>
-    <h2>\u041A\u0430\u0440\u0442\u043E\u0447\u043A\u0438 <span class="meta" id="count"></span></h2>
+    <h2>\u0414\u043E\u0441\u043A\u0430 <span class="meta" id="count"></span></h2>
+    <div class="row filters" id="filters" aria-label="\u0424\u0438\u043B\u044C\u0442\u0440 \u043F\u043E \u0441\u0442\u0430\u0442\u0443\u0441\u0443"></div>
+    <datalist id="agents-list"></datalist>
     <ul id="list"><li class="empty">\u0417\u0430\u0433\u0440\u0443\u0437\u043A\u0430\u2026</li></ul>
   </section>
 </main>
@@ -1260,7 +1273,62 @@ var PAGE = `<!doctype html>
   var list = document.getElementById('list');
   var count = document.getElementById('count');
   var createError = document.getElementById('create-error');
-  var statuses = ['open', 'claimed', 'blocked', 'done', 'cancelled'];
+  var actorInput = document.getElementById('actor');
+  var filtersBox = document.getElementById('filters');
+  // \u0414\u043E\u0441\u043A\u0430 \u0436\u0438\u0432\u0451\u0442 \u043F\u043E \u0442\u043E\u0439 \u0436\u0435 \u043C\u0430\u0448\u0438\u043D\u0435 \u043F\u0435\u0440\u0435\u0445\u043E\u0434\u043E\u0432, \u0447\u0442\u043E \u0438 \u0434\u043E\u043C\u0435\u043D (src/domain/tasks/task.ts):
+  // \u043A\u043D\u043E\u043F\u043A\u0438 \u0440\u0438\u0441\u0443\u044E\u0442\u0441\u044F \u0442\u043E\u043B\u044C\u043A\u043E \u0442\u0430\u043C, \u0433\u0434\u0435 \u043F\u0435\u0440\u0435\u0445\u043E\u0434 \u0432\u043E\u0437\u043C\u043E\u0436\u0435\u043D, - \u0438\u043D\u0430\u0447\u0435 \u043A\u0430\u0440\u0442\u043E\u0447\u043A\u0430 \u043F\u0440\u0435\u0434\u043B\u0430\u0433\u0430\u0435\u0442
+  // \u043C\u0451\u0440\u0442\u0432\u043E\u0435 \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0435 \u0438 \xAB\u043A\u043D\u043E\u043F\u043A\u0430 \u043D\u0435 \u0440\u0430\u0431\u043E\u0442\u0430\u0435\u0442\xBB.
+  var TRANSITIONS = {
+    open: [
+      { to: 'claimed', label: '\u0412\u0437\u044F\u0442\u044C' },
+      { to: 'blocked', label: '\u0417\u0430\u0431\u043B\u043E\u043A\u0438\u0440\u043E\u0432\u0430\u0442\u044C', reasonLabel: '\u041F\u0440\u0438\u0447\u0438\u043D\u0430 \u0431\u043B\u043E\u043A\u0438\u0440\u043E\u0432\u043A\u0438 (\u043E\u0431\u044F\u0437\u0430\u0442\u0435\u043B\u044C\u043D\u0430)' },
+      { to: 'done', label: '\u0417\u0430\u0432\u0435\u0440\u0448\u0438\u0442\u044C' },
+      { to: 'cancelled', label: '\u0421\u043D\u044F\u0442\u044C \u0437\u0430\u0434\u0430\u0447\u0443', warn: true, reasonLabel: '\u041F\u043E\u0447\u0435\u043C\u0443 \u043A\u0430\u0440\u0442\u043E\u0447\u043A\u0430 \u0431\u043E\u043B\u044C\u0448\u0435 \u043D\u0435 \u0430\u043A\u0442\u0443\u0430\u043B\u044C\u043D\u0430' },
+    ],
+    claimed: [
+      { to: 'open', label: '\u0412\u0435\u0440\u043D\u0443\u0442\u044C \u0432 \u0440\u0430\u0431\u043E\u0442\u0443' },
+      { to: 'blocked', label: '\u0417\u0430\u0431\u043B\u043E\u043A\u0438\u0440\u043E\u0432\u0430\u0442\u044C', reasonLabel: '\u041F\u0440\u0438\u0447\u0438\u043D\u0430 \u0431\u043B\u043E\u043A\u0438\u0440\u043E\u0432\u043A\u0438 (\u043E\u0431\u044F\u0437\u0430\u0442\u0435\u043B\u044C\u043D\u0430)' },
+      { to: 'done', label: '\u0417\u0430\u0432\u0435\u0440\u0448\u0438\u0442\u044C' },
+      { to: 'cancelled', label: '\u0421\u043D\u044F\u0442\u044C \u0437\u0430\u0434\u0430\u0447\u0443', warn: true, reasonLabel: '\u041F\u043E\u0447\u0435\u043C\u0443 \u043A\u0430\u0440\u0442\u043E\u0447\u043A\u0430 \u0431\u043E\u043B\u044C\u0448\u0435 \u043D\u0435 \u0430\u043A\u0442\u0443\u0430\u043B\u044C\u043D\u0430' },
+    ],
+    blocked: [
+      { to: 'open', label: '\u0412\u0435\u0440\u043D\u0443\u0442\u044C \u0432 \u0440\u0430\u0431\u043E\u0442\u0443' },
+      { to: 'claimed', label: '\u041F\u0440\u043E\u0434\u043E\u043B\u0436\u0438\u0442\u044C' },
+      { to: 'done', label: '\u0417\u0430\u0432\u0435\u0440\u0448\u0438\u0442\u044C' },
+      { to: 'cancelled', label: '\u0421\u043D\u044F\u0442\u044C \u0437\u0430\u0434\u0430\u0447\u0443', warn: true, reasonLabel: '\u041F\u043E\u0447\u0435\u043C\u0443 \u043A\u0430\u0440\u0442\u043E\u0447\u043A\u0430 \u0431\u043E\u043B\u044C\u0448\u0435 \u043D\u0435 \u0430\u043A\u0442\u0443\u0430\u043B\u044C\u043D\u0430' },
+    ],
+    done: [{ to: 'open', label: '\u041F\u0435\u0440\u0435\u043E\u0442\u043A\u0440\u044B\u0442\u044C' }],
+    cancelled: [{ to: 'open', label: '\u041F\u0435\u0440\u0435\u043E\u0442\u043A\u0440\u044B\u0442\u044C' }],
+  };
+  var STATUS_LABEL = { open: '\u041E\u0442\u043A\u0440\u044B\u0442\u044B\u0435', claimed: '\u0412 \u0440\u0430\u0431\u043E\u0442\u0435', blocked: '\u0417\u0430\u0431\u043B\u043E\u043A\u0438\u0440\u043E\u0432\u0430\u043D\u043E', done: '\u0413\u043E\u0442\u043E\u0432\u043E', cancelled: '\u0421\u043D\u044F\u0442\u044B\u0435' };
+  var STATUS_WEIGHT = { open: 0, claimed: 1, blocked: 2, done: 3, cancelled: 4 };
+  var filter = 'open';
+  var lastItems = [];
+
+  function who() {
+    var name = actorInput.value.trim();
+    return name || 'me';
+  }
+  try {
+    var savedActor = JSON.parse(localStorage.getItem('tp.actor.v1') || 'null');
+    if (typeof savedActor === 'string' && savedActor.trim()) actorInput.value = savedActor;
+  } catch (ignored) { /* \u043F\u043E\u0432\u0440\u0435\u0436\u0434\u0451\u043D\u043D\u0430\u044F \u0437\u0430\u043F\u0438\u0441\u044C \u043D\u0435 \u043B\u043E\u043C\u0430\u0435\u0442 \u0434\u043E\u0441\u043A\u0443 */ }
+  actorInput.addEventListener('change', function () {
+    try { localStorage.setItem('tp.actor.v1', JSON.stringify(actorInput.value.trim())); } catch (ignored) {}
+  });
+
+  function loadAgents() {
+    return request('/api/agents').then(function (body) {
+      var dl = document.getElementById('agents-list');
+      dl.textContent = '';
+      (body.agents || []).forEach(function (agent) {
+        if (!agent || !agent.id) return;
+        var option = el('option');
+        option.value = agent.id;
+        dl.appendChild(option);
+      });
+    }).catch(function () { /* \u0441\u043F\u0438\u0441\u043E\u043A - \u043F\u043E\u0434\u0441\u043A\u0430\u0437\u043A\u0430, \u0440\u0443\u0447\u043D\u043E\u0439 \u0432\u0432\u043E\u0434 \u0440\u0430\u0431\u043E\u0442\u0430\u0435\u0442 \u0432\u0441\u0435\u0433\u0434\u0430 */ });
+  }
 
   function el(tag, className, text) {
     var node = document.createElement(tag);
@@ -1544,51 +1612,85 @@ var PAGE = `<!doctype html>
     }
 
     var actions = el('div', 'row');
-    statuses.forEach(function (status) {
-      if (status === task.status) return;
-      var button = el('button', 'ghost', status);
+    var cardError = el('div', 'card-error');
+    function askRow(placeholder, listId, onConfirm) {
+      var row = el('div', 'reason-row');
+      var input = el('input');
+      input.placeholder = placeholder;
+      input.maxLength = 500;
+      if (listId) input.setAttribute('list', listId);
+      var ok = el('button', '', '\u041F\u043E\u0434\u0442\u0432\u0435\u0440\u0434\u0438\u0442\u044C');
+      ok.type = 'button';
+      ok.addEventListener('click', function () { onConfirm(input.value.trim(), row); });
+      var drop = el('button', 'ghost', '\u041E\u0442\u043C\u0435\u043D\u0430');
+      drop.type = 'button';
+      drop.addEventListener('click', function () { row.remove(); });
+      row.append(input, ok, drop);
+      actions.appendChild(row);
+      input.focus();
+      return input;
+    }
+    function sendStatus(to, reason, button) {
+      button.disabled = true;
+      cardError.textContent = '';
+      var payload = {
+        to: to,
+        agent: who(),
+        expected: { status: task.status, revision: task.revision, updated_at: task.updated_at }
+      };
+      if (reason) payload.reason = reason;
+      request('/api/tasks/' + encodeURIComponent(task.id) + '/status', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload)
+      }).then(load).catch(function (error) {
+        button.disabled = false;
+        cardError.textContent = error.message + ' - \u0434\u0435\u0439\u0441\u0442\u0432\u0443\u0435\u0442 \u0438\u043C\u044F \xAB\u041E\u0442 \u0438\u043C\u0435\u043D\u0438\xBB \u0438\u0437 \u0448\u0430\u043F\u043A\u0438: \u043A\u0430\u0440\u0442\u043E\u0447\u043A\u0443 \u043C\u0435\u043D\u044F\u0435\u0442 \u0435\u0451 \u0430\u0432\u0442\u043E\u0440 \u0438\u043B\u0438 \u0438\u0441\u043F\u043E\u043B\u043D\u0438\u0442\u0435\u043B\u044C';
+      });
+    }
+    (TRANSITIONS[task.status] || []).forEach(function (spec) {
+      var button = el('button', spec.warn ? 'warn' : 'ghost', spec.label);
       button.type = 'button';
       button.addEventListener('click', function () {
-        button.disabled = true;
-        request('/api/tasks/' + encodeURIComponent(task.id) + '/status', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            to: status,
-            agent: 'module-tasks',
-            expected: { status: task.status, revision: task.revision, updated_at: task.updated_at }
-          })
-        }).then(load).catch(function (error) {
-          button.disabled = false;
-          alert(error.message);
-        });
+        if (spec.reasonLabel) {
+          var mandatory = spec.reasonLabel.indexOf('\u043E\u0431\u044F\u0437\u0430\u0442\u0435\u043B\u044C\u043D\u0430') >= 0;
+          askRow(spec.reasonLabel, null, function (value, row) {
+            if (!value && mandatory) { row.querySelector('input').focus(); return; }
+            sendStatus(spec.to, value || undefined, button);
+          });
+          return;
+        }
+        sendStatus(spec.to, undefined, button);
       });
       actions.appendChild(button);
     });
-    if (actions.childNodes.length) item.appendChild(actions);
+    if (actions.childNodes.length) { item.appendChild(actions); item.appendChild(cardError); }
 
     var handover = el('div', 'row');
     var to = el('input');
-    to.placeholder = '\u041A\u043E\u043C\u0443 \u043F\u0435\u0440\u0435\u0434\u0430\u0442\u044C';
+    to.placeholder = '\u041A\u043E\u043C\u0443 \u043F\u0435\u0440\u0435\u0434\u0430\u0442\u044C (\u0432\u044B\u0431\u043E\u0440 \u0438\u0437 \u0441\u043F\u0438\u0441\u043A\u0430 \u0438\u043B\u0438 \u0438\u043C\u044F)';
     to.maxLength = 100;
+    to.setAttribute('list', 'agents-list');
     var until = el('input');
     until.type = 'datetime-local';
     until.title = '\u041E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0435\u043D\u043D\u043E\u0441\u0442\u044C \u0434\u043E';
+    until.value = defaultUntil();
     var send = el('button', 'ghost', '\u041F\u0435\u0440\u0435\u0434\u0430\u0442\u044C');
     send.type = 'button';
     send.addEventListener('click', function () {
-      if (!to.value.trim() || !until.value) { alert('\u0423\u043A\u0430\u0436\u0438\u0442\u0435 \u043F\u043E\u043B\u0443\u0447\u0430\u0442\u0435\u043B\u044F \u0438 \u0441\u0440\u043E\u043A \u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0435\u043D\u043D\u043E\u0441\u0442\u0438'); return; }
+      if (!to.value.trim() || !until.value) { cardError.textContent = '\u0423\u043A\u0430\u0436\u0438\u0442\u0435 \u043F\u043E\u043B\u0443\u0447\u0430\u0442\u0435\u043B\u044F \u0438 \u0441\u0440\u043E\u043A \u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0435\u043D\u043D\u043E\u0441\u0442\u0438'; return; }
       send.disabled = true;
+      cardError.textContent = '';
       request('/api/tasks/' + encodeURIComponent(task.id) + '/handover', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           to: to.value.trim(),
           owner_until: new Date(until.value).toISOString(),
-          actor: task.assignee || task.created_by,
+          actor: who(),
           expected: { status: task.status, revision: task.revision, updated_at: task.updated_at }
         })
-      }).then(load).catch(function (error) { send.disabled = false; alert(error.message); });
+      }).then(load).catch(function (error) { send.disabled = false; cardError.textContent = error.message; });
     });
     handover.appendChild(to);
     handover.appendChild(until);
@@ -1605,7 +1707,7 @@ var PAGE = `<!doctype html>
             actor: task.pending_assignee,
             expected: { status: task.status, revision: task.revision, updated_at: task.updated_at }
           })
-        }).then(load).catch(function (error) { accept.disabled = false; alert(error.message); });
+        }).then(load).catch(function (error) { accept.disabled = false; cardError.textContent = error.message; });
       });
       var decline = el('button', 'ghost', '\u041E\u0442\u043A\u043B\u043E\u043D\u0438\u0442\u044C');
       decline.type = 'button';
@@ -1618,7 +1720,7 @@ var PAGE = `<!doctype html>
             actor: task.pending_assignee,
             expected: { status: task.status, revision: task.revision, updated_at: task.updated_at }
           })
-        }).then(load).catch(function (error) { decline.disabled = false; alert(error.message); });
+        }).then(load).catch(function (error) { decline.disabled = false; cardError.textContent = error.message; });
       });
       handover.appendChild(accept);
       handover.appendChild(decline);
@@ -1631,8 +1733,9 @@ var PAGE = `<!doctype html>
     var propose = el('button', 'ghost', '\u041F\u0440\u0435\u0434\u043B\u043E\u0436\u0438\u0442\u044C \u0441\u0440\u043E\u043A');
     propose.type = 'button';
     propose.addEventListener('click', function () {
-      if (!dueInput.value) { alert('\u0423\u043A\u0430\u0436\u0438\u0442\u0435 \u0434\u0430\u0442\u0443'); return; }
+      if (!dueInput.value) { cardError.textContent = '\u0423\u043A\u0430\u0436\u0438\u0442\u0435 \u0434\u0430\u0442\u0443'; return; }
       propose.disabled = true;
+      cardError.textContent = '';
       request('/api/tasks/' + encodeURIComponent(task.id) + '/dates', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -1642,7 +1745,7 @@ var PAGE = `<!doctype html>
           actor: task.assignee || task.created_by,
           expected: { status: task.status, revision: task.revision, updated_at: task.updated_at }
         })
-      }).then(load).catch(function (error) { propose.disabled = false; alert(error.message); });
+      }).then(load).catch(function (error) { propose.disabled = false; cardError.textContent = error.message; });
     });
     dates.appendChild(dueInput);
     dates.appendChild(propose);
@@ -1659,7 +1762,7 @@ var PAGE = `<!doctype html>
             actor: task.created_by,
             expected: { status: task.status, revision: task.revision, updated_at: task.updated_at }
           })
-        }).then(load).catch(function (error) { approve.disabled = false; alert(error.message); });
+        }).then(load).catch(function (error) { approve.disabled = false; cardError.textContent = error.message; });
       });
       dates.appendChild(approve);
     }
@@ -1671,48 +1774,53 @@ var PAGE = `<!doctype html>
       resume.type = 'button';
       resume.addEventListener('click', function () {
         resume.disabled = true;
+        cardError.textContent = '';
         request('/api/tasks/' + encodeURIComponent(task.id) + '/sla', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
-            action: 'resume', actor: task.assignee || task.created_by,
+            action: 'resume', actor: who(),
             expected: { status: task.status, revision: task.revision, updated_at: task.updated_at }
           })
-        }).then(load).catch(function (error) { resume.disabled = false; alert(error.message); });
+        }).then(load).catch(function (error) { resume.disabled = false; cardError.textContent = error.message; });
       });
       sla.appendChild(resume);
     } else if (task.sla && task.sla.due_at && task.status !== 'done' && task.status !== 'cancelled') {
       var pause = el('button', 'ghost', '\u041F\u0430\u0443\u0437\u0430 SLA');
       pause.type = 'button';
       pause.addEventListener('click', function () {
-        var reason = prompt('\u041F\u0440\u0438\u0447\u0438\u043D\u0430 \u043F\u0430\u0443\u0437\u044B SLA');
-        if (!reason) return;
-        pause.disabled = true;
-        request('/api/tasks/' + encodeURIComponent(task.id) + '/sla', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            action: 'pause', actor: task.assignee || task.created_by, reason: reason,
-            expected: { status: task.status, revision: task.revision, updated_at: task.updated_at }
-          })
-        }).then(load).catch(function (error) { pause.disabled = false; alert(error.message); });
+        askRow('\u041F\u0440\u0438\u0447\u0438\u043D\u0430 \u043F\u0430\u0443\u0437\u044B SLA', null, function (value, row) {
+          if (!value) { row.querySelector('input').focus(); return; }
+          pause.disabled = true;
+          cardError.textContent = '';
+          request('/api/tasks/' + encodeURIComponent(task.id) + '/sla', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              action: 'pause', actor: who(), reason: value,
+              expected: { status: task.status, revision: task.revision, updated_at: task.updated_at }
+            })
+          }).then(load).catch(function (error) { pause.disabled = false; cardError.textContent = error.message; });
+        });
       });
       sla.appendChild(pause);
       if (task.sla.state === 'overdue') {
         var escalate = el('button', '', '\u042D\u0441\u043A\u0430\u043B\u0438\u0440\u043E\u0432\u0430\u0442\u044C');
         escalate.type = 'button';
         escalate.addEventListener('click', function () {
-          var target = prompt('\u041A\u043E\u043C\u0443 \u044D\u0441\u043A\u0430\u043B\u0438\u0440\u043E\u0432\u0430\u0442\u044C SLA?');
-          if (!target) return;
-          escalate.disabled = true;
-          request('/api/tasks/' + encodeURIComponent(task.id) + '/sla', {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({
-              action: 'escalate', actor: task.assignee || task.created_by, to: target,
-              expected: { status: task.status, revision: task.revision, updated_at: task.updated_at }
-            })
-          }).then(load).catch(function (error) { escalate.disabled = false; alert(error.message); });
+          askRow('\u041A\u043E\u043C\u0443 \u044D\u0441\u043A\u0430\u043B\u0438\u0440\u043E\u0432\u0430\u0442\u044C SLA', 'agents-list', function (value, row) {
+            if (!value) { row.querySelector('input').focus(); return; }
+            escalate.disabled = true;
+            cardError.textContent = '';
+            request('/api/tasks/' + encodeURIComponent(task.id) + '/sla', {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({
+                action: 'escalate', actor: who(), to: value,
+                expected: { status: task.status, revision: task.revision, updated_at: task.updated_at }
+              })
+            }).then(load).catch(function (error) { escalate.disabled = false; cardError.textContent = error.message; });
+          });
         });
         sla.appendChild(escalate);
       }
@@ -1723,16 +1831,51 @@ var PAGE = `<!doctype html>
     return item;
   }
 
+  function defaultUntil() {
+    var d = new Date(Date.now() + 86400000);
+    d.setHours(18, 0, 0, 0);
+    var pad = function (n) { return (n < 10 ? '0' : '') + n; };
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  }
+
+  function renderFilters(items) {
+    filtersBox.textContent = '';
+    var counts = { all: items.length };
+    Object.keys(STATUS_LABEL).forEach(function (s) { counts[s] = 0; });
+    items.forEach(function (t) { counts[t.status] = (counts[t.status] || 0) + 1; });
+    [['all', '\u0412\u0441\u0435'], ['open', STATUS_LABEL.open], ['claimed', STATUS_LABEL.claimed], ['blocked', STATUS_LABEL.blocked], ['done', STATUS_LABEL.done], ['cancelled', STATUS_LABEL.cancelled]].forEach(function (pair) {
+      var chip = el('button', '', pair[1]);
+      chip.type = 'button';
+      chip.setAttribute('aria-pressed', filter === pair[0] ? 'true' : 'false');
+      chip.appendChild(el('span', 'filter-count', String(counts[pair[0]] || 0)));
+      chip.addEventListener('click', function () { filter = pair[0]; render(lastItems); });
+      filtersBox.appendChild(chip);
+    });
+  }
+
+  function render(items) {
+    list.textContent = '';
+    renderFilters(items);
+    var visible = items.filter(function (t) { return filter === 'all' || t.status === filter; });
+    visible.sort(function (a, b) {
+      var byStatus = STATUS_WEIGHT[a.status] - STATUS_WEIGHT[b.status];
+      if (byStatus) return byStatus;
+      return (b.priority || 0) - (a.priority || 0);
+    });
+    count.textContent = '\xB7 ' + visible.length + ' \u0438\u0437 ' + items.length;
+    if (!visible.length) {
+      list.appendChild(el('li', 'empty', filter === 'all'
+        ? '\u041F\u043E\u043A\u0430 \u043F\u0443\u0441\u0442\u043E - \u0441\u043E\u0437\u0434\u0430\u0439\u0442\u0435 \u043F\u0435\u0440\u0432\u0443\u044E \u043A\u0430\u0440\u0442\u043E\u0447\u043A\u0443 \u0441\u043B\u0435\u0432\u0430.'
+        : '\u0412 \u0444\u0438\u043B\u044C\u0442\u0440\u0435 \xAB' + STATUS_LABEL[filter] + '\xBB \u043F\u0443\u0441\u0442\u043E. \u041D\u0430\u0436\u043C\u0438\u0442\u0435 \xAB\u0412\u0441\u0435\xBB, \u0447\u0442\u043E\u0431\u044B \u0443\u0432\u0438\u0434\u0435\u0442\u044C \u043E\u0441\u0442\u0430\u043B\u044C\u043D\u044B\u0435.'));
+      return;
+    }
+    visible.forEach(function (task) { list.appendChild(show(task)); });
+  }
+
   function load() {
-    return request('/api/tasks?limit=50').then(function (page) {
-      list.textContent = '';
-      var items = page.items || [];
-      count.textContent = '\xB7 ' + (page.total === undefined ? items.length : page.total);
-      if (!items.length) {
-        list.appendChild(el('li', 'empty', '\u041F\u043E\u043A\u0430 \u043F\u0443\u0441\u0442\u043E'));
-        return;
-      }
-      items.forEach(function (task) { list.appendChild(show(task)); });
+    return request('/api/tasks?limit=200').then(function (page) {
+      lastItems = page.items || [];
+      render(lastItems);
     }).catch(function (error) {
       list.textContent = '';
       list.appendChild(el('li', 'empty', error.message));
@@ -1765,6 +1908,7 @@ var PAGE = `<!doctype html>
     });
   });
 
+  loadAgents();
   load();
 })();
 </script>
