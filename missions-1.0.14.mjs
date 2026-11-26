@@ -2635,6 +2635,8 @@ var PAGE = `<!doctype html>
   .status-failed { background: #3a2426; color: #ff9a9a; }
   .error { color: #ff9a9a; font-size: 13px; min-height: 18px; }
   .empty { color: var(--muted); }
+  button.ghost { background: var(--panel-soft); color: var(--text); border: 1px solid var(--line); }
+  .frozen { color: var(--muted); font-size: 12px; }
 </style>
 </head>
 <body>
@@ -2664,6 +2666,25 @@ var PAGE = `<!doctype html>
   var list = document.getElementById('list');
   var error = document.getElementById('create-error');
 
+  var STATUS_WORDS = {
+    'new': '\u043D\u043E\u0432\u0430\u044F',
+    ready: '\u0433\u043E\u0442\u043E\u0432\u0430',
+    running: '\u0432\u044B\u043F\u043E\u043B\u043D\u044F\u0435\u0442\u0441\u044F',
+    review: '\u043D\u0430 \u043F\u0440\u043E\u0432\u0435\u0440\u043A\u0435',
+    paused: '\u043D\u0430 \u043F\u0430\u0443\u0437\u0435',
+    failed: '\u0441\u043E\u0440\u0432\u0430\u043D\u0430',
+    complete: '\u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0430'
+  };
+  var STAGE_WORDS = {
+    pending: '\u043E\u0436\u0438\u0434\u0430\u0435\u0442',
+    ready: '\u0433\u043E\u0442\u043E\u0432\u0430',
+    running: '\u0432\u044B\u043F\u043E\u043B\u043D\u044F\u0435\u0442\u0441\u044F',
+    review: '\u043D\u0430 \u043F\u0440\u043E\u0432\u0435\u0440\u043A\u0435',
+    failed: '\u0441\u043E\u0440\u0432\u0430\u043D',
+    done: '\u0437\u0430\u043A\u0440\u044B\u0442',
+    cancelled: '\u043E\u0442\u043C\u0435\u043D\u0451\u043D'
+  };
+
   function el(tag, className, text) {
     var node = document.createElement(tag);
     if (className) node.className = className;
@@ -2680,6 +2701,34 @@ var PAGE = `<!doctype html>
     });
   }
 
+  // \u041A\u043D\u043E\u043F\u043A\u0430 \u043F\u0430\u0443\u0437\u044B/\u043F\u0440\u043E\u0434\u043E\u043B\u0436\u0435\u043D\u0438\u044F \u0432\u0435\u0434\u0451\u0442 \u043D\u0430 \u0441\u0443\u0449\u0435\u0441\u0442\u0432\u0443\u044E\u0449\u0438\u0435 \u043C\u0430\u0440\u0448\u0440\u0443\u0442\u044B \u043C\u0438\u0441\u0441\u0438\u0438.
+  // \u041F\u0430\u0443\u0437\u0430 \u043E\u0441\u0442\u0430\u043D\u0430\u0432\u043B\u0438\u0432\u0430\u0435\u0442 \u0442\u043E\u043B\u044C\u043A\u043E \u043F\u0435\u0440\u0435\u0445\u043E\u0434\u044B \u044D\u0442\u0430\u043F\u043E\u0432; \u0438\u0434\u0443\u0449\u0438\u0439 \u043F\u0440\u043E\u0433\u043E\u043D \u043E\u0441\u0442\u0430\u0451\u0442\u0441\u044F,
+  // \u043F\u043E\u044D\u0442\u043E\u043C\u0443 \u043F\u0440\u0438 \u0432\u044B\u043F\u043E\u043B\u043D\u044F\u044E\u0449\u0435\u043C\u0441\u044F \u044D\u0442\u0430\u043F\u0435 \u043D\u0443\u0436\u043D\u043E \u044F\u0432\u043D\u043E\u0435 \u043F\u043E\u0434\u0442\u0432\u0435\u0440\u0436\u0434\u0435\u043D\u0438\u0435 \u0447\u0435\u043B\u043E\u0432\u0435\u043A\u0430.
+  function toggleMission(mission, button) {
+    button.disabled = true;
+    error.textContent = '';
+    var paused = mission.status === 'paused';
+    var runningStage = !paused && mission.current_stage && mission.current_stage.status === 'running';
+    var proceed = function (confirmed) {
+      if (!confirmed) {
+        button.disabled = false;
+        return Promise.resolve();
+      }
+      return request('/api/missions/' + mission.id + (paused ? '/resume' : '/pause'), {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ actor: '\u0447\u0435\u043B\u043E\u0432\u0435\u043A', reason: '\u043A\u043D\u043E\u043F\u043A\u0430 \u043D\u0430 \u0441\u0442\u0440\u0430\u043D\u0438\u0446\u0435 \u043C\u0438\u0441\u0441\u0438\u0439' })
+      }).then(load);
+    };
+    var ask = runningStage
+      ? window.tpConfirm('\u0421\u0435\u0439\u0447\u0430\u0441 \u0432\u044B\u043F\u043E\u043B\u043D\u044F\u0435\u0442\u0441\u044F \u044D\u0442\u0430\u043F \xAB' + mission.current_stage.title + '\xBB. \u041F\u043E\u0441\u0442\u0430\u0432\u0438\u0442\u044C \u043C\u0438\u0441\u0441\u0438\u044E \xAB' + mission.title + '\xBB \u043D\u0430 \u043F\u0430\u0443\u0437\u0443? \u041F\u0435\u0440\u0435\u0445\u043E\u0434\u044B \u044D\u0442\u0430\u043F\u043E\u0432 \u0437\u0430\u043C\u043E\u0440\u043E\u0436\u0430\u044E\u0442\u0441\u044F, \u0430 \u043D\u0430\u0447\u0438\u043D\u0430\u0432\u0448\u0438\u0439\u0441\u044F \u043F\u0440\u043E\u0433\u043E\u043D \u043D\u0430\u0434\u043E \u043E\u0441\u0442\u0430\u043D\u043E\u0432\u0438\u0442\u044C \u043E\u0442\u0434\u0435\u043B\u044C\u043D\u043E.')
+      : Promise.resolve(true);
+    ask.then(proceed).catch(function (failure) {
+      error.textContent = failure.message;
+      button.disabled = false;
+    });
+  }
+
   function load() {
     return request('/api/missions?limit=50').then(function (body) {
       list.textContent = '';
@@ -2692,10 +2741,28 @@ var PAGE = `<!doctype html>
         var row = el('li');
         var head = el('div', 'row');
         head.appendChild(el('span', 'title', mission.title));
-        head.appendChild(el('span', 'status status-' + mission.status, mission.status));
+        head.appendChild(el('span', 'status status-' + mission.status, STATUS_WORDS[mission.status] || mission.status));
         row.appendChild(head);
         if (mission.goal) row.appendChild(el('div', 'meta', mission.goal));
         row.appendChild(el('div', 'meta', '\u044D\u0442\u0430\u043F\u043E\u0432: ' + (mission.total ?? 0) + ' \xB7 \u0433\u043E\u0442\u043E\u0432\u043E: ' + (mission.done ?? 0) + ' \xB7 ' + (mission.percent ?? 0) + '%'));
+        if (mission.status === 'paused') {
+          var frozen = '\u0441\u0435\u0439\u0447\u0430\u0441 \u0437\u0430\u043C\u043E\u0440\u043E\u0436\u0435\u043D\u043E: \u043D\u043E\u0432\u044B\u0435 \u043F\u0435\u0440\u0435\u0445\u043E\u0434\u044B \u044D\u0442\u0430\u043F\u043E\u0432 \u043D\u0435 \u0432\u044B\u043F\u043E\u043B\u043D\u044F\u044E\u0442\u0441\u044F';
+          if (mission.current_stage) {
+            frozen += ' \xB7 \u044D\u0442\u0430\u043F ' + mission.current_stage.key + ' (' + (STAGE_WORDS[mission.current_stage.status] || mission.current_stage.status) + ')';
+          }
+          row.appendChild(el('div', 'frozen', frozen));
+        }
+        if (mission.status !== 'complete') {
+          var controls = el('div', 'row');
+          var toggle = el('button', mission.status === 'paused' ? '' : 'ghost');
+          toggle.type = 'button';
+          toggle.textContent = mission.status === 'paused' ? '\u041F\u0440\u043E\u0434\u043E\u043B\u0436\u0438\u0442\u044C' : '\u041F\u0430\u0443\u0437\u0430';
+          toggle.addEventListener('click', function () {
+            toggleMission(mission, toggle);
+          });
+          controls.appendChild(toggle);
+          row.appendChild(controls);
+        }
         list.appendChild(row);
       });
     }).catch(function (failure) {
