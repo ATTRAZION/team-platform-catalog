@@ -981,7 +981,7 @@
     {
       "id": "music-render-local",
       "name": "Локальный рендер музыки",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "summary": "Детерминированная сборка готового WAV из последовательности нот прямо на машине: без облака, без ключей и без весов. MP3 — по желанию, через локальный ffmpeg.",
       "publisher": "Team Platform",
       "trust": "official",
@@ -1010,10 +1010,10 @@
           }
         ]
       },
-      "url": "https://attrazion.github.io/team-platform-catalog/music-render-local-1.0.1.mjs",
-      "size": 38589,
-      "integrity": "sha512-4bqlOgcCVjHpmB76ibRv9Dzf83b+3VBFoe/HZ09kFTPsoGveKZImwRihnkxolTd8Ce78qHvaRuWeiFAYV5a/DA==",
-      "signature": "gN+rTGvl5pYEejR76e+Sm7zZhZjjb02g2SOguJDRLOInI0eDl3/h9Qg/QuVTtCVC/vaiobJPECBGxkXKOD7UCA=="
+      "url": "https://attrazion.github.io/team-platform-catalog/music-render-local-1.0.2.mjs",
+      "size": 39188,
+      "integrity": "sha512-Rpw4IF3HzHrzOxR43paGk4DdfIjKSYPCvDxDtSVHX6zTjs/1jC1AAGpPYqhJSZYRl5s9avLhuvg1aD80J2hdAA==",
+      "signature": "Tgzfjpdf8tb98UL1RQtGH/qfbDVn1JdrYGJaKwEIzcJFQaQCTItcihx8Qx+pQgRrksauVFQS37OJzef9/YsIBw=="
     },
     {
       "id": "ocr-local",

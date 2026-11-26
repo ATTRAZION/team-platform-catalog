@@ -511,16 +511,21 @@ var module = {
       let claimed = null;
       let created = null;
       const runs = taskId ? ctx.require("runs").runs : null;
+      let ownCardBusy = false;
       if (runs && taskId) {
         const queued = runs.list({ status: "queued", limit: 200 });
-        if (queued.items.length > 0) {
+        const foreign = queued.items.filter((item) => item.task_id !== taskId);
+        if (foreign.length > 0) {
           throw new ConflictError(
             "\u041E\u0447\u0435\u0440\u0435\u0434\u044C \u0437\u0430\u043F\u0443\u0441\u043A\u043E\u0432 \u0437\u0430\u043D\u044F\u0442\u0430: \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u044B\u0439 \u0440\u0435\u043D\u0434\u0435\u0440 \u0432\u044B\u043F\u043E\u043B\u043D\u044F\u0435\u0442 \u0442\u043E\u043B\u044C\u043A\u043E \u0441\u043E\u0431\u0441\u0442\u0432\u0435\u043D\u043D\u044B\u0439 \u0437\u0430\u043F\u0443\u0441\u043A \u0438 \u043D\u0435 \u043F\u0435\u0440\u0435\u0445\u0432\u0430\u0442\u044B\u0432\u0430\u0435\u0442 \u0447\u0443\u0436\u0438\u0435",
-            { queued: queued.items.length }
+            { queued: foreign.length }
           );
         }
+        ownCardBusy = queued.items.length > 0;
+      }
+      if (runs && taskId && !ownCardBusy) {
         created = runs.create({ task_id: taskId, agent: RENDER_AGENT, max_attempts: 1 }).run;
-        claimed = runs.claimNext({ owner: RENDER_AGENT, lease_ms: LEASE_MS });
+        claimed = runs.claimNext({ owner: RENDER_AGENT, lease_ms: LEASE_MS }, [taskId]);
         if (!claimed || claimed.id !== created.id) {
           if (claimed) {
             try {
@@ -588,7 +593,8 @@ var module = {
         bytes: job.wav.bytes,
         duration_ms: job.duration_ms,
         notes: job.notes,
-        run: job.run_id ?? ""
+        run: job.run_id ?? "",
+        queue: ownCardBusy ? "\u043E\u0447\u0435\u0440\u0435\u0434\u044C \u0437\u0430\u043D\u044F\u0442\u0430 \u0437\u0430\u043F\u0443\u0441\u043A\u043E\u043C \u044D\u0442\u043E\u0439 \u0436\u0435 \u043A\u0430\u0440\u0442\u043E\u0447\u043A\u0438: \u0441\u043E\u0431\u0441\u0442\u0432\u0435\u043D\u043D\u043E\u0433\u043E \u0437\u0430\u043F\u0443\u0441\u043A\u0430 \u043D\u0435\u0442" : ""
       });
       return job;
     };
