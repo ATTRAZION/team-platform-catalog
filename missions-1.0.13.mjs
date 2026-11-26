@@ -1148,6 +1148,33 @@ function gateActor(raw) {
   }
   return value.trim().slice(0, 100);
 }
+function runResultArtifacts(result) {
+  const text2 = String(result ?? "").trim();
+  if (!text2) return [];
+  const tail = text2.split("\n").map((line) => line.trim()).filter((line) => line.startsWith("{")).at(-1) ?? "";
+  for (const candidate of [text2, tail]) {
+    if (!candidate.startsWith("{")) continue;
+    let parsed;
+    try {
+      parsed = JSON.parse(candidate);
+    } catch {
+      continue;
+    }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) continue;
+    const list = parsed.artifacts;
+    if (Array.isArray(list)) return list.slice(0, 40);
+  }
+  return [];
+}
+function failureReason(error) {
+  if (error instanceof Error) return error.message;
+  return String(error);
+}
+function artifactText(item, field) {
+  if (!item || typeof item !== "object" || Array.isArray(item)) return "";
+  const value = item[field];
+  return typeof value === "string" ? value.trim() : "";
+}
 function withGateDiffs(gates) {
   const byId = new Map(gates.map((gate) => [gate.id, gate]));
   return gates.map((gate) => {
@@ -1337,10 +1364,13 @@ ${mission.goal}`.toLowerCase().includes(query)).map((mission) => missionSummary(
     const { mission, stages } = this.#load(id);
     const stage = findStage(stages, ref);
     const result = bodyText(raw, "result");
-    if (stage.run_id) this.#cancelRun(stage.run_id);
     const actor = actorOf(raw);
+    const runId = stage.run_id;
     const transition = submitStage(mission, stages, stage, result, actor, this.#clock.now());
     this.#save(transition, stage.key);
+    if (runId) {
+      this.#cancelRun(mission, stage, runId, `\u042D\u0442\u0430\u043F ${stage.key} \u0437\u0430\u043A\u0440\u044B\u0442 \u043E\u0442\u0447\u0451\u0442\u043E\u043C \u043E\u0442 \xAB${actor}\xBB: \u0437\u0430\u043F\u0443\u0441\u043A \u044D\u0442\u0430\u043F\u0430 \u043D\u0435 \u0442\u0440\u0435\u0431\u043E\u0432\u0430\u043B\u0441\u044F`);
+    }
     this.#openGate(stage, actor);
     return this.#detail(id);
   }
@@ -1569,9 +1599,10 @@ ${mission.goal}`.toLowerCase().includes(query)).map((mission) => missionSummary(
     const transition = startStage(mission, stages, stage, actor, this.#clock.now());
     const execution = this.#execution;
     if (!execution?.runs) throw new ConflictError("\u041E\u0447\u0435\u0440\u0435\u0434\u044C \u0437\u0430\u043F\u0443\u0441\u043A\u043E\u0432 \u0434\u043B\u044F \u043C\u0438\u0441\u0441\u0438\u0438 \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u043D\u0430");
-    execution.runs.get(runId);
+    const boundRun = execution.runs.get(runId).run;
     stage.run_id = runId;
-    let cardId = stage.task_id ?? null;
+    let cardId = stage.task_id ?? boundRun.task_id ?? null;
+    if (cardId && !stage.task_id) stage.task_id = cardId;
     if (!cardId && execution) {
       const card = execution.tasks.create({
         title: `\u041C\u0438\u0441\u0441\u0438\u044F \xAB${mission.title}\xBB: ${stage.key}. ${stage.title}`.slice(0, 200),
@@ -1634,6 +1665,7 @@ ${mission.goal}`.toLowerCase().includes(query)).map((mission) => missionSummary(
           const transition = recordRunReport(mission, stages, stage, report, "mission", this.#clock.now());
           this.#repo.update(transition.mission, transition.stages, transition.event);
           this.#publish(transition.event);
+          this.#harvestRunArtifacts(mission, stage, run);
           this.#openGate(stage, "mission");
           this.#moveCard(stage.task_id, "done", "mission");
           this.#log.info("\u041E\u0442\u0447\u0451\u0442 \u0437\u0430\u043F\u0443\u0441\u043A\u0430 \u043F\u0440\u0438\u043C\u0435\u043D\u0451\u043D \u043A \u044D\u0442\u0430\u043F\u0443", {
@@ -1686,7 +1718,9 @@ ${mission.goal}`.toLowerCase().includes(query)).map((mission) => missionSummary(
         this.#repo.update(transition.mission, transition.stages, transition.event);
         this.#publish(transition.event);
         this.#openGate(stage, "mission");
-        if (runId) this.#cancelRun(runId);
+        if (runId) {
+          this.#cancelRun(mission, stage, runId, `\u041A\u0430\u0440\u0442\u043E\u0447\u043A\u0430 ${card.id} \u0437\u0430\u043A\u0440\u044B\u0442\u0430 \u0447\u0435\u043B\u043E\u0432\u0435\u043A\u043E\u043C: \u0437\u0430\u043F\u0443\u0441\u043A \u044D\u0442\u0430\u043F\u0430 \u043D\u0435 \u0442\u0440\u0435\u0431\u043E\u0432\u0430\u043B\u0441\u044F`);
+        }
         this.#log.info("\u041A\u0430\u0440\u0442\u043E\u0447\u043A\u0430 \u044D\u0442\u0430\u043F\u0430 \u0437\u0430\u043A\u0440\u044B\u0442\u0430: \u044D\u0442\u0430\u043F \u043D\u0430 \u043F\u0440\u043E\u0432\u0435\u0440\u043A\u0435", {
           mission_id: mission.id,
           stage: stage.key,
@@ -1708,6 +1742,102 @@ ${mission.goal}`.toLowerCase().includes(query)).map((mission) => missionSummary(
       running: running ? running.title : null,
       paused: missions.filter((mission) => mission.status === "paused").length
     };
+  }
+  /**
+   * Мост «успешный прогон → файлы результата → квитанции этапа». Прогон вправе
+   * вернуть `result.artifacts = [{path, sha256?, size_bytes?}]`: пути
+   * относительные, разрешённый корень — рабочая папка миссии. Квитанцию
+   * получают только те пути, которые этап объявил, и только по снимку
+   * реального файла: слова агента сами по себе доказательством не становятся.
+   * Отказ по одному файлу не отменяет переход этапа — этап остаётся на
+   * проверке, а причины уходят в историю миссии, где их видит человек.
+   */
+  #harvestRunArtifacts(mission, stage, run) {
+    const listed = runResultArtifacts(run.result);
+    if (!listed.length) return;
+    const published = [];
+    const failed = [];
+    for (const entry of listed) {
+      const declared = artifactText(entry, "path") || (typeof entry === "string" ? entry.trim() : "");
+      const shown = declared.slice(0, 200) || "(\u0431\u0435\u0437 \u043F\u0443\u0442\u0438)";
+      try {
+        const path = normalizeArtifactPath(typeof entry === "string" ? entry : declared, "\u0430\u0440\u0442\u0435\u0444\u0430\u043A\u0442 \u043F\u0440\u043E\u0433\u043E\u043D\u0430");
+        if (!stage.artifacts.includes(path)) {
+          throw new ValidationError(`\u0410\u0440\u0442\u0435\u0444\u0430\u043A\u0442 \xAB${path}\xBB \u043D\u0435 \u043E\u0431\u044A\u044F\u0432\u043B\u0435\u043D \u0432 \u044D\u0442\u0430\u043F\u0435 ${stage.key}`);
+        }
+        const actual = fingerprintArtifact(this.#workspaceRoot, path);
+        const wantedSha = artifactText(entry, "sha256").toLowerCase();
+        if (wantedSha && wantedSha !== actual.sha256) {
+          throw new ConflictError(`\u0410\u0440\u0442\u0435\u0444\u0430\u043A\u0442 \xAB${path}\xBB \u043D\u0435 \u0441\u043E\u0432\u043F\u0430\u043B \u0441 \u043E\u0442\u043F\u0435\u0447\u0430\u0442\u043A\u043E\u043C \u043F\u0440\u043E\u0433\u043E\u043D\u0430`, {
+            reason: "artifact_fingerprint_mismatch",
+            expected_sha256: wantedSha,
+            actual_sha256: actual.sha256
+          });
+        }
+        const declaredSize = entry && typeof entry === "object" && !Array.isArray(entry) ? entry.size_bytes : null;
+        if (typeof declaredSize === "number" && Number.isFinite(declaredSize) && declaredSize !== actual.size) {
+          throw new ConflictError(`\u0410\u0440\u0442\u0435\u0444\u0430\u043A\u0442 \xAB${path}\xBB \u043D\u0435 \u0441\u043E\u0432\u043F\u0430\u043B \u043F\u043E \u0440\u0430\u0437\u043C\u0435\u0440\u0443 \u0441 \u043F\u0440\u043E\u0433\u043E\u043D\u043E\u043C`, {
+            reason: "artifact_size_mismatch",
+            expected_size: declaredSize,
+            actual_size: actual.size
+          });
+        }
+        this.publishArtifact(mission.id, stage.id, { path, actor: "mission" });
+        this.receipt(mission.id, stage.id, { path, actor: "mission" });
+        published.push(path);
+      } catch (error) {
+        failed.push({ path: shown, reason: failureReason(error) });
+      }
+    }
+    const at = this.#clock.now().toISOString();
+    const event2 = {
+      mission_id: mission.id,
+      type: "mission.stage.artifacts",
+      actor: "mission",
+      payload: { stage: stage.key, run_id: run.id, published, failed },
+      created_at: at
+    };
+    this.#repo.update(mission, [], event2);
+    this.#publish(event2);
+    this.#log.info("\u0424\u0430\u0439\u043B\u044B \u0440\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442\u0430 \u043F\u0440\u043E\u0433\u043E\u043D\u0430 \u0440\u0430\u0437\u043E\u0431\u0440\u0430\u043D\u044B", {
+      mission_id: mission.id,
+      stage: stage.key,
+      run_id: run.id,
+      published,
+      failed: failed.map((item) => ({ path: item.path, reason: item.reason }))
+    });
+  }
+  /**
+   * Отмена запуска этапа, который закрыли отчётом без исполнения. Причина
+   * живёт в истории миссии: отменён прогон, а не этап, и человек видит почему.
+   */
+  #cancelRun(mission, stage, runId, reason) {
+    const runs = this.#execution?.runs ?? null;
+    if (runs) {
+      try {
+        runs.cancel(runId, { actor: "human" });
+      } catch (error) {
+        this.#log.warn("\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043E\u0442\u043C\u0435\u043D\u0438\u0442\u044C \u0437\u0430\u043F\u0443\u0441\u043A \u044D\u0442\u0430\u043F\u0430", {
+          run_id: runId,
+          error: failureReason(error)
+        });
+      }
+    }
+    const event2 = {
+      mission_id: mission.id,
+      type: "mission.stage.run_cancelled",
+      actor: "mission",
+      payload: { stage: stage.key, run_id: runId, reason },
+      created_at: this.#clock.now().toISOString()
+    };
+    this.#repo.update(mission, [], event2);
+    this.#publish(event2);
+    this.#log.info("\u0417\u0430\u043F\u0443\u0441\u043A \u044D\u0442\u0430\u043F\u0430 \u043E\u0442\u043C\u0435\u043D\u0451\u043D: \u044D\u0442\u0430\u043F \u0437\u0430\u043A\u0440\u044B\u0442 \u0431\u0435\u0437 \u0438\u0441\u043F\u043E\u043B\u043D\u0435\u043D\u0438\u044F", {
+      mission_id: mission.id,
+      stage: stage.key,
+      run_id: runId,
+      reason
+    });
   }
   /** Отмена запуска закрывает этап как cancelled: без повтора и без blocked. */
   #applyCancel(mission, stages, stage, reason) {
@@ -1841,7 +1971,11 @@ ${mission.goal}`.toLowerCase().includes(query)).map((mission) => missionSummary(
       ...stage.acceptance ? [`\u041F\u0440\u0438\u0451\u043C\u043A\u0430: ${stage.acceptance}`] : [],
       ...stage.depends_on.length ? [`\u0417\u0430\u043A\u0440\u044B\u0442\u044B\u0435 \u0437\u0430\u0432\u0438\u0441\u0438\u043C\u043E\u0441\u0442\u0438: ${stage.depends_on.join(", ")}`] : [],
       `\u0410\u0433\u0435\u043D\u0442: ${agent}`,
-      "\u041E\u0442\u0447\u0451\u0442: \u0432\u044B\u0432\u043E\u0434 \u0437\u0430\u043F\u0443\u0441\u043A\u0430 \u0441\u0442\u0430\u043D\u0435\u0442 \u043E\u0442\u0447\u0451\u0442\u043E\u043C \u044D\u0442\u0430\u043F\u0430 \u0438 \u0443\u0439\u0434\u0451\u0442 \u043D\u0430 \u043F\u0440\u043E\u0432\u0435\u0440\u043A\u0443."
+      "\u041E\u0442\u0447\u0451\u0442: \u0432\u044B\u0432\u043E\u0434 \u0437\u0430\u043F\u0443\u0441\u043A\u0430 \u0441\u0442\u0430\u043D\u0435\u0442 \u043E\u0442\u0447\u0451\u0442\u043E\u043C \u044D\u0442\u0430\u043F\u0430 \u0438 \u0443\u0439\u0434\u0451\u0442 \u043D\u0430 \u043F\u0440\u043E\u0432\u0435\u0440\u043A\u0443.",
+      ...stage.artifacts.length ? [
+        `\u0410\u0440\u0442\u0435\u0444\u0430\u043A\u0442\u044B \u044D\u0442\u0430\u043F\u0430: ${stage.artifacts.join(", ")} \u2014 \u043E\u0442\u043D\u043E\u0441\u0438\u0442\u0435\u043B\u044C\u043D\u044B\u0435 \u043F\u0443\u0442\u0438 \u0432\u043D\u0443\u0442\u0440\u0438 \u0440\u0430\u0431\u043E\u0447\u0435\u0439 \u043F\u0430\u043F\u043A\u0438 \u043C\u0438\u0441\u0441\u0438\u0438,`,
+        '\u043F\u043E\u0441\u043B\u0435\u0434\u043D\u044F\u044F \u0441\u0442\u0440\u043E\u043A\u0430 \u0432\u044B\u0432\u043E\u0434\u0430 \u0437\u0430\u043F\u0443\u0441\u043A\u0430 \u043E\u0431\u044F\u0437\u0430\u043D\u0430 \u0431\u044B\u0442\u044C JSON {"artifacts":[{"path":"\u2026"}]} \u0441 \u044D\u0442\u0438\u043C\u0438 \u043F\u0443\u0442\u044F\u043C\u0438: \u0442\u043E\u0433\u0434\u0430 \u043F\u043B\u0430\u0442\u0444\u043E\u0440\u043C\u0430 \u043E\u043F\u0443\u0431\u043B\u0438\u043A\u0443\u0435\u0442 \u0444\u0430\u0439\u043B\u044B \u0438 \u0441\u043D\u0438\u043C\u0435\u0442 \u043A\u0432\u0438\u0442\u0430\u043D\u0446\u0438\u0438 \u0434\u043B\u044F \u043F\u0440\u0438\u0451\u043C\u043A\u0438.'
+      ] : []
     ];
     return lines.join("\n").slice(0, 2e4);
   }
@@ -1863,18 +1997,6 @@ ${mission.goal}`.toLowerCase().includes(query)).map((mission) => missionSummary(
       this.#log.warn("\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043E\u0431\u043D\u043E\u0432\u0438\u0442\u044C \u043A\u0430\u0440\u0442\u043E\u0447\u043A\u0443 \u044D\u0442\u0430\u043F\u0430", {
         task_id: taskId,
         to,
-        error: error instanceof Error ? error.message : String(error)
-      });
-    }
-  }
-  #cancelRun(runId) {
-    const runs = this.#execution?.runs ?? null;
-    if (!runs) return;
-    try {
-      runs.cancel(runId, { actor: "human" });
-    } catch (error) {
-      this.#log.warn("\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043E\u0442\u043C\u0435\u043D\u0438\u0442\u044C \u0437\u0430\u043F\u0443\u0441\u043A \u044D\u0442\u0430\u043F\u0430", {
-        run_id: runId,
         error: error instanceof Error ? error.message : String(error)
       });
     }
@@ -2631,7 +2753,10 @@ var module = {
         agents: () => runs.executor?.list().map((agent) => agent.id) ?? [],
         defaultAgent: ctx.settings.mission.agent
       },
-      maxAttempts: ctx.settings.mission.maxAttempts
+      maxAttempts: ctx.settings.mission.maxAttempts,
+      // Рабочая папка платформы: файлы результата прогона и квитанции этапов
+      // снимаются относительно неё, а не относительно каталога процесса.
+      workspaceRoot: ctx.settings.workspaceRoot()
     });
     ctx.publish({ missions });
     registerMissionsRoutes(ctx.api, { missions });
