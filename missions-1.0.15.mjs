@@ -2729,6 +2729,38 @@ var PAGE = `<!doctype html>
     });
   }
 
+  // \u041F\u0440\u0438\u0451\u043C\u043A\u0430 \u044D\u0442\u0430\u043F\u0430: \u0440\u0435\u0448\u0435\u043D\u0438\u0435 \u043D\u0430\u0437\u044B\u0432\u0430\u0435\u0442\u0441\u044F \u0430\u0432\u0442\u043E\u0440\u043E\u043C, \u0430 \u0432\u043E\u0437\u0432\u0440\u0430\u0442 \u043E\u0431\u044F\u0437\u0430\u043D \u043D\u0435\u0441\u0442\u0438 \u043F\u0440\u0438\u0447\u0438\u043D\u0443.
+  // \u041E\u0448\u0438\u0431\u043A\u0430 \u043B\u043E\u0436\u0438\u0442\u0441\u044F \u0432 \u0441\u0442\u0440\u043E\u043A\u0443 \u043C\u0438\u0441\u0441\u0438\u0438: \u043E\u0442\u043A\u0430\u0437 \u0443\u0440\u043E\u0432\u043D\u044F \xAB\u044D\u0442\u0430\u043F \u043D\u0435 \u043D\u0430 \u043F\u0440\u043E\u0432\u0435\u0440\u043A\u0435\xBB \u0447\u0435\u043B\u043E\u0432\u0435\u043A
+  // \u0434\u043E\u043B\u0436\u0435\u043D \u0432\u0438\u0434\u0435\u0442\u044C \u043D\u0430 \u043C\u0435\u0441\u0442\u0435, \u0430 \u043D\u0435 \u0432 \u0432\u0438\u0434\u0435 \u043F\u0440\u043E\u043F\u0430\u0432\u0448\u0435\u0439 \u043A\u0430\u0440\u0442\u043E\u0447\u043A\u0438.
+  function decideStage(mission, stage, action, button, row) {
+    var send = function (reason) {
+      button.disabled = true;
+      return request('/api/missions/' + mission.id + '/stages/' + encodeURIComponent(stage.id || stage.key || '')
+        + (action === 'accept' ? '/accept' : '/reject'), {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ actor: '\u0447\u0435\u043B\u043E\u0432\u0435\u043A', reason: reason })
+      }).then(load).catch(function (failure) {
+        row.appendChild(el('div', 'error', failure.message));
+        button.disabled = false;
+      });
+    };
+    if (action === 'accept') {
+      return window.tpConfirm('\u041F\u0440\u0438\u043D\u044F\u0442\u044C \u044D\u0442\u0430\u043F \xAB' + (stage.title || stage.key || '') + '\xBB \u043C\u0438\u0441\u0441\u0438\u0438 \xAB' + mission.title
+        + '\xBB? \u042D\u0442\u0430\u043F \u0437\u0430\u043A\u0440\u043E\u0435\u0442\u0441\u044F, \u0430 \u043A\u0430\u0440\u0442\u043E\u0447\u043A\u0430 \u0443\u0439\u0434\u0451\u0442 \u0432 \u0432\u044B\u043F\u043E\u043B\u043D\u0435\u043D\u043D\u043E\u0435.')
+        .then(function (confirmed) {
+          if (!confirmed) return Promise.resolve();
+          return send('\u043F\u0440\u0438\u043D\u044F\u0442\u043E \u043D\u0430 \u0441\u0442\u0440\u0430\u043D\u0438\u0446\u0435 \u043C\u0438\u0441\u0441\u0438\u0439');
+        });
+    }
+    return window.tpPrompt('\u041F\u0440\u0438\u0447\u0438\u043D\u0430 \u0432\u043E\u0437\u0432\u0440\u0430\u0442\u0430 \u044D\u0442\u0430\u043F\u0430 \xAB' + (stage.title || stage.key || '') + '\xBB \u0438\u0441\u043F\u043E\u043B\u043D\u0438\u0442\u0435\u043B\u044E:')
+      .then(function (reason) {
+        var text = String(reason || '').trim();
+        if (!text) return Promise.resolve();
+        return send(text);
+      });
+  }
+
   function load() {
     return request('/api/missions?limit=50').then(function (body) {
       list.textContent = '';
@@ -2762,6 +2794,32 @@ var PAGE = `<!doctype html>
           });
           controls.appendChild(toggle);
           row.appendChild(controls);
+        }
+
+        // \u041F\u0440\u0438\u0451\u043C\u043A\u0430 \u044D\u0442\u0430\u043F\u0430. \u041C\u0430\u0440\u0448\u0440\u0443\u0442\u044B accept|reject \u0436\u0438\u0432\u0443\u0442 \u0432 \u043C\u043E\u0434\u0443\u043B\u0435 \u0434\u0430\u0432\u043D\u043E, \u043D\u043E \u0431\u0435\u0437
+        // \u044D\u0442\u0438\u0445 \u043A\u043D\u043E\u043F\u043E\u043A \u0447\u0435\u043B\u043E\u0432\u0435\u043A \u043D\u0435 \u043C\u043E\u0433 \u043F\u0440\u0438\u043D\u044F\u0442\u044C \u044D\u0442\u0430\u043F, \u043D\u0435\u043B\u0435\u0437\u044F \u0432 API: \u0432 \u0436\u0438\u0432\u043E\u043C \u043F\u0440\u043E\u0433\u043E\u043D\u0435
+        // \u044D\u0442\u0430\u043F \u0437\u0430\u0441\u0442\u044B\u043B \xAB\u043D\u0430 \u043F\u0440\u043E\u0432\u0435\u0440\u043A\u0435\xBB. \u0412\u043E\u0437\u0432\u0440\u0430\u0442 \u0432\u0441\u0435\u0433\u0434\u0430 \u0441\u043F\u0440\u0430\u0448\u0438\u0432\u0430\u0435\u0442 \u043F\u0440\u0438\u0447\u0438\u043D\u0443 \u2014 \u044D\u0442\u043E
+        // \u0440\u0435\u0448\u0435\u043D\u0438\u0435 \u0447\u0435\u043B\u043E\u0432\u0435\u043A\u0430, \u0430 \u043D\u0435 \u043F\u0435\u0440\u0435\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u0435 \u0441\u0442\u0430\u0442\u0443\u0441\u0430.
+        if (mission.current_stage && mission.current_stage.status === 'review') {
+          var stage = mission.current_stage;
+          row.appendChild(el('div', 'meta',
+            '\u044D\u0442\u0430\u043F ' + (stage.key || stage.id || '') + ' \xAB' + (stage.title || '') + '\xBB \u0436\u0434\u0451\u0442 \u0440\u0435\u0448\u0435\u043D\u0438\u044F \u0447\u0435\u043B\u043E\u0432\u0435\u043A\u0430'));
+          var gateRow = el('div', 'row');
+          var accept = el('button');
+          accept.type = 'button';
+          accept.textContent = '\u041F\u0440\u0438\u043D\u044F\u0442\u044C \u044D\u0442\u0430\u043F';
+          accept.addEventListener('click', function () {
+            decideStage(mission, stage, 'accept', accept, row);
+          });
+          var rework = el('button', 'ghost');
+          rework.type = 'button';
+          rework.textContent = '\u0412\u0435\u0440\u043D\u0443\u0442\u044C \u043D\u0430 \u0434\u043E\u0440\u0430\u0431\u043E\u0442\u043A\u0443';
+          rework.addEventListener('click', function () {
+            decideStage(mission, stage, 'reject', rework, row);
+          });
+          gateRow.appendChild(accept);
+          gateRow.appendChild(rework);
+          row.appendChild(gateRow);
         }
         list.appendChild(row);
       });
